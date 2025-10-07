@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTrigger,
+  DialogClose,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -145,65 +147,69 @@ export default function StockPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="gsm">
-                  GSM
-                </Label>
-                <Input
-                  id="gsm"
-                  value={newStockItem.gsm || ''}
-                  readOnly
-                  disabled
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="gsm">
+                    GSM
+                  </Label>
+                  <Input
+                    id="gsm"
+                    value={newStockItem.gsm || ''}
+                    readOnly
+                    disabled
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="length">
+                    Length (cm)
+                  </Label>
+                  <Input
+                    id="length"
+                    value={newStockItem.length || ''}
+                    readOnly
+                    disabled
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="length">
-                  Length (cm)
-                </Label>
-                <Input
-                  id="length"
-                  value={newStockItem.length || ''}
-                  readOnly
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="total-weight">
-                  Total Weight (kg)
-                </Label>
-                <Input
-                  id="total-weight"
-                  type="number"
-                  value={newStockItem.totalWeight || ''}
-                  onChange={(e) =>
-                    setNewStockItem({
-                      ...newStockItem,
-                      totalWeight: parseFloat(e.target.value),
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reels">
-                  Number of Reels
-                </Label>
-                <Input
-                  id="reels"
-                  type="number"
-                  value={newStockItem.numberOfReels || ''}
-                  onChange={(e) =>
-                    setNewStockItem({
-                      ...newStockItem,
-                      numberOfReels: parseInt(e.target.value),
-                    })
-                  }
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="total-weight">
+                    Total Weight (kg)
+                  </Label>
+                  <Input
+                    id="total-weight"
+                    type="number"
+                    value={newStockItem.totalWeight || ''}
+                    onChange={(e) =>
+                      setNewStockItem({
+                        ...newStockItem,
+                        totalWeight: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reels">
+                    Number of Reels
+                  </Label>
+                  <Input
+                    id="reels"
+                    type="number"
+                    value={newStockItem.numberOfReels || ''}
+                    onChange={(e) =>
+                      setNewStockItem({
+                        ...newStockItem,
+                        numberOfReels: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsModalOpen(false)}>
-                Cancel
-              </Button>
+               <DialogClose asChild>
+                <Button variant="outline">Cancel</Button>
+               </DialogClose>
               <Button onClick={handleAddStock}>Add Stock</Button>
             </DialogFooter>
           </DialogContent>
@@ -216,7 +222,36 @@ export default function StockPage() {
           <CardDescription>A list of all paper stock available.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+           {/* Mobile View: Card List */}
+          <div className="grid gap-4 sm:hidden">
+            {loadingStock ? (
+              <p className="text-center text-muted-foreground">Loading stock...</p>
+            ) : stock && stock.length > 0 ? (
+              stock.map((item) => (
+                <Card key={item.id}>
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex justify-between">
+                      <p className="font-medium">{getPaperTypeName(item.paperTypeId)}</p>
+                      <p className="text-sm text-muted-foreground">{formatDate(item.date)}</p>
+                    </div>
+                    <div className="text-sm text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1">
+                        <span>GSM:</span><span className="font-medium text-foreground">{item.gsm}</span>
+                        <span>Length:</span><span className="font-medium text-foreground">{item.length} cm</span>
+                        <span>Weight:</span><span className="font-medium text-foreground">{item.totalWeight.toLocaleString()} kg</span>
+                        <span>Reels:</span><span className="font-medium text-foreground">{item.numberOfReels}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <p className="text-center text-muted-foreground h-24 flex items-center justify-center">
+                No stock added yet.
+              </p>
+            )}
+          </div>
+
+          {/* Desktop View: Table */}
+          <div className="hidden sm:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
