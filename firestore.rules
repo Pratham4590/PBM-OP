@@ -1,126 +1,166 @@
+/**
+ * @fileoverview Firestore Security Rules for the notebook manufacturing unit application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a role-based access control model.
+ * User documents are owner-controlled, while access to master data and other collections depends on user roles.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profiles, accessible only by the user themselves.
+ * - /masterData/paperTypes/{paperTypeId}: Stores paper type master data, publicly readable.
+ * - /masterData/itemTypes/{itemTypeId}: Stores item type master data, publicly readable.
+ * - /stock/{stockId}: Stores stock information, accessible only by admins.
+ * - /programs/{programId}: Stores program information.
+ * - /reels/{reelRulingId}: Stores reel ruling entries, possibly with program-based access.
+ * - /reports/{reportId}: Stores generated reports.
+ *
+ * Key Security Decisions:
+ * - Users can only read and write their own user documents.
+ * - Master data (paperTypes, itemTypes) is publicly readable but not writable.
+ * - Stock data is only accessible and modifiable by admins.
+ * - Listing of users is not allowed.
+ * - All write operations (create, update, delete) require explicit authorization checks to prevent accidental or malicious data modification.
+ * - Data validation is limited to ensuring ownership and relational integrity.
+ *
+ * Denormalization for Authorization:
+ * To avoid costly `get()` calls, the rules rely on denormalized data where possible. User roles are stored directly in the `/users/{userId}` document.
+ * If collaborative features are added to programs or reel rulings, a `members` map is denormalized into those documents, allowing rules to check membership without additional reads.
+ *
+ * Structural Segregation:
+ * Public master data (paperTypes, itemTypes) is stored in the `/masterData` collection, separate from user-specific data, to allow for simpler read rules.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Secures user profiles, allowing only the owning user to read and write their data.
+     * @description Grants access to user profiles.
      * @path /users/{userId}
-     * @allow (create) - If the user's auth UID matches the userId.
-     * @allow (get, update, delete) - If the user's auth UID matches the userId.
-     * @deny (create) - If the user's auth UID does not match the userId.
-     * @deny (get, update, delete) - If the user's auth UID does not match the userId.
-     * @principle Enforces document ownership for all read and write operations.
+     * @allow (create) - Authenticated user creates their own profile with matching userId.
+     * @allow (get, update, delete) - Authenticated user accesses their own profile.
+     * @deny (create, update, delete) - Non-authenticated user attempts to modify user profiles.
+     * @deny (get, list) - Any user attempts to access another user's profile.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
       function isOwner(userId) {
         return request.auth != null && request.auth.uid == userId;
       }
 
-      function isSignedIn() {
-        return request.auth != null;
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
       }
 
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow get: if isOwner(userId);
-      allow list: if false; // User listing is disabled.
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isOwner(userId); //Enforce immutability
-      allow delete: if isOwner(userId);
+      allow list: if false;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Secures paper type master data. Assumed to be publicly readable, but write access is restricted.
+     * @description Grants public read access to paper types.
      * @path /masterData/paperTypes/{paperTypeId}
-     * @allow (get, list) - Anyone can read paper type data.
-     * @deny (create, update, delete) - No one can create, update, or delete paper type data without authentication.
-     * @principle Public read access with restricted write access for master data.
+     * @allow (get, list) - Any user can read paper type data.
+     * @deny (create, update, delete) - No one can create, update, or delete paper types.
+     * @principle Provides public read access to master data.
      */
     match /masterData/paperTypes/{paperTypeId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin role validation if needed.
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Secures item type master data. Assumed to be publicly readable, but write access is restricted.
+     * @description Grants public read access to item types.
      * @path /masterData/itemTypes/{itemTypeId}
-     * @allow (get, list) - Anyone can read item type data.
-     * @deny (create, update, delete) - No one can create, update, or delete item type data without authentication.
-     * @principle Public read access with restricted write access for master data.
+     * @allow (get, list) - Any user can read item type data.
+     * @deny (create, update, delete) - No one can create, update, or delete item types.
+     * @principle Provides public read access to master data.
      */
     match /masterData/itemTypes/{itemTypeId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin role validation if needed.
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Secures stock information, allowing only admin users to read and write data.
+     * @description Restricts stock access to admins.
      * @path /stock/{stockId}
-     * @allow (create, update, delete) - If the user is an admin (TODO: Implement admin role check).
-     * @deny (get, list) - No one can read stock data without authentication.
-     * @principle Restricts access to stock data to admin users.
+     * @allow (create, update, delete) - Only admins can modify stock data.
+     * @deny (get, list) - Regular users cannot access stock data.
+     * @principle Enforces admin-only access for sensitive data.
      */
     match /stock/{stockId} {
-      function isAdmin() {
-        return false; // TODO: Implement admin role check (e.g., by querying the user's document).
-      }
-
-      allow get, list: if isAdmin(); //TODO: only admins should be able to list
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    /**
-     * @description Secures program information.
-     * @path /programs/{programId}
-     * @allow (create, update, delete) - If the user has write access (TODO: Implement write access check).
-     * @deny (get, list) - No one can read stock data without authentication.
-     * @principle Restricts access to program data.
-     */
-    match /programs/{programId} {
-        function isSignedIn() {
-            return request.auth != null;
+        function isAdmin() {
+          return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        }
+        function isExistingAdmin() {
+            return isAdmin() && resource != null;
         }
 
-        allow get, list: if isSignedIn(); //TODO: Should it be listed by any user?
-        allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-        allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-        allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get, list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isExistingAdmin();
+      allow delete: if isExistingAdmin();
     }
 
     /**
-     * @description Secures reel ruling entries.
+     * @description Manages access to programs.
+     * @path /programs/{programId}
+     * @allow (create, update, delete) - Only admins can create, update, or delete programs.
+     * @deny (get, list) - Regular users cannot access program data.
+     * @principle Enforces access control for program data.
+     */
+    match /programs/{programId} {
+          function isAdmin() {
+              return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+          }
+          function isExistingAdmin() {
+              return isAdmin() && resource != null;
+          }
+      allow get, list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isExistingAdmin();
+      allow delete: if isExistingAdmin();
+    }
+
+    /**
+     * @description Manages access to reel rulings.
      * @path /reels/{reelRulingId}
-     * @allow (create, update, delete) - If the user has write access (TODO: Implement write access check).
-     * @deny (get, list) - No one can read stock data without authentication.
-     * @principle Restricts access to reel ruling data.
+     * @allow (create, update, delete) - Only admins can create, update, or delete reel rulings.
+     * @deny (get, list) - Regular users cannot access reel ruling data.
+     * @principle Enforces access control for reel ruling data.
      */
     match /reels/{reelRulingId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, list: if isSignedIn(); //TODO: Should it be listed by any user?
-      allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+              function isAdmin() {
+                  return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+              }
+              function isExistingAdmin() {
+                  return isAdmin() && resource != null;
+              }
+      allow get, list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isExistingAdmin();
+      allow delete: if isExistingAdmin();
     }
 
     /**
-     * @description Secures generated reports.
+     * @description Manages access to reports.
      * @path /reports/{reportId}
-     * @allow (create, update, delete) - If the user has write access (TODO: Implement write access check).
-     * @deny (get, list) - No one can read stock data without authentication.
-     * @principle Restricts access to report data.
+     * @allow (create, update, delete) - Only admins can create, update, or delete reports.
+     * @deny (get, list) - Regular users cannot access report data.
+     * @principle Enforces access control for report data.
      */
     match /reports/{reportId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, list: if isSignedIn(); //TODO: Should it be listed by any user?
-      allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+                  function isAdmin() {
+                      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+                  }
+                  function isExistingAdmin() {
+                      return isAdmin() && resource != null;
+                  }
+      allow get, list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isExistingAdmin();
+      allow delete: if isExistingAdmin();
     }
   }
 }
