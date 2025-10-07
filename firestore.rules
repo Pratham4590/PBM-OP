@@ -1,0 +1,149 @@
+/**
+ * @description: This ruleset enforces a role-based access control model for a Notebook Manufacturing Unit's Firestore database.
+ * It prioritizes authorization independence by denormalizing user roles and access permissions to avoid complex `get()` calls.
+ *
+ * @data_structure:
+ * - `/paper_types/{paperTypeId}`: Publicly accessible master data for paper types.
+ * - `/item_types/{itemTypeId}`: Publicly accessible master data for item types.
+ * - `/stock/{stockId}`: Stock data, only modifiable by admins.
+ * - `/programs/{programId}`: Program data, with access control managed by a `members` map within each document.
+ * - `/reels/{reelRulingId}`: Reel ruling data, with denormalized fields from associated programs and paper types.
+ * - `/reports/{reportId}`: Report data, linking to reel rulings and programs, with key data points denormalized for efficient aggregation.
+ * - `/users/{userId}`: User profiles, including roles (Admin, Member, Operator).
+ * - `/roles_admin/{userId}`: Admin role assignments; existence of a document grants admin privileges.
+ *
+ * @key_security_decisions:
+ * - Public read access for `/paper_types` and `/item_types`.
+ * - Admin-only write access for `/stock`.
+ * - Collaborative access to `/programs` governed by the `members` map.
+ * - Global Admin roles are checked using the existence of documents in the `/roles_admin/{userId}` collection.
+ * - To create simpler, more performant rules, denormalize data required for authorization decisions directly onto the documents being secured.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description: Allows anyone to read paper types; no write access.
+     * @path: /paper_types/{paperTypeId}
+     * @allow: (get, list) Any user can read paper type data.
+     * @deny: (create, update, delete) No one can create, update, or delete paper types through direct Firestore access.
+     * @principle: Public read access for master data.
+     */
+    match /paper_types/{paperTypeId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description: Allows anyone to read item types; no write access.
+     * @path: /item_types/{itemTypeId}
+     * @allow: (get, list) Any user can read item type data.
+     * @deny: (create, update, delete) No one can create, update, or delete item types through direct Firestore access.
+     * @principle: Public read access for master data.
+     */
+    match /item_types/{itemTypeId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description: Only allows admins to manage stock data.
+     * @path: /stock/{stockId}
+     * @allow: (get, list) Any user can read stock data.
+     * @allow: (create, update, delete) Admins can create, update, and delete stock entries.
+     * @deny: (create, update, delete) Non-admins cannot create, update, or delete stock entries.
+     * @principle: Role-based access control for sensitive data.
+     */
+    match /stock/{stockId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    /**
+     * @description: Manages access to program documents using a `members` map for authorization.
+     * @path: /programs/{programId}
+     * @allow: (get, list) Any user can read Program data.
+     * @allow: (create) Any signed-in user can create a new Program.
+     * @allow: (update, delete) Only members with 'owner' role can update or delete a program.
+     * @deny: (update, delete) Members without 'owner' role or non-members cannot update or delete a program.
+     * @principle: Collaborative access with role-based permissions within the document.
+     */
+    match /programs/{programId} {
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isProgramOwner();
+    }
+
+    /**
+     * @description: Allows anyone to read reel ruling data; no write access.
+     * @path: /reels/{reelRulingId}
+     * @allow: (get, list) Any user can read reel ruling data.
+     * @deny: (create, update, delete) No one can create, update, or delete reel ruling data through direct Firestore access.
+     * @principle: Public read access for reporting data.
+     */
+    match /reels/{reelRulingId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description: Allows anyone to read report data; no write access.
+     * @path: /reports/{reportId}
+     * @allow: (get, list) Any user can read report data.
+     * @deny: (create, update, delete) No one can create, update, or delete report data through direct Firestore access.
+     * @principle: Public read access for reporting data.
+     */
+    match /reports/{reportId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description: Allows a user to manage their own user profile.
+     * @path: /users/{userId}
+     * @allow: (get, list) Any user can read User data.
+     * @allow: (create) A user can create their own profile if the userId matches their auth UID.
+     * @allow: (update, delete) A user can update or delete their own profile if the userId matches their auth UID.
+     * @deny: (create, update, delete) A user cannot create, update, or delete another user's profile.
+     * @principle: User-owned data with self-creation.
+     */
+    match /users/{userId} {
+      allow get, list: if true;
+      allow create: if request.auth.uid == userId;
+      allow update, delete: if isOwner(userId);
+    }
+
+    /**
+     * @description: Determines admin privileges based on the existence of a document in the `/roles_admin` collection.
+     * @path: /roles_admin/{userId}
+     * @allow: (get, list) Any user can read role admin data.
+     * @allow: (create) Only the user themselves can create a document to claim admin.
+     * @allow: (update, delete) Only the user themselves can update or delete the admin claim.
+     * @deny: (create, update, delete) No user can modify another user's claim.
+     * @principle: Existence-based admin role assignment.
+     */
+    match /roles_admin/{userId} {
+      allow get, list: if true;
+      allow create: if isOwner(userId);
+      allow update, delete: if isOwner(userId);
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    function isProgramOwner() {
+       return resource.data.members[request.auth.uid] == 'owner';
+    }
+  }
+}
