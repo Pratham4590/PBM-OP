@@ -87,7 +87,7 @@ export default function ReportsPage() {
     doc.setFontSize(12);
     doc.text(`Date: ${new Date().toLocaleDateString()}`, 15, 30);
 
-    const tableColumn = ["Reel No.", "Paper Type", "Item Ruled", "Sheets Ruled", "Theoretical", "Difference"];
+    const tableColumn = ["Reel No.", "Paper Type", "Item Ruled", "Reel Wt.", "Sheets Ruled", "Theoretical", "Difference"];
     const tableRows: (string | number)[][] = [];
 
     filteredData.forEach(row => {
@@ -95,6 +95,7 @@ export default function ReportsPage() {
             row.reelNo,
             getPaperTypeName(row.paperTypeId),
             getItemTypeName(row.itemTypeId),
+            `${row.reelWeight.toLocaleString()} kg`,
             row.sheetsRuled.toLocaleString(),
             Math.round(row.theoreticalSheets).toLocaleString(),
             Math.round(row.difference).toLocaleString()
@@ -167,6 +168,7 @@ export default function ReportsPage() {
                 <TableHead>Reel No.</TableHead>
                 <TableHead>Paper Type</TableHead>
                 <TableHead>Item Ruled</TableHead>
+                <TableHead>Reel Wt.</TableHead>
                 <TableHead className="text-right">Sheets Ruled</TableHead>
                 <TableHead className="text-right">Theoretical</TableHead>
                 <TableHead className="text-right">Difference</TableHead>
@@ -175,7 +177,7 @@ export default function ReportsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center">
                     Loading reports...
                   </TableCell>
                 </TableRow>
@@ -185,6 +187,7 @@ export default function ReportsPage() {
                     <TableCell className="font-medium">{row.reelNo}</TableCell>
                     <TableCell>{getPaperTypeName(row.paperTypeId)}</TableCell>
                     <TableCell>{getItemTypeName(row.itemTypeId)}</TableCell>
+                    <TableCell>{row.reelWeight.toLocaleString()} kg</TableCell>
                     <TableCell className="text-right">{row.sheetsRuled.toLocaleString()}</TableCell>
                     <TableCell className="text-right">{Math.round(row.theoreticalSheets).toLocaleString()}</TableCell>
                     <TableCell className="text-right">
@@ -197,7 +200,7 @@ export default function ReportsPage() {
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="h-24 text-center text-muted-foreground"
                   >
                     No results found for the selected filters.
