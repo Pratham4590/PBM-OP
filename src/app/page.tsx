@@ -9,9 +9,9 @@ import { placeholderImages } from "@/lib/data";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { initiateEmailSignIn } from "@/firebase/non-blocking-login";
 import { useAuth } from "@/firebase";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
+import { signInWithEmailAndPassword } from "firebase/auth";
 
 function LoginPageContent() {
   const loginImage = placeholderImages.find(p => p.id === 'login-bg');
@@ -20,15 +20,28 @@ function LoginPageContent() {
   const { toast } = useToast();
   const [email, setEmail] = useState('admin@navigator.com');
   const [password, setPassword] = useState('password');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    initiateEmailSignIn(auth, email, password);
-    router.push('/dashboard');
-    toast({
+    setIsLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push('/dashboard');
+      toast({
         title: "Login Successful",
         description: "Welcome back!",
-    });
+      });
+    } catch (error: any) {
+      console.error("Login failed:", error);
+      toast({
+        variant: "destructive",
+        title: "Login Failed",
+        description: "Invalid credentials. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   return (
@@ -54,6 +67,7 @@ function LoginPageContent() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
               />
             </div>
             <div className="grid gap-2">
@@ -72,10 +86,11 @@ function LoginPageContent() {
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
               />
             </div>
-            <Button type="submit" className="w-full">
-              Login
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Logging in...' : 'Login'}
             </Button>
             <Button variant="outline" className="w-full" disabled>
               Login with Google
