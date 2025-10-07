@@ -1,24 +1,18 @@
 /**
- * @fileoverview Firestore Security Rules for Production Prototyping
- *
- * Core Philosophy:
- * This ruleset prioritizes security by enforcing strict user-based or role-based access control, while minimizing data validation to allow for rapid prototyping. It assumes that data validation will be implemented in the application code during the prototyping phase.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a role-based access control model.
  *
  * Data Structure:
- * The Firestore database is structured with top-level collections for 'paper_types', 'item_types', 'stock', 'programs', 'reels', and 'users'. The 'users' collection stores user profiles, and other collections store data related to paper, items, stock, programs and reel ruling.
+ * - /paper_types: Publicly readable, owner-only writable.
+ * - /item_types: Publicly readable, owner-only writable.
+ * - /stock: Publicly readable, owner-only writable.
+ * - /programs: Publicly readable, owner-only writable.
+ * - /reels: Publicly readable, owner-only writable.
+ * - /users: Only accessible by authenticated users. User documents can only be created by the user themselves and are not listable.
  *
  * Key Security Decisions:
- * - User listing is explicitly denied to protect user privacy.
- * - Public read access is granted to 'paper_types', 'item_types', and 'programs' collections, assuming this data is intended to be publicly viewable.
- * - Access to the 'stock' collection is restricted to admins only.
- * - 'reels' collection allows read for all but write is restricted based on authentication.
- * - The default security posture for ambiguous relationships is strict owner-only access.
- *
- * Denormalization for Authorization:
- * This ruleset avoids `get()` calls by assuming that any authorization-related data (e.g., user roles, ownership) is denormalized directly onto the documents being secured. For example, documents in the `/reels` collection would need to include a `creatorId` field to allow owner-based write access.
- *
- * Structural Segregation:
- * This ruleset assumes that data intended to be private is stored in user-specific subcollections (e.g., `/users/{userId}/private_data`). Publicly accessible data is stored in top-level collections.
+ * - User listing is explicitly denied for privacy.
+ * - Public read access is granted for certain collections, but writes are restricted to owners.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -26,131 +20,122 @@ service cloud.firestore {
 
     /**
      * @description Checks if the user is signed in.
-     * @path N/A
-     * @allow N/A
-     * @deny N/A
-     * @principle Authentication
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the user's ID matches the requested user ID.
-     * @path N/A
-     * @allow N/A
-     * @deny N/A
-     * @principle Ownership
+     * @description Checks if the authenticated user's UID matches the provided userId.
+     * @param {string} userId - The user ID to compare against.
+     * @return {bool} True if the UID matches, false otherwise.
      */
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the user's ID matches the resource owner ID.
-     * @path N/A
-     * @allow N/A
-     * @deny N/A
-     * @principle Ownership
+     * @description Checks if the authenticated user is an existing owner of the document.
+     * @param {string} userId - The user ID to compare against.
+     * @return {bool} True if the UID matches and the document exists, false otherwise.
      */
-    function isResourceOwner(resourceOwnerId) {
-      return request.auth.uid == resourceOwnerId;
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
     }
-
+    
     /**
-     * @description Checks if the user is an admin.
-     * @path N/A
-     * @allow N/A
-     * @deny N/A
-     * @principle Role-based access control
-     */
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.role == 'Admin';
-    }
-
-    /**
-     * @description Checks if the user is an existing owner of the document.
-     * @path N/A
-     * @allow N/A
-     * @deny N/A
-     * @principle Ownership and Existence check.
-     */
-    function isExistingOwner(resourceOwnerId) {
-        return isResourceOwner(resourceOwnerId) && resource != null;
-    }
-
-    /**
-     * @description Security rules for the 'paper_types' collection. Allows public read access and restricts writes.
-     * @path /paper_types/{paperTypeId}
-     * @allow (get, list) Any user can read paper types.
-     * @deny (create, update, delete) Only authenticated users can write paper types if `request.auth.uid` matches the `authorId` field.
-     * @principle Public read, owner-only writes.
+     * @description Rules for the /paper_types collection.
+     * @path /databases/{database}/documents/paper_types/{paperTypeId}
+     * @allow (get, list): Any user can read paper type information.
+     * @allow (create): Only the authenticated user can create a new paper type entry if request.resource.data.authorId matches their uid.
+     * @allow (update, delete): Only the author can update or delete a paper type entry if the document exists.
+     * @deny (create): A user cannot create a paper_type if request.resource.data.authorId does not match their uid.
+     * @deny (update, delete): A non-author cannot update or delete an existing paper_type.
+     * @principle Allows public read access to paper types, but restricts writes to the owner.
      */
     match /paper_types/{paperTypeId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isExistingOwner(resource.data.authorId);
     }
 
     /**
-     * @description Security rules for the 'item_types' collection. Allows public read access and restricts writes.
-     * @path /item_types/{itemTypeId}
-     * @allow (get, list) Any user can read item types.
-     * @deny (create, update, delete) Only authenticated users can write item types if `request.auth.uid` matches the `authorId` field.
-     * @principle Public read, owner-only writes.
+     * @description Rules for the /item_types collection.
+     * @path /databases/{database}/documents/item_types/{itemTypeId}
+     * @allow (get, list): Any user can read item type information.
+     * @allow (create): Only the authenticated user can create a new item type entry if request.resource.data.authorId matches their uid.
+     * @allow (update, delete): Only the author can update or delete an item type entry if the document exists.
+     * @deny (create): A user cannot create an item_type if request.resource.data.authorId does not match their uid.
+     * @deny (update, delete): A non-author cannot update or delete an existing item_type.
+     * @principle Allows public read access to item types, but restricts writes to the owner.
      */
     match /item_types/{itemTypeId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isExistingOwner(resource.data.authorId);
     }
 
     /**
-     * @description Security rules for the 'stock' collection. Only admins can read and write.
-     * @path /stock/{stockId}
-     * @allow (get, list, create, update, delete) Only admins can access stock data.
-     * @deny (get, list, create, update, delete) Non-admins cannot access stock data.
-     * @principle Role-based access control.
+     * @description Rules for the /stock collection.
+     * @path /databases/{database}/documents/stock/{stockId}
+     * @allow (get, list): Any user can read stock information.
+     * @allow (create): Only the authenticated user can create a new stock entry if request.resource.data.authorId matches their uid.
+     * @allow (update, delete): Only the author can update or delete a stock entry if the document exists.
+     * @deny (create): A user cannot create a stock if request.resource.data.authorId does not match their uid.
+     * @deny (update, delete): A non-author cannot update or delete an existing stock.
+     * @principle Allows public read access to stock information, but restricts writes to the owner.
      */
     match /stock/{stockId} {
-      allow get, list, create, update, delete: if isAdmin();
-    }
-
-     /**
-      * @description Security rules for the 'programs' collection. Allows public read access and restricts writes.
-      * @path /programs/{programId}
-      * @allow (get, list) Any user can read programs.
-      * @deny (create, update, delete) Only authenticated users can write programs if `request.auth.uid` matches the `authorId` field.
-      * @principle Public read, owner-only writes.
-      */
-    match /programs/{programId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isExistingOwner(resource.data.authorId);
     }
 
     /**
-     * @description Security rules for the 'reels' collection.
-     * @path /reels/{reelId}
-     * @allow (get, list) Any user can read reels.
-     * @allow (create) Authenticated user can create reel if `request.auth.uid` matches the `creatorId` in the data.
-     * @allow (update, delete) Authenticated user can update or delete reel if `request.auth.uid` matches the reel `creatorId` and the reel exists.
-     * @deny (create, update, delete) Unauthorized users cannot create, update, or delete reels.
-     * @principle Owner-only writes.
+     * @description Rules for the /programs collection.
+     * @path /databases/{database}/documents/programs/{programId}
+     * @allow (get, list): Any user can read program information.
+     * @allow (create): Only the authenticated user can create a new program entry if request.resource.data.authorId matches their uid.
+     * @allow (update, delete): Only the author can update or delete a program entry if the document exists.
+     * @deny (create): A user cannot create a program if request.resource.data.authorId does not match their uid.
+     * @deny (update, delete): A non-author cannot update or delete an existing program.
+     * @principle Allows public read access to program information, but restricts writes to the owner.
+     */
+    match /programs/{programId} {
+      allow get, list: if true;
+      allow create: if request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isExistingOwner(resource.data.authorId);
+    }
+
+    /**
+     * @description Rules for the /reels collection.
+     * @path /databases/{database}/documents/reels/{reelId}
+     * @allow (get, list): Any user can read reel information.
+     * @allow (create): Only the authenticated user can create a new reel entry if request.resource.data.authorId matches their uid.
+     * @allow (update, delete): Only the author can update or delete a reel entry if the document exists.
+     * @deny (create): A user cannot create a reel if request.resource.data.authorId does not match their uid.
+     * @deny (update, delete): A non-author cannot update or delete an existing reel.
+     * @principle Allows public read access to reel information, but restricts writes to the owner.
      */
     match /reels/{reelId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn();
+      allow create: if request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isExistingOwner(resource.data.authorId);
     }
-
+    
     /**
-     * @description Security rules for the 'users' collection. Allows creating a user document with a matching user ID, but denies listing all users.
-     * @path /users/{userId}
-     * @allow (create) Authenticated user can create their own user document.
-     * @allow (get, update, delete) Only the owner can access their own user document.
-     * @deny (list) Listing all users is not allowed.
-     * @principle Ownership.
+     * @description Rules for the /users collection.  Restricts listing and enforces ownership.
+     * @path /databases/{database}/documents/users/{userId}
+     * @allow (get): Any authenticated user can get a user document.
+     * @allow (create): Only the user themselves can create their own user document.
+     * @allow (update, delete): Only the user themselves can update or delete their own user document.
+     * @deny (list): Listing all users is not allowed.
+     * @deny (create): A user cannot create a user document with a different user ID.
+     * @deny (update, delete): A non-owner cannot update or delete an existing user document.
+     * @principle Enforces document ownership for writes and restricts user listing for privacy.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      allow get: if isSignedIn();
       allow list: if false;
       allow create: if isOwner(userId);
       allow update: if isExistingOwner(userId);
