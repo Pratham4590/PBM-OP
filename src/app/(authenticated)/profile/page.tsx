@@ -20,12 +20,14 @@ import { updateProfile } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { User as AppUser } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useRouter } from 'next/navigation';
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
 
   const [displayName, setDisplayName] = useState('');
   const [userData, setUserData] = useState<AppUser | null>(null);
@@ -87,6 +89,13 @@ export default function ProfilePage() {
       });
     } finally {
         setIsLoading(false);
+    }
+  };
+  
+  const handleLogout = () => {
+    if (auth) {
+      auth.signOut();
+      router.push('/');
     }
   };
 
@@ -167,8 +176,9 @@ export default function ProfilePage() {
               </div>
             </div>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="gap-2">
             <Button type="submit" disabled={isLoading}>{isLoading ? 'Saving...' : 'Save Changes'}</Button>
+            <Button variant="outline" onClick={handleLogout}>Log Out</Button>
           </CardFooter>
         </Card>
       </form>
