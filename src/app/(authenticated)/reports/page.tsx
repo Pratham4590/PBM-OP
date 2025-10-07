@@ -30,6 +30,9 @@ import { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { Ruling, PaperType, ItemType, RulingEntry } from '@/lib/types';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
 
 type ReportRow = RulingEntry & {
   reelNo: string;
@@ -77,8 +80,44 @@ export default function ReportsPage() {
   const getItemTypeName = (itemTypeId: string) => itemTypes?.find(i => i.id === itemTypeId)?.name || 'N/A';
 
   const handleExport = () => {
-    // PDF export logic would go here
-    alert("PDF export functionality is not yet implemented.");
+    const doc = new jsPDF();
+
+    doc.setFontSize(20);
+    doc.text("Production Report", 15, 20);
+    doc.setFontSize(12);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 15, 30);
+
+    const tableColumn = ["Reel No.", "Paper Type", "Item Ruled", "Sheets Ruled", "Theoretical", "Difference"];
+    const tableRows: (string | number)[][] = [];
+
+    filteredData.forEach(row => {
+        const rowData = [
+            row.reelNo,
+            getPaperTypeName(row.paperTypeId),
+            getItemTypeName(row.itemTypeId),
+            row.sheetsRuled.toLocaleString(),
+            Math.round(row.theoreticalSheets).toLocaleString(),
+            Math.round(row.difference).toLocaleString()
+        ];
+        tableRows.push(rowData);
+    });
+
+    autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 35,
+        headStyles: { fillColor: [38, 115, 101] }, // Corresponds to primary color
+        didDrawPage: (data) => {
+            // Footer
+            const str = `Page ${doc.internal.getNumberOfPages()}`;
+            doc.setFontSize(10);
+            const pageSize = doc.internal.pageSize;
+            const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
+            doc.text(str, data.settings.margin.left, pageHeight - 10);
+        }
+    });
+    
+    doc.save("production_report.pdf");
   };
   
   const isLoading = loadingRulings || loadingPaperTypes || loadingItemTypes;
@@ -89,7 +128,7 @@ export default function ReportsPage() {
         title="Reports"
         description="Generate and view detailed production and efficiency reports."
       >
-        <Button variant="outline" onClick={handleExport}>
+        <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredData.length === 0}>
           <FileDown className="mr-2 h-4 w-4" />
           Export to PDF
         </Button>
