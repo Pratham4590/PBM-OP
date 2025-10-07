@@ -8,7 +8,7 @@ import { AppLogo } from '@/components/icons';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore, useUser } from '@/firebase';
+import { useAuth, useFirestore, useUser, setDocumentNonBlocking, initiateEmailSignUp, initiateEmailSignIn } from '@/firebase';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import {
   createUserWithEmailAndPassword,
@@ -56,28 +56,29 @@ function LoginPageContent() {
     }
   }, [user, firestore, router, setTheme]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth) return;
     setIsLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // The useEffect will handle the redirect
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Login Failed',
-        description:
-          error.code === 'auth/invalid-credential'
-            ? 'Invalid email or password.'
-            : error.message,
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    initiateEmailSignIn(auth, email, password);
+    // The auth state listener will handle success/error and redirect.
+    // For simplicity, we can show a toast on error, but the listener is the source of truth.
+    // We'll add a temporary listener here for instant feedback, but a global listener is better.
+    signInWithEmailAndPassword(auth, email, password)
+        .catch((error: any) => {
+            toast({
+                variant: 'destructive',
+                title: 'Login Failed',
+                description:
+                error.code === 'auth/invalid-credential'
+                    ? 'Invalid email or password.'
+                    : error.message,
+            });
+        })
+        .finally(() => setIsLoading(false));
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleSignUp = (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
       toast({
@@ -89,42 +90,43 @@ function LoginPageContent() {
     }
     if (!auth || !firestore) return;
     setIsLoading(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      const user = userCredential.user;
 
-      // Add user to the 'users' collection in Firestore
-      const userDocRef = doc(firestore, 'users', user.uid);
-      await setDoc(userDocRef, {
-        id: user.uid,
-        email: user.email,
-        displayName: user.email?.split('@')[0] || 'New User',
-        role: 'Member', // Default role for new sign-ups
-        createdAt: serverTimestamp(),
-        themePreference: 'system',
-      });
+    createUserWithEmailAndPassword(auth, email, password)
+      .then(userCredential => {
+        const user = userCredential.user;
+        const userDocRef = doc(firestore, 'users', user.uid);
+        
+        const userData = {
+            id: user.uid,
+            email: user.email,
+            displayName: user.email?.split('@')[0] || 'New User',
+            role: 'Member',
+            createdAt: serverTimestamp(),
+            themePreference: 'system',
+        };
+        
+        // Use non-blocking write
+        setDocumentNonBlocking(userDocRef, userData, {});
 
-      toast({
-        title: 'Sign Up Successful',
-        description: 'Your account has been created. Please log in.',
+        toast({
+          title: 'Sign Up Successful',
+          description: 'Your account has been created. Please log in.',
+        });
+        setIsLoginView(true);
+        setEmail('');
+        setPassword('');
+        setConfirmPassword('');
+      })
+      .catch((error: any) => {
+        toast({
+          variant: 'destructive',
+          title: 'Sign Up Failed',
+          description: error.message || 'Could not create account.',
+        });
+      })
+      .finally(() => {
+        setIsLoading(false);
       });
-      setIsLoginView(true); // Switch to login view
-      setEmail('');
-      setPassword('');
-      setConfirmPassword('');
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Sign Up Failed',
-        description: error.message || 'Could not create account.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
   };
   
   if (isUserLoading || user) {

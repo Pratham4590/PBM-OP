@@ -38,8 +38,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { collection, serverTimestamp } from 'firebase/firestore';
 
 export default function ProgramPage() {
   const firestore = useFirestore();
@@ -111,7 +111,7 @@ export default function ProgramPage() {
     return { reamWeight: 0, totalSheetsRequired: 0 };
   }, [newProgram]);
 
-  const handleCreateProgram = async () => {
+  const handleCreateProgram = () => {
     if (!firestore) return;
 
     const programToAdd = {
@@ -121,7 +121,7 @@ export default function ProgramPage() {
     };
 
     const programsCollection = collection(firestore, 'programs');
-    await addDoc(programsCollection, programToAdd);
+    addDocumentNonBlocking(programsCollection, programToAdd);
     
     setNewProgram({
       brand: '',

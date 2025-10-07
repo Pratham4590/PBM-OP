@@ -51,8 +51,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 export default function RulingPage() {
   const firestore = useFirestore();
@@ -127,7 +127,7 @@ export default function RulingPage() {
     }
   };
 
-  const handleSaveRuling = async () => {
+  const handleSaveRuling = () => {
     if (!firestore) return;
 
     const rulingToAdd = {
@@ -137,7 +137,7 @@ export default function RulingPage() {
     };
     
     const rulingsCollection = collection(firestore, 'reels');
-    await addDoc(rulingsCollection, rulingToAdd);
+    addDocumentNonBlocking(rulingsCollection, rulingToAdd);
     resetForm();
   }
   

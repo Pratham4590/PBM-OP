@@ -32,8 +32,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { PaperType, ItemType } from '@/lib/types';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { addDoc, collection } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 export default function MasterDataPage() {
   const firestore = useFirestore();
@@ -50,19 +50,19 @@ export default function MasterDataPage() {
   const [isPaperModalOpen, setIsPaperModalOpen] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
 
-  const handleAddPaperType = async () => {
+  const handleAddPaperType = () => {
     if (newPaperType.name && newPaperType.gsm && newPaperType.length && firestore) {
       const paperTypesCollection = collection(firestore, 'paperTypes');
-      await addDoc(paperTypesCollection, newPaperType);
+      addDocumentNonBlocking(paperTypesCollection, newPaperType);
       setNewPaperType({ name: '', gsm: 0, length: 0 });
       setIsPaperModalOpen(false);
     }
   };
 
-  const handleAddItemType = async () => {
+  const handleAddItemType = () => {
     if (newItemType.name && newItemType.shortCode && firestore) {
       const itemTypesCollection = collection(firestore, 'itemTypes');
-      await addDoc(itemTypesCollection, newItemType);
+      addDocumentNonBlocking(itemTypesCollection, newItemType);
       setNewItemType({ name: '', shortCode: '' });
       setIsItemModalOpen(false);
     }

@@ -38,8 +38,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 export default function StockPage() {
   const firestore = useFirestore();
@@ -66,7 +66,7 @@ export default function StockPage() {
     }
   };
 
-  const handleAddStock = async () => {
+  const handleAddStock = () => {
     if (
       firestore &&
       newStockItem.paperTypeId &&
@@ -84,7 +84,7 @@ export default function StockPage() {
         numberOfReels: newStockItem.numberOfReels,
       };
       const stockCollection = collection(firestore, 'stock');
-      await addDoc(stockCollection, stockToAdd);
+      addDocumentNonBlocking(stockCollection, stockToAdd);
       setNewStockItem({ numberOfReels: 1 }); // Reset form
       setIsModalOpen(false);
     } else {
