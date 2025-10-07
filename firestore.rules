@@ -1,18 +1,29 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control model.
+ * @fileoverview Firestore Security Rules for the Paper Production Application.
+ *
+ * Core Philosophy:
+ * This ruleset implements a role-based access control model, with specific rules
+ * for ownership and data access based on user roles (Admin, Member, Operator).
+ * It prioritizes secure access to user data and restricts unauthorized modifications.
  *
  * Data Structure:
- * - /paper_types: Publicly readable, owner-only writable.
- * - /item_types: Publicly readable, owner-only writable.
- * - /stock: Publicly readable, owner-only writable.
- * - /programs: Publicly readable, owner-only writable.
- * - /reels: Publicly readable, owner-only writable.
- * - /users: Only accessible by authenticated users. User documents can only be created by the user themselves and are not listable.
+ * - /paper_types: Publicly readable, writeable by authorized users.
+ * - /item_types: Publicly readable, writeable by authorized users.
+ * - /stock: Only readable and writeable by Admin users.
+ * - /programs: Publicly readable, writeable by authorized users.
+ * - /reels: Publicly readable, writeable by authorized users.
+ * - /users/{userId}: User-specific data, accessible only to the owner (the user themselves).
  *
  * Key Security Decisions:
- * - User listing is explicitly denied for privacy.
- * - Public read access is granted for certain collections, but writes are restricted to owners.
+ * - Listing of users is explicitly denied to prevent information disclosure.
+ * - Data validation is relaxed in this prototyping phase, focusing on authorization.
+ *
+ * Denormalization for Authorization:
+ *  - The `User` entity's `role` field is used for authorization decisions across different collections.
+ *  - User ID is used to enforce ownership for documents under the `/users/{userId}` path.
+ *
+ * Structural Segregation:
+ *  - No structural segregation is explicitly defined in the data model.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -20,126 +31,180 @@ service cloud.firestore {
 
     /**
      * @description Checks if the user is signed in.
+     * @return {boolean} True if the user is signed in, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the authenticated user's UID matches the provided userId.
-     * @param {string} userId - The user ID to compare against.
-     * @return {bool} True if the UID matches, false otherwise.
+     * @description Checks if the user is the owner of the document.
+     * @param {string} userId The user ID to check against.
+     * @return {boolean} True if the user is the owner, false otherwise.
      */
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the authenticated user is an existing owner of the document.
-     * @param {string} userId - The user ID to compare against.
-     * @return {bool} True if the UID matches and the document exists, false otherwise.
+     * @description Checks if the user is an existing owner of the document.
+     * @param {string} userId The user ID to check against.
+     * @return {boolean} True if the user is the owner and the document exists, false otherwise.
      */
     function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+        return isOwner(userId) && exists(/databases/$(database)/documents/users/$(userId));
     }
-    
+
+    /**
+     * @description Checks if the user has the Admin role.
+     * @return {boolean} True if the user has the Admin role, false otherwise.
+     */
+    function isAdmin() {
+        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+     /**
+     * @description Checks if the user has the Member role.
+     * @return {boolean} True if the user has the Member role, false otherwise.
+     */
+    function isMember() {
+        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Member';
+    }
+
+     /**
+     * @description Checks if the user has the Operator role.
+     * @return {boolean} True if the user has the Operator role, false otherwise.
+     */
+    function isOperator() {
+        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Operator';
+    }
+
     /**
      * @description Rules for the /paper_types collection.
      * @path /databases/{database}/documents/paper_types/{paperTypeId}
-     * @allow (get, list): Any user can read paper type information.
-     * @allow (create): Only the authenticated user can create a new paper type entry if request.resource.data.authorId matches their uid.
-     * @allow (update, delete): Only the author can update or delete a paper type entry if the document exists.
-     * @deny (create): A user cannot create a paper_type if request.resource.data.authorId does not match their uid.
-     * @deny (update, delete): A non-author cannot update or delete an existing paper_type.
-     * @principle Allows public read access to paper types, but restricts writes to the owner.
+     * @allow (get) Authenticated user can read paper_types data.
+     * @allow (list) Authenticated user can list paper_types data.
+     * @allow (create) Admin can create paper_types data.
+     * @allow (update) Admin can update paper_types data.
+     * @allow (delete) Admin can delete paper_types data.
+     * @deny (create) Non-Admin user cannot create paper_types data.
+     * @deny (update) Non-Admin user cannot update paper_types data.
+     * @deny (delete) Non-Admin user cannot delete paper_types data.
+     * @principle Allows read access to all, but restricts write access to Admin role.
      */
     match /paper_types/{paperTypeId} {
-      allow get, list: if true;
-      allow create: if request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isExistingOwner(resource.data.authorId);
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
      * @description Rules for the /item_types collection.
      * @path /databases/{database}/documents/item_types/{itemTypeId}
-     * @allow (get, list): Any user can read item type information.
-     * @allow (create): Only the authenticated user can create a new item type entry if request.resource.data.authorId matches their uid.
-     * @allow (update, delete): Only the author can update or delete an item type entry if the document exists.
-     * @deny (create): A user cannot create an item_type if request.resource.data.authorId does not match their uid.
-     * @deny (update, delete): A non-author cannot update or delete an existing item_type.
-     * @principle Allows public read access to item types, but restricts writes to the owner.
+     * @allow (get) Authenticated user can read item_types data.
+     * @allow (list) Authenticated user can list item_types data.
+     * @allow (create) Admin can create item_types data.
+     * @allow (update) Admin can update item_types data.
+     * @allow (delete) Admin can delete item_types data.
+     * @deny (create) Non-Admin user cannot create item_types data.
+     * @deny (update) Non-Admin user cannot update item_types data.
+     * @deny (delete) Non-Admin user cannot delete item_types data.
+     * @principle Allows read access to all, but restricts write access to Admin role.
      */
     match /item_types/{itemTypeId} {
-      allow get, list: if true;
-      allow create: if request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isExistingOwner(resource.data.authorId);
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
      * @description Rules for the /stock collection.
      * @path /databases/{database}/documents/stock/{stockId}
-     * @allow (get, list): Any user can read stock information.
-     * @allow (create): Only the authenticated user can create a new stock entry if request.resource.data.authorId matches their uid.
-     * @allow (update, delete): Only the author can update or delete a stock entry if the document exists.
-     * @deny (create): A user cannot create a stock if request.resource.data.authorId does not match their uid.
-     * @deny (update, delete): A non-author cannot update or delete an existing stock.
-     * @principle Allows public read access to stock information, but restricts writes to the owner.
+     * @allow (get) Admin can read stock data.
+     * @allow (list) Admin can list stock data.
+     * @allow (create) Admin can create stock data.
+     * @allow (update) Admin can update stock data.
+     * @allow (delete) Admin can delete stock data.
+     * @deny (get) Non-Admin user cannot read stock data.
+     * @deny (list) Non-Admin user cannot list stock data.
+     * @deny (create) Non-Admin user cannot create stock data.
+     * @deny (update) Non-Admin user cannot update stock data.
+     * @deny (delete) Non-Admin user cannot delete stock data.
+     * @principle Restricts all access to the Admin role.
      */
     match /stock/{stockId} {
-      allow get, list: if true;
-      allow create: if request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isExistingOwner(resource.data.authorId);
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
      * @description Rules for the /programs collection.
      * @path /databases/{database}/documents/programs/{programId}
-     * @allow (get, list): Any user can read program information.
-     * @allow (create): Only the authenticated user can create a new program entry if request.resource.data.authorId matches their uid.
-     * @allow (update, delete): Only the author can update or delete a program entry if the document exists.
-     * @deny (create): A user cannot create a program if request.resource.data.authorId does not match their uid.
-     * @deny (update, delete): A non-author cannot update or delete an existing program.
-     * @principle Allows public read access to program information, but restricts writes to the owner.
+     * @allow (get) Authenticated user can read programs data.
+     * @allow (list) Authenticated user can list programs data.
+     * @allow (create) Admin can create programs data.
+     * @allow (update) Admin can update programs data.
+     * @allow (delete) Admin can delete programs data.
+     * @deny (create) Non-Admin user cannot create programs data.
+     * @deny (update) Non-Admin user cannot update programs data.
+     * @deny (delete) Non-Admin user cannot delete programs data.
+     * @principle Allows read access to all, but restricts write access to Admin role.
      */
     match /programs/{programId} {
-      allow get, list: if true;
-      allow create: if request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isExistingOwner(resource.data.authorId);
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
      * @description Rules for the /reels collection.
      * @path /databases/{database}/documents/reels/{reelId}
-     * @allow (get, list): Any user can read reel information.
-     * @allow (create): Only the authenticated user can create a new reel entry if request.resource.data.authorId matches their uid.
-     * @allow (update, delete): Only the author can update or delete a reel entry if the document exists.
-     * @deny (create): A user cannot create a reel if request.resource.data.authorId does not match their uid.
-     * @deny (update, delete): A non-author cannot update or delete an existing reel.
-     * @principle Allows public read access to reel information, but restricts writes to the owner.
+     * @allow (get) Authenticated user can read reels data.
+     * @allow (list) Authenticated user can list reels data.
+     * @allow (create) Admin can create reels data.
+     * @allow (update) Admin can update reels data.
+     * @allow (delete) Admin can delete reels data.
+     * @deny (create) Non-Admin user cannot create reels data.
+     * @deny (update) Non-Admin user cannot update reels data.
+     * @deny (delete) Non-Admin user cannot delete reels data.
+     * @principle Allows read access to all, but restricts write access to Admin role.
      */
     match /reels/{reelId} {
-      allow get, list: if true;
-      allow create: if request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isExistingOwner(resource.data.authorId);
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
-    
+
     /**
-     * @description Rules for the /users collection.  Restricts listing and enforces ownership.
+     * @description Rules for the /users collection.
      * @path /databases/{database}/documents/users/{userId}
-     * @allow (get): Any authenticated user can get a user document.
-     * @allow (create): Only the user themselves can create their own user document.
-     * @allow (update, delete): Only the user themselves can update or delete their own user document.
-     * @deny (list): Listing all users is not allowed.
-     * @deny (create): A user cannot create a user document with a different user ID.
-     * @deny (update, delete): A non-owner cannot update or delete an existing user document.
-     * @principle Enforces document ownership for writes and restricts user listing for privacy.
+     * @allow (get) The user can read their own user document.
+     * @allow (create) The user can create their own user document.
+     * @allow (update) The user can update their own user document.
+     * @allow (delete) The user can delete their own user document.
+     * @deny (list) Listing users is not allowed.
+     * @deny (create) A user cannot create another user's document.
+     * @deny (update) A user cannot update another user's document.
+     * @deny (delete) A user cannot delete another user's document.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
-      allow get: if isSignedIn();
+      allow get: if isOwner(userId);
       allow list: if false;
       allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
   }
 }
