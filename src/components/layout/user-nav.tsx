@@ -82,11 +82,11 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem disabled>
-            Profile
+          <DropdownMenuItem asChild>
+            <Link href="/profile">Profile</Link>
           </DropdownMenuItem>
-          <DropdownMenuItem disabled>
-            Settings
+          <DropdownMenuItem asChild>
+             <Link href="/settings">Settings</Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

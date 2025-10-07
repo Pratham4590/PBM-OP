@@ -6,30 +6,55 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AppLogo } from '@/components/icons';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from 'firebase/auth';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { useTheme } from 'next-themes';
+import { User } from '@/lib/types';
+
 
 function LoginPageContent() {
   const loginImage = PlaceHolderImages.find((p) => p.id === 'login-bg');
   const auth = useAuth();
+  const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  const { setTheme } = useTheme();
 
   const [isLoginView, setIsLoginView] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  useEffect(() => {
+    const fetchUserTheme = async () => {
+      if (user && firestore) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data() as User;
+          if (userData.themePreference) {
+            setTheme(userData.themePreference);
+          }
+        }
+      }
+    };
+
+    if (user) {
+      fetchUserTheme();
+      router.push('/dashboard');
+    }
+  }, [user, firestore, router, setTheme]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +62,7 @@ function LoginPageContent() {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push('/dashboard');
+      // The useEffect will handle the redirect
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -75,10 +100,12 @@ function LoginPageContent() {
       // Add user to the 'users' collection in Firestore
       const userDocRef = doc(firestore, 'users', user.uid);
       await setDoc(userDocRef, {
+        id: user.uid,
         email: user.email,
+        displayName: user.email?.split('@')[0] || 'New User',
         role: 'Member', // Default role for new sign-ups
         createdAt: serverTimestamp(),
-        themePreference: 'light',
+        themePreference: 'system',
       });
 
       toast({
@@ -99,6 +126,14 @@ function LoginPageContent() {
       setIsLoading(false);
     }
   };
+  
+  if (isUserLoading || user) {
+     return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="text-lg text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2 xl:min-h-screen">

@@ -8,7 +8,7 @@ export type User = {
   displayName?: string;
   role: UserRole;
   createdAt?: Timestamp;
-  themePreference?: "light" | "dark";
+  themePreference?: "light" | "dark" | "system";
 };
 
 export type PaperType = {

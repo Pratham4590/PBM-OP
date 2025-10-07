@@ -11,6 +11,8 @@ import {
   BarChart3,
   Users,
   PieChart,
+  User,
+  Settings,
 } from 'lucide-react';
 
 import {
@@ -32,7 +34,7 @@ import { useUser } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { useEffect, useState } from 'react';
-import type { User as AppUser } from '@/lib/types';
+import type { User as AppUserType } from '@/lib/types';
 
 
 export const allNavItems = [
@@ -60,7 +62,7 @@ export function SidebarNav() {
         const userDocRef = doc(firestore, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
-          const userData = userDoc.data() as AppUser;
+          const userData = userDoc.data() as AppUserType;
           setUserRole(userData.role);
         }
       }
