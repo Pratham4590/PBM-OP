@@ -338,7 +338,7 @@
         }
       },
       {
-        "path": "/masterData/paperTypes/{paperTypeId}",
+        "path": "/paperTypes/{paperTypeId}",
         "definition": {
           "entityName": "PaperType",
           "schema": {
@@ -354,7 +354,7 @@
         }
       },
       {
-        "path": "/masterData/itemTypes/{itemTypeId}",
+        "path": "/itemTypes/{itemTypeId}",
         "definition": {
           "entityName": "ItemType",
           "schema": {
@@ -437,3 +437,4 @@
     "reasoning": "The Firestore data structure is designed to support a secure and scalable notebook manufacturing unit application with real-time updates and role-based access control. The structure emphasizes authorization independence through denormalization to avoid `get()` calls in security rules, ensuring atomic operations and debuggability. Structural segregation is used to group data with similar security requirements, simplifying rules and improving clarity. Access modeling utilizes path-based ownership for user data and membership maps for collaborative data, providing a consistent authorization pattern. All data entries will include `createdBy` UID and timestamp for auditing.\n\n**Authorization Independence:**\n\n*   User roles are stored directly in the `users/{userId}` document, eliminating the need to fetch roles from a separate collection during authorization.\n*   For collaborative data, such as Programs or ReelRulings, the `members` map (if collaboration is extended) would be denormalized into each document to avoid `get()` calls to determine access.\n\n**QAPs (Rules are not Filters):**\n\n*   The segregation of data based on ownership and access levels enables secure `list` operations. For example, operators can securely list only the `ReelRuling` documents associated with programs they have access to. Admin users can list all.\n*   The path-based ownership for user-specific data (e.g., `/users/{userId}`) ensures that only the specified user can access their data, preventing unauthorized listing.\n\n**Example:**\nIf you added the posibility of collaborate on programs, the `Program` document will contain a `members` map with the roles of each user, and the role will be validated in the security rules instead of trying to list all the programs, and filtering on the client based on the result, to ensure that QAPs are followed.\n\nThis structure is optimized for the given application requirements and adheres to the core design principles of authorization independence, clarity of intent, DBAC, QAPs, and invariants."
   }
 }
+    
