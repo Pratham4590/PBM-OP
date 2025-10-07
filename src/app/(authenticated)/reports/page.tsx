@@ -45,8 +45,8 @@ export default function ReportsPage() {
   const firestore = useFirestore();
 
   const rulingsQuery = useMemoFirebase(() => firestore && collection(firestore, 'reels'), [firestore]);
-  const paperTypesQuery = useMemoFirebase(() => firestore && collection(firestore, 'paper_types'), [firestore]);
-  const itemTypesQuery = useMemoFirebase(() => firestore && collection(firestore, 'item_types'), [firestore]);
+  const paperTypesQuery = useMemoFirebase(() => firestore && collection(firestore, 'paperTypes'), [firestore]);
+  const itemTypesQuery = useMemoFirebase(() => firestore && collection(firestore, 'itemTypes'), [firestore]);
 
   const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
   const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);

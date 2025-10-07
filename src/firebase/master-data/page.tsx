@@ -38,8 +38,8 @@ import { addDoc, collection } from 'firebase/firestore';
 export default function MasterDataPage() {
   const firestore = useFirestore();
   
-  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
-  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
+  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paper_types') : null, [firestore]);
+  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'item_types') : null, [firestore]);
 
   const { data: paperTypes, isLoading: loadingPaper } = useCollection<PaperType>(paperTypesQuery);
   const { data: itemTypes, isLoading: loadingItems } = useCollection<ItemType>(itemTypesQuery);
@@ -52,7 +52,7 @@ export default function MasterDataPage() {
 
   const handleAddPaperType = async () => {
     if (newPaperType.name && newPaperType.gsm && newPaperType.length && firestore) {
-      const paperTypesCollection = collection(firestore, 'paperTypes');
+      const paperTypesCollection = collection(firestore, 'paper_types');
       await addDoc(paperTypesCollection, newPaperType);
       setNewPaperType({ name: '', gsm: 0, length: 0 });
       setIsPaperModalOpen(false);
@@ -61,7 +61,7 @@ export default function MasterDataPage() {
 
   const handleAddItemType = async () => {
     if (newItemType.name && newItemType.shortCode && firestore) {
-      const itemTypesCollection = collection(firestore, 'itemTypes');
+      const itemTypesCollection = collection(firestore, 'item_types');
       await addDoc(itemTypesCollection, newItemType);
       setNewItemType({ name: '', shortCode: '' });
       setIsItemModalOpen(false);

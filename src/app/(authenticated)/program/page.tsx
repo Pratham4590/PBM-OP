@@ -44,8 +44,8 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 export default function ProgramPage() {
   const firestore = useFirestore();
   const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
-  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paper_types') : null, [firestore]);
-  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'item_types') : null, [firestore]);
+  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
+  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
 
   const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
   const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);

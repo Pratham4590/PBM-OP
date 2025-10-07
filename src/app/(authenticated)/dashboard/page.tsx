@@ -49,7 +49,7 @@ export default function DashboardPage() {
   const firestore = useFirestore();
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
   const stockQuery = useMemoFirebase(() => firestore ? collection(firestore, 'stock') : null, [firestore]);
-  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'item_types') : null, [firestore]);
+  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   
   const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
   const { data: stock, isLoading: loadingStock } = useCollection<Stock>(stockQuery);

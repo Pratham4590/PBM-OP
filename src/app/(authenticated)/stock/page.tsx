@@ -44,7 +44,7 @@ import { addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firesto
 export default function StockPage() {
   const firestore = useFirestore();
   const stockQuery = useMemoFirebase(() => firestore ? collection(firestore, 'stock') : null, [firestore]);
-  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paper_types') : null, [firestore]);
+  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
 
   const { data: stock, isLoading: loadingStock } = useCollection<Stock>(stockQuery);
   const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
