@@ -88,5 +88,3 @@ export type PlaceholderImage = {
   imageUrl: string;
   imageHint: string;
 };
-
-    

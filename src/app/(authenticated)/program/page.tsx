@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection, Timestamp } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 
 export default function ProgramPage() {
   const firestore = useFirestore();
@@ -101,11 +101,12 @@ export default function ProgramPage() {
       length > 0 &&
       cutoff > 0 &&
       notebookPages > 0 &&
-      gsm > 0
+      gsm > 0 &&
+      ups > 0
     ) {
+      const sheetsPerNotebook = (notebookPages / 2 / ups) + coverIndex;
+      const totalSheetsRequired = sheetsPerNotebook * piecesPerBundle * bundlesRequired;
       const reamWeight = (length * cutoff * gsm * 500) / 10000;
-      const totalSheetsRequired =
-        (notebookPages / 2 / ups + coverIndex) * piecesPerBundle * bundlesRequired;
       return { reamWeight, totalSheetsRequired };
     }
     return { reamWeight: 0, totalSheetsRequired: 0 };
@@ -118,7 +119,9 @@ export default function ProgramPage() {
       ...calculatedValues,
     };
 
-    addDocumentNonBlocking(collection(firestore, 'programs'), programToAdd);
+    if (firestore) {
+      addDocumentNonBlocking(collection(firestore, 'programs'), programToAdd);
+    }
     
     setNewProgram({
       brand: '',
@@ -163,7 +166,7 @@ export default function ProgramPage() {
                   <Label htmlFor="brand">Brand Name</Label>
                   <Input
                     id="brand"
-                    value={newProgram.brand}
+                    value={newProgram.brand || ''}
                     onChange={(e) => handleInputChange('brand', e.target.value)}
                   />
                 </div>
@@ -207,7 +210,7 @@ export default function ProgramPage() {
                   <Input
                     id="cutoff"
                     type="number"
-                    value={newProgram.cutoff}
+                    value={newProgram.cutoff || ''}
                     onChange={(e) => handleInputChange('cutoff', parseFloat(e.target.value) || 0)}
                   />
                 </div>
@@ -216,7 +219,7 @@ export default function ProgramPage() {
                   <Input
                     id="notebookPages"
                     type="number"
-                    value={newProgram.notebookPages}
+                    value={newProgram.notebookPages || ''}
                     onChange={(e) => handleInputChange('notebookPages', parseInt(e.target.value) || 0)}
                   />
                 </div>
@@ -225,7 +228,7 @@ export default function ProgramPage() {
                   <Input
                     id="coverIndex"
                     type="number"
-                    value={newProgram.coverIndex}
+                    value={newProgram.coverIndex || ''}
                     onChange={(e) => handleInputChange('coverIndex', parseInt(e.target.value) || 0)}
                   />
                 </div>
@@ -234,7 +237,7 @@ export default function ProgramPage() {
                   <Input
                     id="piecesPerBundle"
                     type="number"
-                    value={newProgram.piecesPerBundle}
+                    value={newProgram.piecesPerBundle || ''}
                     onChange={(e) => handleInputChange('piecesPerBundle', parseInt(e.target.value) || 0)}
                   />
                 </div>
@@ -243,7 +246,7 @@ export default function ProgramPage() {
                   <Input
                     id="bundlesRequired"
                     type="number"
-                    value={newProgram.bundlesRequired}
+                    value={newProgram.bundlesRequired || ''}
                     onChange={(e) => handleInputChange('bundlesRequired', parseInt(e.target.value) || 0)}
                   />
                 </div>
@@ -252,7 +255,7 @@ export default function ProgramPage() {
                   <Input
                     id="ups"
                     type="number"
-                    value={newProgram.ups}
+                    value={newProgram.ups || ''}
                     onChange={(e) => handleInputChange('ups', parseInt(e.target.value) || 0)}
                   />
                 </div>
@@ -278,7 +281,7 @@ export default function ProgramPage() {
                 <div className="space-y-2">
                   <Label>Total Sheets Required</Label>
                   <Input
-                    value={calculatedValues.totalSheetsRequired.toLocaleString()}
+                    value={Math.ceil(calculatedValues.totalSheetsRequired).toLocaleString()}
                     readOnly
                     disabled
                   />
@@ -353,5 +356,3 @@ export default function ProgramPage() {
     </>
   );
 }
-
-    
