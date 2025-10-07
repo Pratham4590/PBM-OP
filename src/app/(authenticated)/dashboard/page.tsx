@@ -27,14 +27,63 @@ import { PageHeader } from '@/components/page-header';
 import {
   Boxes,
   Package,
-  Factory,
-  CheckCircle,
-  TrendingUp,
   Sheet,
+  TrendingUp,
 } from 'lucide-react';
-import { recentRulings, chartData, stockSummary, productionSummary } from '@/lib/data';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+import { Ruling, Stock, ItemType } from '@/lib/types';
+import { useMemo }from 'react';
+
+const chartData = [
+    { date: "Jan", "Ruled": 4000, "Planned": 3800 },
+    { date: "Feb", "Ruled": 3000, "Planned": 3200 },
+    { date: "Mar", "Ruled": 5000, "Planned": 4800 },
+    { date: "Apr", "Ruled": 4780, "Planned": 4900 },
+    { date: "May", "Ruled": 5890, "Planned": 5500 },
+    { date: "Jun", "Ruled": 4390, "Planned": 4500 },
+    { date: "Jul", "Ruled": 4490, "Planned": 4300 },
+]
 
 export default function DashboardPage() {
+  const firestore = useFirestore();
+  const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
+  const stockQuery = useMemoFirebase(() => firestore ? collection(firestore, 'stock') : null, [firestore]);
+  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'item_types') : null, [firestore]);
+  
+  const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
+  const { data: stock, isLoading: loadingStock } = useCollection<Stock>(stockQuery);
+  const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
+
+  const stockSummary = useMemo(() => {
+    if (!stock) return { totalWeight: 0, totalReels: 0, paperTypes: [] };
+    const totalWeight = stock.reduce((acc, item) => acc + item.totalWeight, 0);
+    const totalReels = stock.reduce((acc, item) => acc + item.numberOfReels, 0);
+    return { totalWeight, totalReels, paperTypes: [] }; // paperTypes summary can be enhanced
+  }, [stock]);
+
+  const productionSummary = useMemo(() => {
+    if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: 0 };
+    const today = new Date().toDateString();
+    const todayRulings = rulings.filter(r => (r.date as Date).toDateString() === today);
+    const sheetsRuledToday = todayRulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    
+    const totalSheetsRuled = rulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    const totalTheoreticalSheets = rulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.theoreticalSheets, 0);
+    const efficiency = totalTheoreticalSheets > 0 ? (totalSheetsRuled / totalTheoreticalSheets) * 100 : 0;
+
+    return { sheetsRuledToday, rulingsToday: todayRulings.length, efficiency: efficiency.toFixed(1) };
+  }, [rulings]);
+
+  const recentRulings = useMemo(() => {
+    if (!rulings || !itemTypes) return [];
+    return rulings
+      .flatMap(r => r.entries.map(e => ({ ...e, reelNo: r.reelNo, serialNo: r.serialNo })))
+      .slice(0, 5);
+  }, [rulings, itemTypes]);
+
+  const getItemTypeName = (itemTypeId: string) => itemTypes?.find(it => it.id === itemTypeId)?.name || 'N/A';
+
   return (
     <>
       <PageHeader
@@ -50,9 +99,9 @@ export default function DashboardPage() {
             <Boxes className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stockSummary.totalWeight.toLocaleString()} kg</div>
+            {loadingStock ? <div className="text-2xl font-bold">...</div> : <div className="text-2xl font-bold">{stockSummary.totalWeight.toLocaleString()} kg</div>}
             <p className="text-xs text-muted-foreground">
-              Across {stockSummary.paperTypes.length} paper types
+              Across all paper types
             </p>
           </CardContent>
         </Card>
@@ -62,9 +111,9 @@ export default function DashboardPage() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stockSummary.totalReels}</div>
+          {loadingStock ? <div className="text-2xl font-bold">...</div> : <div className="text-2xl font-bold">{stockSummary.totalReels}</div>}
             <p className="text-xs text-muted-foreground">
-              {stockSummary.paperTypes.map(p => `${p.reels} ${p.name}`).join(', ')}
+              In stock
             </p>
           </CardContent>
         </Card>
@@ -74,7 +123,7 @@ export default function DashboardPage() {
             <Sheet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{productionSummary.sheetsRuledToday.toLocaleString()}</div>
+            {loadingRulings ? <div className="text-2xl font-bold">...</div> : <div className="text-2xl font-bold">{productionSummary.sheetsRuledToday.toLocaleString()}</div>}
             <p className="text-xs text-muted-foreground">
               Across {productionSummary.rulingsToday} rulings
             </p>
@@ -86,7 +135,7 @@ export default function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{productionSummary.efficiency}%</div>
+          {loadingRulings ? <div className="text-2xl font-bold">...%</div> : <div className="text-2xl font-bold">{productionSummary.efficiency}%</div>}
             <p className="text-xs text-muted-foreground">
               Based on recent production data
             </p>
@@ -159,15 +208,15 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentRulings.map((ruling) => (
-                  <TableRow key={ruling.reelNo}>
+                {loadingRulings || loadingItemTypes ? <TableRow><TableCell colSpan={3} className="text-center">Loading...</TableCell></TableRow> : recentRulings.map((ruling, index) => (
+                  <TableRow key={index}>
                     <TableCell>
                       <div className="font-medium">{ruling.reelNo}</div>
                       <div className="hidden text-sm text-muted-foreground md:inline">
                         {ruling.serialNo}
                       </div>
                     </TableCell>
-                    <TableCell>{ruling.itemRuled}</TableCell>
+                    <TableCell>{getItemTypeName(ruling.itemTypeId)}</TableCell>
                     <TableCell className="text-right">
                       <Badge variant={ruling.difference > 0 ? "default" : "destructive"} className={ruling.difference > 0 ? "bg-green-600" : ""}>
                         {ruling.difference.toLocaleString()}
@@ -183,3 +232,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    

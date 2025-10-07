@@ -38,22 +38,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-
-const initialPaperTypes: PaperType[] = [
-  { id: '1', name: 'Maplitho', gsm: 58, length: 91.5 },
-  { id: '2', name: 'Creamwove', gsm: 60, length: 88 },
-  { id: '3', name: 'Coated Art', gsm: 120, length: 70 },
-];
-
-const initialItemTypes: ItemType[] = [
-  { id: '1', name: 'Single Line', shortCode: 'SL' },
-  { id: '2', name: 'Double Line', shortCode: 'DL' },
-  { id: '3', name: 'Four Line', shortCode: 'FL' },
-  { id: '4', name: 'Square Line', shortCode: 'SQL' },
-];
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection, Timestamp } from 'firebase/firestore';
 
 export default function ProgramPage() {
-  const [programs, setPrograms] = useState<Program[]>([]);
+  const firestore = useFirestore();
+  const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
+  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paper_types') : null, [firestore]);
+  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'item_types') : null, [firestore]);
+
+  const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
+  const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
+  const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
+
   const [newProgram, setNewProgram] = useState<Partial<Program>>({
     brand: '',
     bundlesRequired: 0,
@@ -74,7 +72,7 @@ export default function ProgramPage() {
 
   const handleSelectChange = (field: keyof Program, value: string) => {
     if (field === 'paperTypeId') {
-      const selectedPaper = initialPaperTypes.find((p) => p.id === value);
+      const selectedPaper = paperTypes?.find((p) => p.id === value);
       if (selectedPaper) {
         setNewProgram((prev) => ({
           ...prev,
@@ -96,6 +94,8 @@ export default function ProgramPage() {
       gsm = 0,
       bundlesRequired = 0,
       piecesPerBundle = 0,
+      ups = 0,
+      coverIndex = 0,
     } = newProgram;
     if (
       length > 0 &&
@@ -105,21 +105,21 @@ export default function ProgramPage() {
     ) {
       const reamWeight = (length * cutoff * gsm * 500) / 10000;
       const totalSheetsRequired =
-        (notebookPages / 2) * piecesPerBundle * bundlesRequired;
+        (notebookPages / 2 / ups + coverIndex) * piecesPerBundle * bundlesRequired;
       return { reamWeight, totalSheetsRequired };
     }
     return { reamWeight: 0, totalSheetsRequired: 0 };
   }, [newProgram]);
 
   const handleCreateProgram = () => {
-    const programToAdd: Program = {
-      id: `${programs.length + 1}`,
+    const programToAdd: Partial<Program> = {
       date: new Date(),
       ...newProgram,
       ...calculatedValues,
-    } as Program;
+    };
 
-    setPrograms([...programs, programToAdd]);
+    addDocumentNonBlocking(collection(firestore, 'programs'), programToAdd);
+    
     setNewProgram({
       brand: '',
       bundlesRequired: 0,
@@ -131,6 +131,9 @@ export default function ProgramPage() {
     });
     setIsModalOpen(false);
   };
+
+  const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.name;
+  const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.name;
 
   return (
     <>
@@ -170,12 +173,13 @@ export default function ProgramPage() {
                     onValueChange={(value) =>
                       handleSelectChange('paperTypeId', value)
                     }
+                    disabled={loadingPaperTypes}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select paper" />
                     </SelectTrigger>
                     <SelectContent>
-                      {initialPaperTypes.map((paper) => (
+                      {paperTypes?.map((paper) => (
                         <SelectItem key={paper.id} value={paper.id}>
                           {paper.name}
                         </SelectItem>
@@ -185,12 +189,12 @@ export default function ProgramPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="itemTypeId">Item Type</Label>
-                   <Select onValueChange={(value) => handleSelectChange('itemTypeId', value)}>
+                   <Select onValueChange={(value) => handleSelectChange('itemTypeId', value)} disabled={loadingItemTypes}>
                      <SelectTrigger>
                        <SelectValue placeholder="Select item type" />
                      </SelectTrigger>
                      <SelectContent>
-                       {initialItemTypes.map((item) => (
+                       {itemTypes?.map((item) => (
                          <SelectItem key={item.id} value={item.id}>
                            {item.name}
                          </SelectItem>
@@ -217,7 +221,7 @@ export default function ProgramPage() {
                   />
                 </div>
                  <div className="space-y-2">
-                  <Label htmlFor="coverIndex">Cover Index</Label>
+                  <Label htmlFor="coverIndex">Cover Pages</Label>
                   <Input
                     id="coverIndex"
                     type="number"
@@ -303,7 +307,9 @@ export default function ProgramPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {programs.length > 0 ? (
+            {loadingPrograms ? (
+              <div className="p-4 text-center text-muted-foreground">Loading programs...</div>
+            ) : programs && programs.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -321,18 +327,10 @@ export default function ProgramPage() {
                         {program.brand}
                       </TableCell>
                       <TableCell>
-                        {
-                          initialPaperTypes.find(
-                            (p) => p.id === program.paperTypeId
-                          )?.name
-                        }
+                        {getPaperTypeName(program.paperTypeId)}
                       </TableCell>
                       <TableCell>
-                        {
-                          initialItemTypes.find(
-                            (i) => i.id === program.itemTypeId
-                          )?.name
-                        }
+                        {getItemTypeName(program.itemTypeId)}
                       </TableCell>
                       <TableCell>
                         {program.totalSheetsRequired.toLocaleString()}
@@ -355,3 +353,5 @@ export default function ProgramPage() {
     </>
   );
 }
+
+    

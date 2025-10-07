@@ -1,8 +1,10 @@
+import { Timestamp } from "firebase/firestore";
+
 export type UserRole = "Admin" | "Member" | "Operator";
 
 export type User = {
-  uid: string;
-  email: string;
+  id: string;
+  email?: string;
   displayName?: string;
   role: UserRole;
 };
@@ -22,7 +24,7 @@ export type ItemType = {
 
 export type Stock = {
   id: string;
-  date: Date;
+  date: Date | Timestamp;
   paperTypeId: string;
   length: number;
   gsm: number;
@@ -32,7 +34,7 @@ export type Stock = {
 
 export type Program = {
   id: string;
-  date: Date;
+  date: Date | Timestamp;
   paperTypeId: string;
   gsm: number;
   length: number;
@@ -51,7 +53,7 @@ export type Program = {
 
 export type Ruling = {
   id: string;
-  date: Date;
+  date: Date | Timestamp;
   serialNo: string;
   reelNo: string;
   paperTypeId: string;
@@ -86,3 +88,5 @@ export type PlaceholderImage = {
   imageUrl: string;
   imageHint: string;
 };
+
+    

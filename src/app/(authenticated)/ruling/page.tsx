@@ -17,6 +17,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,23 +51,23 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-
-const initialPaperTypes: PaperType[] = [
-  { id: '1', name: 'Maplitho', gsm: 58, length: 91.5 },
-  { id: '2', name: 'Creamwove', gsm: 60, length: 88 },
-];
-const initialItemTypes: ItemType[] = [
-  { id: '1', name: 'Single Line', shortCode: 'SL' },
-  { id: '2', name: 'Double Line', shortCode: 'DL' },
-];
-const initialPrograms: Program[] = [
-    { id: 'p1', brand: 'Classmate', paperTypeId: '1', gsm: 58, length: 91.5, itemTypeId: '1', cutoff: 30, piecesPerBundle: 10, totalSheetsRequired: 10000, notebookPages: 120, bundlesRequired: 1, coverIndex: 2, date: new Date(), reamWeight: 8.4, ups: 2},
-    { id: 'p2', brand: 'Navneet', paperTypeId: '2', gsm: 60, length: 88, itemTypeId: '2', cutoff: 35, piecesPerBundle: 8, totalSheetsRequired: 8000, notebookPages: 96, bundlesRequired: 1, coverIndex: 2, date: new Date(), reamWeight: 9.2, ups: 2 },
-];
-
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection, Timestamp } from 'firebase/firestore';
 
 export default function RulingPage() {
-  const [rulings, setRulings] = useState<Ruling[]>([]);
+  const firestore = useFirestore();
+
+  const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
+  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paper_types') : null, [firestore]);
+  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'item_types') : null, [firestore]);
+  const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
+
+  const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
+  const { data: paperTypes } = useCollection<PaperType>(paperTypesQuery);
+  const { data: itemTypes } = useCollection<ItemType>(itemTypesQuery);
+  const { data: programs } = useCollection<Program>(programsQuery);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [newRuling, setNewRuling] = useState<Partial<Ruling>>({ entries: [] });
@@ -80,9 +81,9 @@ export default function RulingPage() {
   }, []);
 
   const handleAddRulingEntry = () => {
-    if (newEntry.itemTypeId && newEntry.sheetsRuled) {
-       const selectedPaper = initialPaperTypes.find(p => p.id === newRuling.paperTypeId);
-       const program = initialPrograms.find(p => p.id === newEntry.programId);
+    if (newEntry.sheetsRuled && (newEntry.programId || newEntry.cutoff) && newEntry.itemTypeId) {
+       const selectedPaper = paperTypes?.find(p => p.id === newRuling.paperTypeId);
+       const program = programs?.find(p => p.id === newEntry.programId);
        
        let cutoff = newEntry.cutoff || 0;
        if (program) {
@@ -104,8 +105,9 @@ export default function RulingPage() {
         ...newEntry,
         cutoff,
         theoreticalSheets,
-        difference: newEntry.sheetsRuled - theoreticalSheets
-      } as RulingEntry;
+        difference: newEntry.sheetsRuled - theoreticalSheets,
+        itemTypeId: newEntry.itemTypeId,
+      };
       
       setNewRuling((prev) => ({
         ...prev,
@@ -126,25 +128,24 @@ export default function RulingPage() {
   };
 
   const handleSaveRuling = () => {
-     const rulingToAdd: Ruling = {
-      id: `${rulings.length + 1}`,
+     const rulingToAdd: Partial<Ruling> = {
       date: new Date(),
       status: 'Partially Used',
       ...newRuling,
-    } as Ruling;
+    };
 
-    setRulings([rulingToAdd, ...rulings]);
+    addDocumentNonBlocking(collection(firestore, 'reels'), rulingToAdd);
     resetForm();
   }
   
   const getProgramInfo = (programId?: string) => {
     if (!programId) return null;
-    return initialPrograms.find(p => p.id === programId);
+    return programs?.find(p => p.id === programId);
   }
 
   const selectedPaper = useMemo(() => {
-    return initialPaperTypes.find(p => p.id === newRuling.paperTypeId);
-  }, [newRuling.paperTypeId]);
+    return paperTypes?.find(p => p.id === newRuling.paperTypeId);
+  }, [newRuling.paperTypeId, paperTypes]);
 
 
   const calculationSummary = useMemo(() => {
@@ -152,11 +153,16 @@ export default function RulingPage() {
 
     const totalSheetsRuled = (newRuling.entries || []).reduce((sum, entry) => sum + (entry.sheetsRuled || 0), 0);
 
-    const firstEntry = (newRuling.entries || [])[0];
-    if (!firstEntry) return { totalSheetsRuled, totalTheoreticalSheets: 0, totalDifference: 0 };
+    let totalTheoreticalSheets = 0;
 
-    const reamWeight = (selectedPaper.length * firstEntry.cutoff * selectedPaper.gsm) / 20000;
-    const totalTheoreticalSheets = reamWeight > 0 ? (newRuling.reelWeight * 500) / reamWeight : 0;
+    // A reel can have multiple entries with different cutoffs if not using a program,
+    // so we can't just calculate total theoretical sheets from the first entry.
+    // However, for this implementation we assume a single cutoff per reel for simplicity.
+    const firstEntry = (newRuling.entries || [])[0];
+    if (firstEntry && firstEntry.cutoff > 0) {
+        const reamWeight = (selectedPaper.length * firstEntry.cutoff * selectedPaper.gsm) / 20000;
+        totalTheoreticalSheets = reamWeight > 0 ? (newRuling.reelWeight * 500) / reamWeight : 0;
+    }
     
     return {
       totalSheetsRuled,
@@ -164,6 +170,8 @@ export default function RulingPage() {
       totalDifference: totalSheetsRuled - totalTheoreticalSheets,
     };
   }, [newRuling, selectedPaper]);
+
+  const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.name;
 
 
   return (
@@ -231,7 +239,7 @@ export default function RulingPage() {
                       <SelectValue placeholder="Select paper" />
                     </SelectTrigger>
                     <SelectContent>
-                      {initialPaperTypes.map((paper) => (
+                      {paperTypes?.map((paper) => (
                         <SelectItem key={paper.id} value={paper.id}>
                           {paper.name} ({paper.gsm}gsm)
                         </SelectItem>
@@ -268,8 +276,8 @@ export default function RulingPage() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="no-program">No Program</SelectItem>
-                                {initialPrograms.map((prog) => (
-                                    <SelectItem key={prog.id} value={prog.id}>{prog.brand} - {initialItemTypes.find(i => i.id === prog.itemTypeId)?.name}</SelectItem>
+                                {programs?.map((prog) => (
+                                    <SelectItem key={prog.id} value={prog.id}>{prog.brand} - {getItemTypeName(prog.itemTypeId)}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -285,7 +293,7 @@ export default function RulingPage() {
                                 <SelectValue placeholder="Select item"/>
                             </SelectTrigger>
                             <SelectContent>
-                                {initialItemTypes.map((item) => (
+                                {itemTypes?.map((item) => (
                                     <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
                                 ))}
                             </SelectContent>
@@ -329,7 +337,7 @@ export default function RulingPage() {
                         <TableBody>
                             {newRuling.entries && newRuling.entries.length > 0 ? newRuling.entries.map(entry => (
                                 <TableRow key={entry.id}>
-                                    <TableCell>{initialItemTypes.find(i => i.id === entry.itemTypeId)?.name}</TableCell>
+                                    <TableCell>{getItemTypeName(entry.itemTypeId)}</TableCell>
                                     <TableCell>{entry.sheetsRuled.toLocaleString()}</TableCell>
                                     <TableCell>{getProgramInfo(entry.programId)?.brand || 'N/A'}</TableCell>
                                     <TableCell className="text-right">
@@ -353,11 +361,11 @@ export default function RulingPage() {
                     <Card>
                         <CardHeader><CardTitle>Reel Summary</CardTitle></CardHeader>
                         <CardContent className="text-sm space-y-1">
-                            <p><strong>Date:</strong> {new Date(newRuling.date || Date.now()).toLocaleDateString()}</p>
+                            <p><strong>Date:</strong> {newRuling.date ? (newRuling.date as Date).toLocaleDateString() : new Date().toLocaleDateString()}</p>
                             <p><strong>Serial No:</strong> {newRuling.serialNo}</p>
                             <p><strong>Reel No:</strong> {newRuling.reelNo}</p>
-                            <p><strong>Paper:</strong> {initialPaperTypes.find(p => p.id === newRuling.paperTypeId)?.name}</p>
-                            <p><strong>Reel Weight:</strong> {newRuling.reelWeight} kg</p>
+                            <p><strong>Paper:</strong> {paperTypes?.find(p => p.id === newRuling.paperTypeId)?.name}</p>
+                            <p><strong>Reel Weight:</strong> {newRuling.reelWeight} kg</p>                        
                         </CardContent>
                     </Card>
                      <Card>
@@ -376,11 +384,11 @@ export default function RulingPage() {
                                     <TableBody>
                                         {newRuling.entries.map(e => (
                                             <TableRow key={e.id}>
-                                                <TableCell>{initialItemTypes.find(i => i.id === e.itemTypeId)?.name}</TableCell>
+                                                <TableCell>{getItemTypeName(e.itemTypeId)}</TableCell>
                                                 <TableCell>{e.sheetsRuled.toLocaleString()}</TableCell>
                                                 <TableCell>{Math.round(e.theoreticalSheets || 0).toLocaleString()}</TableCell>
                                                 <TableCell className="text-right">
-                                                     <Badge variant={e.difference && e.difference >= 0 ? 'default' : 'destructive'} className={e.difference && e.difference >= 0 ? 'bg-green-600' : ''}>
+                                                     <Badge variant={e.difference >= 0 ? 'default' : 'destructive'} className={e.difference >= 0 ? 'bg-green-600' : ''}>
                                                         {Math.round(e.difference || 0).toLocaleString()}
                                                     </Badge>
                                                 </TableCell>
@@ -396,7 +404,7 @@ export default function RulingPage() {
                                   <div className="text-sm mt-2 space-y-1">
                                     <div>Total Sheets Ruled: {calculationSummary.totalSheetsRuled.toLocaleString()}</div>
                                     <div>Total Theoretical Sheets: {Math.round(calculationSummary.totalTheoreticalSheets).toLocaleString()}</div>
-                                    <div>Overall Difference: 
+                                    <div className="flex items-center">Overall Difference: 
                                         <Badge variant={calculationSummary.totalDifference >= 0 ? 'default' : 'destructive'} className={`ml-2 ${calculationSummary.totalDifference >= 0 ? 'bg-green-600' : ''}`}>
                                             {Math.round(calculationSummary.totalDifference).toLocaleString()}
                                         </Badge>
@@ -448,16 +456,21 @@ export default function RulingPage() {
         <Card>
           <CardHeader>
             <CardTitle>Recent Reel Rulings</CardTitle>
+            <CardDescription>A list of all reel rulings.</CardDescription>
           </CardHeader>
           <CardContent>
-            {rulings.length > 0 ? (
+            {loadingRulings ? (
+                 <div className="p-4 border-2 border-dashed border-muted-foreground/50 rounded-lg h-48 flex items-center justify-center">
+                    <p className="text-muted-foreground">Loading rulings...</p>
+                </div>
+            ) : rulings && rulings.length > 0 ? (
                 <Accordion type="single" collapsible className="w-full">
                 {rulings.map(ruling => (
                     <AccordionItem value={ruling.id} key={ruling.id}>
                         <AccordionTrigger>
                             <div className="flex justify-between w-full pr-4">
                                 <span className="font-semibold">Reel No: {ruling.reelNo} (SN: {ruling.serialNo})</span>
-                                <Badge variant={ruling.status === 'Finished' ? 'destructive' : 'secondary'}>{ruling.status}</Badge>
+                                <Badge variant={ruling.status === 'Finished' ? 'default' : 'secondary'} className={ruling.status === 'Finished' ? 'bg-green-600' : ''}>{ruling.status}</Badge>
                             </div>
                         </AccordionTrigger>
                         <AccordionContent>
@@ -471,13 +484,13 @@ export default function RulingPage() {
                                 </TableRow>
                              </TableHeader>
                              <TableBody>
-                                {ruling.entries.map(entry => (
-                                    <TableRow key={entry.id}>
-                                        <TableCell>{initialItemTypes.find(i => i.id === entry.itemTypeId)?.name}</TableCell>
+                                {ruling.entries.map((entry, index) => (
+                                    <TableRow key={index}>
+                                        <TableCell>{getItemTypeName(entry.itemTypeId)}</TableCell>
                                         <TableCell>{entry.sheetsRuled.toLocaleString()}</TableCell>
                                         <TableCell>{getProgramInfo(entry.programId)?.brand || 'N/A'}</TableCell>
                                         <TableCell className="text-right">
-                                            <Badge variant={entry.difference && entry.difference >= 0 ? 'default' : 'destructive'} className={entry.difference && entry.difference >= 0 ? 'bg-green-600' : ''}>
+                                            <Badge variant={entry.difference >= 0 ? 'default' : 'destructive'} className={entry.difference >= 0 ? 'bg-green-600' : ''}>
                                                 {Math.round(entry.difference || 0).toLocaleString()}
                                             </Badge>
                                         </TableCell>
@@ -500,3 +513,5 @@ export default function RulingPage() {
     </>
   );
 }
+
+    

@@ -1,16 +1,11 @@
 {
   "entities": {
     "PaperType": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "PaperType",
       "type": "object",
       "description": "Represents a type of paper with its properties.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the paper type."
-        },
-        "paperName": {
+        "name": {
           "type": "string",
           "description": "The name of the paper type."
         },
@@ -18,29 +13,23 @@
           "type": "number",
           "description": "Grams per square meter of the paper."
         },
-        "lengthCm": {
+        "length": {
           "type": "number",
           "description": "Length of the paper in centimeters."
         }
       },
       "required": [
-        "id",
-        "paperName",
+        "name",
         "gsm",
-        "lengthCm"
+        "length"
       ]
     },
     "ItemType": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "ItemType",
       "type": "object",
       "description": "Represents a type of item being produced.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the item type."
-        },
-        "itemName": {
+        "name": {
           "type": "string",
           "description": "The name of the item type."
         },
@@ -50,21 +39,15 @@
         }
       },
       "required": [
-        "id",
-        "itemName",
+        "name",
         "shortCode"
       ]
     },
     "Stock": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Stock",
       "type": "object",
       "description": "Represents the stock of paper reels.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the stock entry."
-        },
         "date": {
           "type": "string",
           "description": "Date of the stock entry.",
@@ -72,7 +55,7 @@
         },
         "paperTypeId": {
           "type": "string",
-          "description": "Reference to PaperType. (Relationship: PaperType 1:N Stock)"
+          "description": "Reference to PaperType."
         },
         "length": {
           "type": "number",
@@ -92,7 +75,6 @@
         }
       },
       "required": [
-        "id",
         "date",
         "paperTypeId",
         "length",
@@ -102,15 +84,10 @@
       ]
     },
     "Program": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Program",
       "type": "object",
       "description": "Represents a production program for notebooks.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the program."
-        },
         "date": {
           "type": "string",
           "description": "Date of the program.",
@@ -118,7 +95,7 @@
         },
         "paperTypeId": {
           "type": "string",
-          "description": "Reference to PaperType. (Relationship: PaperType 1:N Program)"
+          "description": "Reference to PaperType."
         },
         "gsm": {
           "type": "number",
@@ -134,7 +111,7 @@
         },
         "itemTypeId": {
           "type": "string",
-          "description": "Reference to ItemType. (Relationship: ItemType 1:N Program)"
+          "description": "Reference to ItemType."
         },
         "notebookPages": {
           "type": "number",
@@ -159,10 +136,15 @@
         "brand": {
           "type": "string",
           "description": "Brand of the notebook being produced."
+        },
+        "reamWeight": {
+            "type": "number"
+        },
+        "totalSheetsRequired": {
+            "type": "number"
         }
       },
       "required": [
-        "id",
         "date",
         "paperTypeId",
         "gsm",
@@ -174,19 +156,16 @@
         "ups",
         "piecesPerBundle",
         "bundlesRequired",
-        "brand"
+        "brand",
+        "reamWeight",
+        "totalSheetsRequired"
       ]
     },
-    "ReelRuling": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+    "Reel": {
       "title": "ReelRuling",
       "type": "object",
       "description": "Represents the ruling of a paper reel.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the reel ruling entry."
-        },
         "date": {
           "type": "string",
           "description": "Date of the reel ruling.",
@@ -202,113 +181,50 @@
         },
         "paperTypeId": {
           "type": "string",
-          "description": "Reference to PaperType. (Relationship: PaperType 1:N ReelRuling)"
-        },
-        "itemTypeIds": {
-          "type": "array",
-          "description": "References to ItemTypes. (Relationship: ItemType N:N ReelRuling)",
-          "items": {
-            "type": "string"
-          }
+          "description": "Reference to PaperType."
         },
         "reelWeight": {
           "type": "number",
           "description": "Weight of the reel."
         },
-        "sheetsRuled": {
-          "type": "number",
-          "description": "Number of sheets ruled."
+        "status": {
+            "type": "string"
         },
-        "programId": {
-          "type": "string",
-          "description": "Reference to Program (optional). If present, cutoff and other values are pulled from program."
-        },
-        "cutoff": {
-          "type": "number",
-          "description": "Cutoff value used for ruling, if not using a program."
+        "entries": {
+            "type": "array",
+            "items": {
+                "$ref": "#/entities/ReelEntry"
+            }
         }
       },
       "required": [
-        "id",
         "date",
         "serialNo",
         "reelNo",
         "paperTypeId",
-        "itemTypeIds",
         "reelWeight",
-        "sheetsRuled"
+        "status",
+        "entries"
       ]
     },
-    "Report": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Report",
-      "type": "object",
-      "description": "Represents a report generated from reel rulings and programs.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the report."
+    "ReelEntry": {
+        "title": "ReelEntry",
+        "type": "object",
+        "properties": {
+            "itemTypeId": { "type": "string" },
+            "sheetsRuled": { "type": "number" },
+            "programId": { "type": "string" },
+            "cutoff": { "type": "number" },
+            "theoreticalSheets": { "type": "number" },
+            "difference": { "type": "number" }
         },
-        "reelRulingId": {
-          "type": "string",
-          "description": "Reference to ReelRuling. (Relationship: ReelRuling 1:1 Report)"
-        },
-        "programId": {
-          "type": "string",
-          "description": "Reference to Program. (Relationship: Program 1:1 Report)"
-        },
-        "serialNo": {
-          "type": "string",
-          "description": "Serial number from the reel ruling."
-        },
-        "reelNo": {
-          "type": "string",
-          "description": "Reel number from the reel ruling."
-        },
-        "reelWeight": {
-          "type": "number",
-          "description": "Reel weight from the reel ruling."
-        },
-        "sheetsRuled": {
-          "type": "number",
-          "description": "Sheets ruled from the reel ruling."
-        },
-        "theoreticalSheets": {
-          "type": "number",
-          "description": "Theoretical sheets calculated for the report."
-        },
-        "difference": {
-          "type": "number",
-          "description": "Difference between sheets ruled and theoretical sheets."
-        },
-        "itemTypeId": {
-          "type": "string",
-          "description": "Reference to ItemType. (Relationship: ItemType 1:1 Report)"
-        }
-      },
-      "required": [
-        "id",
-        "reelRulingId",
-        "programId",
-        "serialNo",
-        "reelNo",
-        "reelWeight",
-        "sheetsRuled",
-        "theoreticalSheets",
-        "difference",
-        "itemTypeId"
-      ]
+        "required": ["itemTypeId", "sheetsRuled", "cutoff", "theoreticalSheets", "difference"]
     },
     "User": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
       "description": "Represents a user of the application.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the user."
-        },
         "email": {
           "type": "string",
           "description": "Email address of the user.",
@@ -320,7 +236,6 @@
         }
       },
       "required": [
-        "id",
         "email",
         "role"
       ]
@@ -333,136 +248,45 @@
     ]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/paper_types/{paperTypeId}",
-        "definition": {
-          "entityName": "PaperType",
-          "schema": {
-            "$ref": "#/backend/entities/PaperType"
-          },
-          "description": "Stores different paper types, including paper name, GSM, and length. No specific authorization is required for reading (QAP).",
-          "params": [
-            {
-              "name": "paperTypeId",
-              "description": "The unique identifier for the paper type."
-            }
-          ]
-        }
+    "collections": {
+      "paper_types": {
+        "schema": {
+          "$ref": "#/entities/PaperType"
+        },
+        "description": "Stores different paper types, including paper name, GSM, and length."
       },
-      {
-        "path": "/item_types/{itemTypeId}",
-        "definition": {
-          "entityName": "ItemType",
-          "schema": {
-            "$ref": "#/backend/entities/ItemType"
-          },
-          "description": "Stores different item types, including item name and short code.  No specific authorization is required for reading (QAP).",
-          "params": [
-            {
-              "name": "itemTypeId",
-              "description": "The unique identifier for the item type."
-            }
-          ]
-        }
+      "item_types": {
+        "schema": {
+          "$ref": "#/entities/ItemType"
+        },
+        "description": "Stores different item types, including item name and short code."
       },
-      {
-        "path": "/stock/{stockId}",
-        "definition": {
-          "entityName": "Stock",
-          "schema": {
-            "$ref": "#/backend/entities/Stock"
-          },
-          "description": "Stores the stock levels of different paper types. Only admins can modify. Access is controlled via /roles_admin/{userId}. (QAP: Rules are not Filters)",
-          "params": [
-            {
-              "name": "stockId",
-              "description": "The unique identifier for the stock entry."
-            }
-          ]
-        }
+      "stock": {
+        "schema": {
+          "$ref": "#/entities/Stock"
+        },
+        "description": "Stores the stock levels of different paper types. Only admins can modify."
       },
-      {
-        "path": "/programs/{programId}",
-        "definition": {
-          "entityName": "Program",
-          "schema": {
-            "$ref": "#/backend/entities/Program"
-          },
-          "description": "Stores program information. Includes denormalized 'members' map for authorization independence (CRITICAL).",
-          "params": [
-            {
-              "name": "programId",
-              "description": "The unique identifier for the program."
-            }
-          ]
-        }
+      "programs": {
+        "schema": {
+          "$ref": "#/entities/Program"
+        },
+        "description": "Stores program information."
       },
-      {
-        "path": "/reels/{reelRulingId}",
-        "definition": {
-          "entityName": "ReelRuling",
-          "schema": {
-            "$ref": "#/backend/entities/ReelRuling"
-          },
-          "description": "Stores reel ruling entries.  Includes denormalized fields from PaperType and ItemType.",
-          "params": [
-            {
-              "name": "reelRulingId",
-              "description": "The unique identifier for the reel ruling entry."
-            }
-          ]
-        }
+      "reels": {
+        "schema": {
+          "$ref": "#/entities/Reel"
+        },
+        "description": "Stores reel ruling entries."
       },
-      {
-        "path": "/reports/{reportId}",
-        "definition": {
-          "entityName": "Report",
-          "schema": {
-            "$ref": "#/backend/entities/Report"
-          },
-          "description": "Stores reports generated from reel rulings and programs. Key fields are denormalized for faster aggregation.",
-          "params": [
-            {
-              "name": "reportId",
-              "description": "The unique identifier for the report."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores user profiles, including roles (Admin, Member, Operator).",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "roles_admin",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores admin role assignments. Existence of a document indicates admin privileges.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            }
-          ]
-        }
+      "users": {
+        "schema": {
+          "$ref": "#/entities/User"
+        },
+        "description": "Stores user profiles, including roles (Admin, Member, Operator)."
       }
-    ],
-    "reasoning": "The Firestore data structure is designed to support a Notebook Manufacturing Unit's operations, focusing on real-time updates, role-based access control, and efficient data retrieval. The structure emphasizes authorization independence by denormalizing relevant data, particularly user roles and access permissions. This approach avoids complex `get()` calls in security rules, ensuring atomic operations and simplified debugging.\n\n1.  **Master Data:** PaperTypes and ItemTypes are stored as root-level collections. No user-specific restrictions are applied, simplifying retrieval and updates across the application.\n2.  **Stock:** Stock data is also stored at the root level. Admin-level access is enforced via a dedicated role collection `/roles_admin/{userId}`.\n3.  **Programs:** Each program document is stored in the root-level `/programs` collection. Access control is managed via denormalized `members` maps within each document, defining user roles and permissions. This approach ensures authorization independence, as the security rules do not need to fetch parent document data.\n4.  **Reel Rulings:** Reel ruling entries are stored in the root-level `/reels` collection. Each document contains information about the reel ruling and includes denormalized fields from the associated Program and PaperType for simplified data retrieval and reporting.\n5.  **Reports:** Report documents are stored in the root-level `/reports` collection. Each report links to a specific ReelRuling and Program. Key data points required for reports are denormalized, allowing for efficient aggregation and calculation of differences.\n6.  **Users:** User profiles, including roles (Admin, Member, Operator), are stored in the root-level `/users` collection. Additionally, existence-based global roles are used, where membership in `/roles_admin/{userId}` grants admin privileges.\n\n**Authorization Independence (Denormalization):**\n*   The `members` map in `programs` documents stores user IDs and their corresponding roles, eliminating the need for `get()` calls to parent documents to check permissions.\n*   The role of a user is directly accessible within the `users` collection.\n*   PaperType and ItemType names/properties are denormalized into `Stock`, `Program` and `ReelRuling` entities to avoid reads.\n\n**QAPs (Rules are not Filters):**\n*   Structural Segregation: Publicly accessible master data is separated from user-specific or role-restricted data.\n*   Membership Model: Collaborative access to programs is governed by the `members` map, enabling secure `list` operations as security rules can directly validate membership without complex filtering.\n*   Role-based Access: Admin roles are checked using the existence of documents in the `/roles_admin/{userId}` collection. Thus, `/stock` documents can be listed, but only modifiable if the user is present in the `/roles_admin/{userId}` collection."
+    }
   }
 }
+
+    

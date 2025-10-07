@@ -25,68 +25,45 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogClose,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { PaperType, ItemType } from '@/lib/types';
-
-const initialPaperTypes: PaperType[] = [
-  { id: '1', name: 'Maplitho', gsm: 58, length: 91.5 },
-  { id: '2', name: 'Creamwove', gsm: 60, length: 88 },
-  { id: '3', name: 'Coated Art', gsm: 120, length: 70 },
-];
-
-const initialItemTypes: ItemType[] = [
-  { id: '1', name: 'Single Line', shortCode: 'SL' },
-  { id: '2', name: 'Double Line', shortCode: 'DL' },
-  { id: '3', name: 'Four Line', shortCode: 'FL' },
-  { id: '4', name: 'Square Line', shortCode: 'SQL' },
-];
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection } from 'firebase/firestore';
 
 export default function MasterDataPage() {
-  const [paperTypes, setPaperTypes] = useState<PaperType[]>(initialPaperTypes);
-  const [itemTypes, setItemTypes] = useState<ItemType[]>(initialItemTypes);
-  const [newPaperType, setNewPaperType] = useState({
-    name: '',
-    gsm: '',
-    length: '',
-  });
-  const [newItemType, setNewItemType] = useState({ name: '', shortCode: '' });
+  const firestore = useFirestore();
+  
+  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paper_types') : null, [firestore]);
+  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'item_types') : null, [firestore]);
+
+  const { data: paperTypes, isLoading: loadingPaper } = useCollection<PaperType>(paperTypesQuery);
+  const { data: itemTypes, isLoading: loadingItems } = useCollection<ItemType>(itemTypesQuery);
+
+  const [newPaperType, setNewPaperType] = useState<Partial<PaperType>>({});
+  const [newItemType, setNewItemType] = useState<Partial<ItemType>>({});
+
+  const [isPaperModalOpen, setIsPaperModalOpen] = useState(false);
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
 
   const handleAddPaperType = () => {
     if (newPaperType.name && newPaperType.gsm && newPaperType.length) {
-      setPaperTypes([
-        ...paperTypes,
-        {
-          id: `${paperTypes.length + 1}`,
-          name: newPaperType.name,
-          gsm: parseFloat(newPaperType.gsm),
-          length: parseFloat(newPaperType.length),
-        },
-      ]);
-      setNewPaperType({ name: '', gsm: '', length: '' });
+      addDocumentNonBlocking(collection(firestore, 'paper_types'), newPaperType);
+      setNewPaperType({});
+      setIsPaperModalOpen(false);
     }
   };
 
   const handleAddItemType = () => {
     if (newItemType.name && newItemType.shortCode) {
-      setItemTypes([
-        ...itemTypes,
-        {
-          id: `${itemTypes.length + 1}`,
-          name: newItemType.name,
-          shortCode: newItemType.shortCode,
-        },
-      ]);
-      setNewItemType({ name: '', shortCode: '' });
+      addDocumentNonBlocking(collection(firestore, 'item_types'), newItemType);
+      setNewItemType({});
+      setIsItemModalOpen(false);
     }
   };
 
@@ -96,100 +73,121 @@ export default function MasterDataPage() {
         title="Master Data"
         description="Manage reference data for paper, items, and more."
       >
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add New
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Master Data</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <h3 className="text-lg font-semibold">Add Paper Type</h3>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="paper-name" className="text-right">
-                  Name
-                </Label>
-                <Input
-                  id="paper-name"
-                  value={newPaperType.name}
-                  onChange={(e) =>
-                    setNewPaperType({ ...newPaperType, name: e.target.value })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="paper-gsm" className="text-right">
-                  GSM
-                </Label>
-                <Input
-                  id="paper-gsm"
-                  type="number"
-                  value={newPaperType.gsm}
-                  onChange={(e) =>
-                    setNewPaperType({ ...newPaperType, gsm: e.target.value })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="paper-length" className="text-right">
-                  Length (cm)
-                </Label>
-                <Input
-                  id="paper-length"
-                  type="number"
-                  value={newPaperType.length}
-                  onChange={(e) =>
-                    setNewPaperType({ ...newPaperType, length: e.target.value })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-              <Button onClick={handleAddPaperType} className="w-full">
+        <div className="flex gap-2">
+          <Dialog open={isPaperModalOpen} onOpenChange={setIsPaperModalOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
                 Add Paper Type
               </Button>
-              <hr />
-              <h3 className="text-lg font-semibold">Add Item Type</h3>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="item-name" className="text-right">
-                  Name
-                </Label>
-                <Input
-                  id="item-name"
-                  value={newItemType.name}
-                  onChange={(e) =>
-                    setNewItemType({ ...newItemType, name: e.target.value })
-                  }
-                  className="col-span-3"
-                />
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Paper Type</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="paper-name" className="text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="paper-name"
+                    value={newPaperType.name || ''}
+                    onChange={(e) =>
+                      setNewPaperType({ ...newPaperType, name: e.target.value })
+                    }
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="paper-gsm" className="text-right">
+                    GSM
+                  </Label>
+                  <Input
+                    id="paper-gsm"
+                    type="number"
+                    value={newPaperType.gsm || ''}
+                    onChange={(e) =>
+                      setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) })
+                    }
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="paper-length" className="text-right">
+                    Length (cm)
+                  </Label>
+                  <Input
+                    id="paper-length"
+                    type="number"
+                    value={newPaperType.length || ''}
+                    onChange={(e) =>
+                      setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) })
+                    }
+                    className="col-span-3"
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="item-shortCode" className="text-right">
-                  Short Code
-                </Label>
-                <Input
-                  id="item-shortCode"
-                  value={newItemType.shortCode}
-                  onChange={(e) =>
-                    setNewItemType({
-                      ...newItemType,
-                      shortCode: e.target.value,
-                    })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-              <Button onClick={handleAddItemType} className="w-full">
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button onClick={handleAddPaperType}>Add Paper Type</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
                 Add Item Type
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Item Type</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="item-name" className="text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="item-name"
+                    value={newItemType.name || ''}
+                    onChange={(e) =>
+                      setNewItemType({ ...newItemType, name: e.target.value })
+                    }
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="item-shortCode" className="text-right">
+                    Short Code
+                  </Label>
+                  <Input
+                    id="item-shortCode"
+                    value={newItemType.shortCode || ''}
+                    onChange={(e) =>
+                      setNewItemType({
+                        ...newItemType,
+                        shortCode: e.target.value,
+                      })
+                    }
+                    className="col-span-3"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button onClick={handleAddItemType}>Add Item Type</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </PageHeader>
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -209,15 +207,21 @@ export default function MasterDataPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paperTypes.map((paper) => (
-                  <TableRow key={paper.id}>
-                    <TableCell className="font-medium">{paper.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{paper.gsm}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{paper.length}</TableCell>
-                  </TableRow>
-                ))}
+                {loadingPaper ? (
+                  <TableRow><TableCell colSpan={3} className="text-center">Loading...</TableCell></TableRow>
+                ) : paperTypes && paperTypes.length > 0 ? (
+                  paperTypes.map((paper) => (
+                    <TableRow key={paper.id}>
+                      <TableCell className="font-medium">{paper.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{paper.gsm}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{paper.length}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow><TableCell colSpan={3} className="text-center">No paper types found.</TableCell></TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -238,14 +242,20 @@ export default function MasterDataPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {itemTypes.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-right">
-                      {item.shortCode}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {loadingItems ? (
+                  <TableRow><TableCell colSpan={2} className="text-center">Loading...</TableCell></TableRow>
+                ) : itemTypes && itemTypes.length > 0 ? (
+                  itemTypes.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell className="text-right">
+                        {item.shortCode}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow><TableCell colSpan={2} className="text-center">No item types found.</TableCell></TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -254,3 +264,5 @@ export default function MasterDataPage() {
     </>
   );
 }
+
+    

@@ -38,23 +38,25 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-
-// Mock data - in a real app this would come from a DB
-const initialPaperTypes: PaperType[] = [
-  { id: '1', name: 'Maplitho', gsm: 58, length: 91.5 },
-  { id: '2', name: 'Creamwove', gsm: 60, length: 88 },
-  { id: '3', name: 'Coated Art', gsm: 120, length: 70 },
-];
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection, Timestamp } from 'firebase/firestore';
 
 export default function StockPage() {
-  const [stock, setStock] = useState<Stock[]>([]);
+  const firestore = useFirestore();
+  const stockQuery = useMemoFirebase(() => firestore ? collection(firestore, 'stock') : null, [firestore]);
+  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paper_types') : null, [firestore]);
+
+  const { data: stock, isLoading: loadingStock } = useCollection<Stock>(stockQuery);
+  const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStockItem, setNewStockItem] = useState<Partial<Stock>>({
     numberOfReels: 1,
   });
 
   const handleSelectPaper = (paperTypeId: string) => {
-    const selectedPaper = initialPaperTypes.find((p) => p.id === paperTypeId);
+    const selectedPaper = paperTypes?.find((p) => p.id === paperTypeId);
     if (selectedPaper) {
       setNewStockItem({
         ...newStockItem,
@@ -69,18 +71,19 @@ export default function StockPage() {
     if (
       newStockItem.paperTypeId &&
       newStockItem.totalWeight &&
-      newStockItem.numberOfReels
+      newStockItem.numberOfReels &&
+      newStockItem.gsm &&
+      newStockItem.length
     ) {
-      const stockToAdd: Stock = {
-        id: `${stock.length + 1}`,
+      const stockToAdd: Partial<Stock> = {
         date: new Date(),
         paperTypeId: newStockItem.paperTypeId,
-        gsm: newStockItem.gsm!,
-        length: newStockItem.length!,
+        gsm: newStockItem.gsm,
+        length: newStockItem.length,
         totalWeight: newStockItem.totalWeight,
         numberOfReels: newStockItem.numberOfReels,
       };
-      setStock([...stock, stockToAdd]);
+      addDocumentNonBlocking(collection(firestore, 'stock'), stockToAdd);
       setNewStockItem({ numberOfReels: 1 }); // Reset form
       setIsModalOpen(false);
     } else {
@@ -88,6 +91,17 @@ export default function StockPage() {
       alert('Please fill all fields');
     }
   };
+
+  const getPaperTypeName = (paperTypeId: string) => {
+    return paperTypes?.find(p => p.id === paperTypeId)?.name || 'N/A';
+  }
+
+  const formatDate = (date: Date | Timestamp) => {
+    if (date instanceof Timestamp) {
+      return date.toDate().toLocaleDateString();
+    }
+    return date.toLocaleDateString();
+  }
 
   return (
     <>
@@ -114,12 +128,12 @@ export default function StockPage() {
                 <Label htmlFor="paper-type" className="text-right">
                   Paper Type
                 </Label>
-                <Select onValueChange={handleSelectPaper}>
+                <Select onValueChange={handleSelectPaper} disabled={loadingPaperTypes}>
                   <SelectTrigger className="col-span-3">
                     <SelectValue placeholder="Select a paper type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {initialPaperTypes.map((paper) => (
+                    {paperTypes?.map((paper) => (
                       <SelectItem key={paper.id} value={paper.id}>
                         {paper.name}
                       </SelectItem>
@@ -214,28 +228,29 @@ export default function StockPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {stock.length > 0 ? (
-                stock.map((item) => {
-                  const paperType = initialPaperTypes.find(
-                    (p) => p.id === item.paperTypeId
-                  );
-                  return (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        {new Date(item.date).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {paperType?.name}
-                      </TableCell>
-                      <TableCell>{item.gsm}</TableCell>
-                      <TableCell>{item.length}</TableCell>
-                      <TableCell>{item.totalWeight.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">
-                        {item.numberOfReels}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
+              {loadingStock ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center">
+                    Loading stock...
+                  </TableCell>
+                </TableRow>
+              ) : stock && stock.length > 0 ? (
+                stock.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>
+                      {formatDate(item.date)}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {getPaperTypeName(item.paperTypeId)}
+                    </TableCell>
+                    <TableCell>{item.gsm}</TableCell>
+                    <TableCell>{item.length}</TableCell>
+                    <TableCell>{item.totalWeight.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">
+                      {item.numberOfReels}
+                    </TableCell>
+                  </TableRow>
+                ))
               ) : (
                 <TableRow>
                   <TableCell
@@ -253,3 +268,5 @@ export default function StockPage() {
     </>
   );
 }
+
+    

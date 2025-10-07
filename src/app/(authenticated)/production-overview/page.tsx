@@ -16,7 +16,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
   PieChart,
@@ -30,56 +29,96 @@ import {
   Bar,
   Legend,
 } from 'recharts';
-import { stockSummary, productionSummary, recentRulings } from '@/lib/data';
-import { Program, ItemType } from '@/lib/types';
+import { Program, ItemType, Stock, PaperType, Ruling } from '@/lib/types';
 import { useMemo } from 'react';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
 
-const initialItemTypes: ItemType[] = [
-  { id: '1', name: 'Single Line', shortCode: 'SL' },
-  { id: '2', name: 'Double Line', shortCode: 'DL' },
-];
-
-const initialPrograms: Program[] = [
-    { id: 'p1', brand: 'Classmate', paperTypeId: '1', gsm: 58, length: 91.5, itemTypeId: '1', cutoff: 30, piecesPerBundle: 10, totalSheetsRequired: 100000, notebookPages: 120, bundlesRequired: 1, coverIndex: 2, date: new Date(), reamWeight: 8.4, ups: 2},
-    { id: 'p2', brand: 'Navneet', paperTypeId: '2', gsm: 60, length: 88, itemTypeId: '2', cutoff: 35, piecesPerBundle: 8, totalSheetsRequired: 80000, notebookPages: 96, bundlesRequired: 1, coverIndex: 2, date: new Date(), reamWeight: 9.2, ups: 2 },
-    { id: 'p3', brand: 'Local Brand', paperTypeId: '1', gsm: 58, length: 91.5, itemTypeId: '1', cutoff: 30, piecesPerBundle: 12, totalSheetsRequired: 120000, notebookPages: 200, bundlesRequired: 1, coverIndex: 2, date: new Date(), reamWeight: 8.4, ups: 3 },
-];
-
-// Mock sheets ruled per program
-const programProgress = {
-    'p1': 75000,
-    'p2': 40000,
-    'p3': 30000,
-}
-
-
 export default function ProductionOverviewPage() {
+  const firestore = useFirestore();
+  const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
+  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'item_types') : null, [firestore]);
+  const stockQuery = useMemoFirebase(() => firestore ? collection(firestore, 'stock') : null, [firestore]);
+  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paper_types') : null, [firestore]);
+  const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
+
+  const { data: programs } = useCollection<Program>(programsQuery);
+  const { data: itemTypes } = useCollection<ItemType>(itemTypesQuery);
+  const { data: stock } = useCollection<Stock>(stockQuery);
+  const { data: paperTypes } = useCollection<PaperType>(paperTypesQuery);
+  const { data: rulings } = useCollection<Ruling>(rulingsQuery);
 
    const stockDistribution = useMemo(() => {
-    return stockSummary.paperTypes.map(pt => ({
-        name: pt.name,
-        value: pt.reels,
-    }))
-   }, []);
+    if (!stock || !paperTypes) return [];
+    
+    const stockByPaperType: { [key: string]: number } = {};
+    stock.forEach(s => {
+        if (!stockByPaperType[s.paperTypeId]) {
+            stockByPaperType[s.paperTypeId] = 0;
+        }
+        stockByPaperType[s.paperTypeId] += s.numberOfReels;
+    });
+
+    return Object.entries(stockByPaperType).map(([paperTypeId, reelCount]) => ({
+        name: paperTypes.find(pt => pt.id === paperTypeId)?.name || 'Unknown',
+        value: reelCount,
+    }));
+   }, [stock, paperTypes]);
    
    const rulingSummary = useMemo(() => {
-     const summary: { [key: string]: { ruled: number, theoretical: number } } = {};
-     recentRulings.forEach(ruling => {
-       if (!summary[ruling.itemRuled]) {
-         summary[ruling.itemRuled] = { ruled: 0, theoretical: 0 };
-       }
-       summary[ruling.itemRuled].ruled += ruling.sheetsRuled;
-       summary[ruling.itemRuled].theoretical += ruling.theoreticalSheets;
-     });
+    if (!rulings || !itemTypes) return [];
+    
+    const summary: { [key: string]: { ruled: number, theoretical: number } } = {};
+    rulings.forEach(ruling => {
+      ruling.entries.forEach(entry => {
+        const itemTypeName = itemTypes.find(it => it.id === entry.itemTypeId)?.name || 'Unknown';
+        if (!summary[itemTypeName]) {
+          summary[itemTypeName] = { ruled: 0, theoretical: 0 };
+        }
+        summary[itemTypeName].ruled += entry.sheetsRuled;
+        summary[itemTypeName].theoretical += entry.theoreticalSheets;
+      });
+    });
 
-     return Object.entries(summary).map(([name, data]) => ({
-       name,
-       Ruled: data.ruled,
-       Theoretical: data.theoretical,
-     }));
-   }, []);
+    return Object.entries(summary).map(([name, data]) => ({
+      name,
+      Ruled: data.ruled,
+      Theoretical: data.theoretical,
+    }));
+  }, [rulings, itemTypes]);
+
+  const stockSummary = useMemo(() => {
+    if (!stock) return { totalWeight: 0, paperTypes: [] };
+    const totalWeight = stock.reduce((acc, s) => acc + s.totalWeight, 0);
+    return { totalWeight, paperTypes: paperTypes || [] };
+  }, [stock, paperTypes]);
+
+  const productionSummary = useMemo(() => {
+    if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: 0 };
+    const today = new Date().toDateString();
+    const todayRulings = rulings.filter(r => (r.date as Date).toDateString() === today);
+    const sheetsRuledToday = todayRulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+
+    const totalSheetsRuled = rulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    const totalTheoreticalSheets = rulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.theoreticalSheets, 0);
+    const efficiency = totalTheoreticalSheets > 0 ? (totalSheetsRuled / totalTheoreticalSheets) * 100 : 0;
+    
+    return { sheetsRuledToday, rulingsToday: todayRulings.length, efficiency: efficiency.toFixed(1) };
+  }, [rulings]);
+  
+  const programProgress = useMemo(() => {
+    if (!programs || !rulings) return {};
+    const progress: { [key: string]: number } = {};
+    programs.forEach(p => {
+        const sheetsCompleted = rulings.flatMap(r => r.entries)
+            .filter(e => e.programId === p.id)
+            .reduce((sum, e) => sum + e.sheetsRuled, 0);
+        progress[p.id] = sheetsCompleted;
+    });
+    return progress;
+  }, [programs, rulings]);
 
   return (
     <>
@@ -111,7 +150,7 @@ export default function ProductionOverviewPage() {
             <CardTitle className="text-sm font-medium">Active Programs</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{initialPrograms.length}</div>
+            <div className="text-2xl font-bold">{programs?.length || 0}</div>
             <p className="text-xs text-muted-foreground">Currently in production</p>
           </CardContent>
         </Card>
@@ -184,10 +223,10 @@ export default function ProductionOverviewPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {initialPrograms.map(program => {
+                        {programs?.map(program => {
                             const sheetsCompleted = programProgress[program.id as keyof typeof programProgress] || 0;
                             const progress = (sheetsCompleted / program.totalSheetsRequired) * 100;
-                            const itemType = initialItemTypes.find(it => it.id === program.itemTypeId);
+                            const itemType = itemTypes?.find(it => it.id === program.itemTypeId);
                             return (
                                 <TableRow key={program.id}>
                                     <TableCell className="font-medium">{program.brand}</TableCell>
@@ -211,3 +250,5 @@ export default function ProductionOverviewPage() {
     </>
   );
 }
+
+    
