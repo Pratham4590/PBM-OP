@@ -11,6 +11,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTrigger,
+  DialogClose,
 } from '@/components/ui/dialog';
 import {
   Card,
@@ -28,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Program, PaperType, ItemType } from '@/lib/types';
 import {
   Table,
@@ -40,9 +41,20 @@ import {
 } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ProgramPage() {
   const firestore = useFirestore();
+  const isMobile = useIsMobile();
+  const { toast } = useToast();
+
   const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
@@ -61,6 +73,17 @@ export default function ProgramPage() {
     coverIndex: 0,
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.classList.add('overflow-hidden');
+    } else {
+      document.body.classList.remove('overflow-hidden');
+    }
+    return () => document.body.classList.remove('overflow-hidden');
+  }, [isModalOpen]);
+
 
   const handleInputChange = (
     field: keyof Program,
@@ -98,39 +121,127 @@ export default function ProgramPage() {
     } = newProgram;
 
     const counting = notebookPages > 0 && ups > 0 ? (notebookPages - coverIndex) / ups : 0;
-    const sheetsNeeded = piecesPerBundle > 0 && ups > 0 ? (piecesPerBundle / ups) * counting : 0;
-    const totalSheetsRequired = bundlesRequired * sheetsNeeded;
+    const sheetsPerBundle = piecesPerBundle > 0 && ups > 0 ? (piecesPerBundle / ups) * counting : 0;
+    const totalSheetsRequired = bundlesRequired * sheetsPerBundle;
     const reamWeight = length > 0 && cutoff > 0 && gsm > 0 ? (length * cutoff * gsm * 500) / 10000 : 0;
     
-    return { reamWeight, totalSheetsRequired: Math.ceil(totalSheetsRequired) };
+    return { reamWeight, totalSheetsRequired: Math.ceil(totalSheetsRequired), counting, sheetsPerBundle };
   }, [newProgram]);
 
-  const handleCreateProgram = () => {
+  const handleCreateProgram = async () => {
     if (!firestore) return;
-
+    setIsSaving(true);
+    
     const programToAdd = {
       date: serverTimestamp(),
       ...newProgram,
       ...calculatedValues,
     };
-
-    const programsCollection = collection(firestore, 'programs');
-    addDocumentNonBlocking(programsCollection, programToAdd);
     
-    setNewProgram({
-      brand: '',
-      bundlesRequired: 0,
-      cutoff: 0,
-      notebookPages: 0,
-      piecesPerBundle: 0,
-      ups: 0,
-      coverIndex: 0,
-    });
-    setIsModalOpen(false);
+    try {
+      const programsCollection = collection(firestore, 'programs');
+      await addDoc(programsCollection, programToAdd);
+      
+      toast({
+        title: 'Program Created',
+        description: `${newProgram.brand} has been successfully created.`,
+      });
+
+      setNewProgram({
+        brand: '',
+        bundlesRequired: 0,
+        cutoff: 0,
+        notebookPages: 0,
+        piecesPerBundle: 0,
+        ups: 0,
+        coverIndex: 0,
+      });
+      setIsModalOpen(false);
+    } catch(error) {
+       toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to create the program. Please try again.',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.name;
   const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.name;
+  
+  const renderProgramList = () => {
+    if (loadingPrograms) {
+      return <div className="p-4 text-center text-muted-foreground">Loading programs...</div>;
+    }
+    if (!programs || programs.length === 0) {
+      return <div className="p-4 text-center text-muted-foreground">No programs created yet.</div>;
+    }
+    
+    if (isMobile) {
+      return (
+        <Accordion type="single" collapsible className="w-full">
+          {programs.map(program => (
+            <AccordionItem value={program.id} key={program.id}>
+              <AccordionTrigger>
+                <div className="flex flex-col text-left">
+                  <span className="font-semibold">{program.brand}</span>
+                  <span className="text-sm text-muted-foreground">{getItemTypeName(program.itemTypeId)}</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-2 text-sm">
+                  <p><strong>Paper:</strong> {getPaperTypeName(program.paperTypeId)}</p>
+                  <p><strong>Sheets Required:</strong> {program.totalSheetsRequired.toLocaleString()}</p>
+                  <p><strong>Ream Weight:</strong> {program.reamWeight.toFixed(2)} kg</p>
+                  <p><strong>Cutoff:</strong> {program.cutoff} cm</p>
+                  <p><strong>UPS:</strong> {program.ups}</p>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      );
+    }
+
+    return (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Brand</TableHead>
+                <TableHead>Paper</TableHead>
+                <TableHead>Item</TableHead>
+                <TableHead>Sheets Req.</TableHead>
+                <TableHead className="text-right">Ream Wt. (kg)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {programs.map((program) => (
+                <TableRow key={program.id}>
+                  <TableCell className="font-medium whitespace-nowrap">
+                    {program.brand}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {getPaperTypeName(program.paperTypeId)}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {getItemTypeName(program.itemTypeId)}
+                  </TableCell>
+                  <TableCell>
+                    {program.totalSheetsRequired.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {program.reamWeight.toFixed(2)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+    );
+  };
 
   return (
     <>
@@ -145,18 +256,18 @@ export default function ProgramPage() {
               Create Program
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90svh] flex flex-col">
-            <DialogHeader>
+          <DialogContent className="p-0 flex flex-col max-w-4xl h-full md:h-auto">
+            <DialogHeader className="p-4 border-b sticky top-0 bg-background z-10">
               <DialogTitle>Create New Production Program</DialogTitle>
               <DialogDescription>
                 Fill in the details to create a new program. Calculated values
                 will update automatically.
               </DialogDescription>
             </DialogHeader>
-            <div className="flex-grow overflow-y-auto pr-6 -mr-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-4">
+            <div className="flex-1 overflow-y-auto p-4 max-h-[calc(100vh-160px)]">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
+                  <div className="space-y-2 sm:col-span-2">
                     <Label htmlFor="brand">Brand Name</Label>
                     <Input
                       id="brand"
@@ -244,7 +355,7 @@ export default function ProgramPage() {
                       onChange={(e) => handleInputChange('bundlesRequired', parseInt(e.target.value) || 0)}
                     />
                   </div>
-                  <div className="space-y-2 sm:col-span-2">
+                  <div className="space-y-2">
                     <Label htmlFor="ups">UPS</Label>
                     <Input
                       id="ups"
@@ -256,21 +367,13 @@ export default function ProgramPage() {
                 </div>
                 <div className="space-y-4 rounded-md bg-muted p-4 h-fit sticky top-0">
                   <h3 className="font-semibold text-lg">Calculations</h3>
-                  <div className="space-y-2">
-                    <Label>Paper GSM</Label>
-                    <Input value={newProgram.gsm || ''} readOnly disabled />
+                   <div className="space-y-2">
+                    <Label>Counting</Label>
+                    <Input value={calculatedValues.counting.toFixed(2)} readOnly disabled />
                   </div>
                   <div className="space-y-2">
-                    <Label>Paper Length (cm)</Label>
-                    <Input value={newProgram.length || ''} readOnly disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Ream Weight (kg)</Label>
-                    <Input
-                      value={calculatedValues.reamWeight.toFixed(2)}
-                      readOnly
-                      disabled
-                    />
+                    <Label>Sheets per Bundle</Label>
+                    <Input value={calculatedValues.sheetsPerBundle.toFixed(2)} readOnly disabled />
                   </div>
                   <div className="space-y-2">
                     <Label>Total Sheets Required</Label>
@@ -280,18 +383,25 @@ export default function ProgramPage() {
                       disabled
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label>Ream Weight (kg)</Label>
+                    <Input
+                      value={calculatedValues.reamWeight.toFixed(2)}
+                      readOnly
+                      disabled
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <DialogFooter className="mt-auto pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => setIsModalOpen(false)}
-              >
-                Cancel
+            <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10">
+              <DialogClose asChild>
+                <Button variant="outline" disabled={isSaving}>Cancel</Button>
+              </DialogClose>
+              <Button onClick={handleCreateProgram} disabled={isSaving}>
+                {isSaving ? 'Saving...' : 'Create Program'}
               </Button>
-              <Button onClick={handleCreateProgram}>Create Program</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -305,48 +415,7 @@ export default function ProgramPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {loadingPrograms ? (
-              <div className="p-4 text-center text-muted-foreground">Loading programs...</div>
-            ) : programs && programs.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Brand</TableHead>
-                      <TableHead>Paper</TableHead>
-                      <TableHead>Item</TableHead>
-                      <TableHead>Sheets Req.</TableHead>
-                      <TableHead className="text-right">Ream Wt. (kg)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {programs.map((program) => (
-                      <TableRow key={program.id}>
-                        <TableCell className="font-medium whitespace-nowrap">
-                          {program.brand}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {getPaperTypeName(program.paperTypeId)}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {getItemTypeName(program.itemTypeId)}
-                        </TableCell>
-                        <TableCell>
-                          {program.totalSheetsRequired.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {program.reamWeight.toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <div className="p-4 text-center text-muted-foreground">
-                No programs created yet.
-              </div>
-            )}
+            {renderProgramList()}
           </CardContent>
         </Card>
       </div>
