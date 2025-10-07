@@ -66,13 +66,14 @@ export default function UsersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Email</TableHead>
+                <TableHead>Display Name</TableHead>
                 <TableHead className="w-[180px]">Role</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={2} className="h-24 text-center">
+                  <TableCell colSpan={3} className="h-24 text-center">
                     Loading users...
                   </TableCell>
                 </TableRow>
@@ -80,6 +81,7 @@ export default function UsersPage() {
                 users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.email}</TableCell>
+                    <TableCell>{user.displayName}</TableCell>
                     <TableCell>
                       <Select
                         value={user.role}
@@ -102,7 +104,7 @@ export default function UsersPage() {
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={2}
+                    colSpan={3}
                     className="h-24 text-center text-muted-foreground"
                   >
                     No users found.
