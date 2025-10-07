@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/firebase";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 import { signInWithEmailAndPassword } from "firebase/auth";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 function LoginPageContent() {
   const loginImage = placeholderImages.find(p => p.id === 'login-bg');
@@ -26,18 +27,16 @@ function LoginPageContent() {
     e.preventDefault();
     setIsLoading(true);
     try {
+      if (!auth) throw new Error("Auth service not available");
       await signInWithEmailAndPassword(auth, email, password);
       router.push('/dashboard');
-      toast({
-        title: "Login Successful",
-        description: "Welcome back!",
-      });
+      // Toast on success can be good, but redirect is primary feedback
     } catch (error: any) {
       console.error("Login failed:", error);
       toast({
         variant: "destructive",
         title: "Login Failed",
-        description: "Invalid credentials. Please try again.",
+        description: error.message || "Invalid credentials. Please try again.",
       });
     } finally {
       setIsLoading(false);
@@ -46,6 +45,9 @@ function LoginPageContent() {
   
   return (
     <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2 xl:min-h-screen">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="flex items-center justify-center py-12">
         <div className="mx-auto grid w-[350px] gap-6">
           <div className="grid gap-2 text-center">

@@ -21,12 +21,14 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
+  SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { AppLogo } from '@/components/icons';
 import { UserNav } from './user-nav';
+import { ThemeToggle } from '../theme-toggle';
 
-const navItems = [
+export const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/master-data', icon: Database, label: 'Master Data' },
   { href: '/stock', icon: Warehouse, label: 'Stock' },
@@ -34,7 +36,7 @@ const navItems = [
   { href: '/ruling', icon: GitBranch, label: 'Reel Ruling' },
   { href: '/reports', icon: BarChart3, label: 'Reports' },
   { href: '/production-overview', icon: PieChart, label: 'Production Overview' },
-  { href: '/users', icon: Users, label: 'Users & Management' },
+  { href: '/users', icon: Users, label: 'Users' },
 ];
 
 export function SidebarNav() {
@@ -42,11 +44,12 @@ export function SidebarNav() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-            <AppLogo className="h-8 w-8 text-primary" />
-            <span className="text-xl font-semibold">Notebook Navigator</span>
+          <AppLogo className="h-8 w-8 text-primary" />
+          <span className="text-xl font-semibold">Navigator</span>
         </div>
+        <SidebarTrigger />
       </SidebarHeader>
       <Separator />
       <SidebarContent>
@@ -69,7 +72,10 @@ export function SidebarNav() {
       </SidebarContent>
       <Separator />
       <SidebarFooter>
-        <UserNav />
+        <div className='flex items-center justify-between p-2'>
+            <UserNav />
+            <ThemeToggle />
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

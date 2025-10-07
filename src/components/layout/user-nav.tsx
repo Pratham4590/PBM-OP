@@ -12,19 +12,33 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useSidebar } from '../ui/sidebar';
 
 export function UserNav() {
+  const { state } = useSidebar();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-10 w-full justify-start gap-2 px-2">
+        <Button
+          variant="ghost"
+          className="relative h-10 w-full justify-start gap-2 px-2"
+        >
           <Avatar className="h-8 w-8">
-            <AvatarImage src="https://picsum.photos/seed/user/40/40" alt="@admin" />
+            <AvatarImage
+              src="https://picsum.photos/seed/user/40/40"
+              alt="@admin"
+            />
             <AvatarFallback>AD</AvatarFallback>
           </Avatar>
-           <div className="text-left">
+          <div
+            className={`text-left transition-opacity duration-200 ${
+              state === 'collapsed' ? 'opacity-0' : 'opacity-100'
+            }`}
+          >
             <div className="text-sm font-medium">Admin</div>
-            <div className="text-xs text-muted-foreground">admin@navigator.com</div>
+            <div className="text-xs text-muted-foreground">
+              admin@navigator.com
+            </div>
           </div>
         </Button>
       </DropdownMenuTrigger>
