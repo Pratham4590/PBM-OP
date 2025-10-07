@@ -61,6 +61,7 @@ export default function ProgramPage() {
     notebookPages: 0,
     piecesPerBundle: 0,
     ups: 0,
+    coverIndex: 0,
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -126,6 +127,7 @@ export default function ProgramPage() {
       notebookPages: 0,
       piecesPerBundle: 0,
       ups: 0,
+      coverIndex: 0,
     });
     setIsModalOpen(false);
   };
@@ -212,6 +214,15 @@ export default function ProgramPage() {
                     type="number"
                     value={newProgram.notebookPages}
                     onChange={(e) => handleInputChange('notebookPages', parseInt(e.target.value) || 0)}
+                  />
+                </div>
+                 <div className="space-y-2">
+                  <Label htmlFor="coverIndex">Cover Index</Label>
+                  <Input
+                    id="coverIndex"
+                    type="number"
+                    value={newProgram.coverIndex}
+                    onChange={(e) => handleInputChange('coverIndex', parseInt(e.target.value) || 0)}
                   />
                 </div>
                 <div className="space-y-2">

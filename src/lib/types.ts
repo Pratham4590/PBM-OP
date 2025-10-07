@@ -66,6 +66,8 @@ export type RulingEntry = {
   sheetsRuled: number;
   programId?: string;
   cutoff: number; // Stored here for both program/non-program ruling for consistency
+  theoreticalSheets: number;
+  difference: number;
 };
 
 export type ReportData = {
