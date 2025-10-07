@@ -11,8 +11,6 @@ import {
   BarChart3,
   Users,
   PieChart,
-  User,
-  Settings,
 } from 'lucide-react';
 
 import {
@@ -30,9 +28,8 @@ import { Separator } from '@/components/ui/separator';
 import { AppLogo } from '@/components/icons';
 import { UserNav } from './user-nav';
 import { ThemeToggle } from '../theme-toggle';
-import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
+import { doc } from 'firebase/firestore';
 import type { User as AppUserType } from '@/lib/types';
 
 
@@ -51,33 +48,15 @@ export function SidebarNav() {
   const pathname = usePathname();
   const { user } = useUser();
   const firestore = useFirestore();
-  const [userRole, setUserRole] = useState<string | null>(null);
   const { state } = useSidebar();
   
   const userDocRef = useMemoFirebase(
     () => (user && firestore ? doc(firestore, 'users', user.uid) : null),
     [user, firestore]
   );
+  const { data: appUser } = useDoc<AppUserType>(userDocRef);
 
-  useEffect(() => {
-    const fetchUserRole = async () => {
-      if(userDocRef) {
-        try {
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data() as AppUserType;
-            setUserRole(userData.role);
-          }
-        } catch(e) {
-          // It's possible the doc doesn't exist yet for a new user.
-          // The onSnapshot in useUser should eventually provide it.
-        }
-      }
-    };
-    fetchUserRole();
-  }, [userDocRef]);
-
-  const navItems = allNavItems.filter(item => userRole && item.roles.includes(userRole));
+  const navItems = allNavItems.filter(item => appUser?.role && item.roles.includes(appUser.role));
 
 
   return (

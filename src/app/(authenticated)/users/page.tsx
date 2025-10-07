@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { User, UserRole } from '@/lib/types';
-import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, useUser } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, useUser, useDoc } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState } from 'react';
@@ -36,32 +36,21 @@ export default function UsersPage() {
 
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Query for the current user's document to check their role
   const currentUserDocRef = useMemoFirebase(
     () => (firestore && currentUserAuth ? doc(firestore, 'users', currentUserAuth.uid) : null),
     [firestore, currentUserAuth]
   );
   
-  // Use a separate useCollection call for the current user's data
-  const { data: currentUserData, isLoading: isLoadingCurrentUser } = useCollection<User>(
-      useMemoFirebase(() => 
-          currentUserDocRef ? collection(currentUserDocRef.parent) : null, 
-          [currentUserDocRef]
-      )
-  );
+  const { data: currentUserData, isLoading: isLoadingCurrentUser } = useDoc<User>(currentUserDocRef);
 
   useEffect(() => {
-    if (currentUserData) {
-      const userProfile = currentUserData.find(u => u.id === currentUserAuth?.uid);
-      if (userProfile?.role === 'Admin') {
-        setIsAdmin(true);
-      } else {
-        setIsAdmin(false);
-      }
+    if (currentUserData?.role === 'Admin') {
+      setIsAdmin(true);
+    } else {
+      setIsAdmin(false);
     }
-  }, [currentUserData, currentUserAuth]);
+  }, [currentUserData]);
 
-  // Query for all users, which will be enabled only if the current user is an admin
   const allUsersQuery = useMemoFirebase(
     () => (firestore && isAdmin ? collection(firestore, 'users') : null),
     [firestore, isAdmin]
@@ -79,7 +68,7 @@ export default function UsersPage() {
     });
   };
 
-  if (!isAdmin && !isLoadingCurrentUser) {
+  if (!isLoadingCurrentUser && !isAdmin) {
     return (
       <>
         <PageHeader
@@ -101,7 +90,7 @@ export default function UsersPage() {
     );
   }
 
-  const isLoading = isLoadingCurrentUser || isLoadingAllUsers;
+  const isLoading = isLoadingCurrentUser || (isAdmin && isLoadingAllUsers);
 
   return (
     <>

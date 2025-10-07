@@ -40,15 +40,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from '@/firebase';
+import { collection, serverTimestamp, Timestamp, doc } from 'firebase/firestore';
 
 export default function StockPage() {
   const firestore = useFirestore();
   const { user } = useUser();
-  const userQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'users') : null, [firestore, user]);
-  const { data: users } = useCollection<AppUser>(userQuery);
-  const currentUser = users?.find(u => u.id === user?.uid);
+  const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
+  const { data: currentUser } = useDoc<AppUser>(currentUserDocRef);
 
   const stockQuery = useMemoFirebase(() => firestore ? collection(firestore, 'stock') : null, [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
