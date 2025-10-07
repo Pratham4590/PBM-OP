@@ -32,8 +32,8 @@ import {
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, Timestamp } from 'firebase/firestore';
-import { Ruling, Stock, ItemType } from '@/lib/types';
-import { useMemo }from 'react';
+import { Ruling, Stock, ItemType, RulingEntry } from '@/lib/types';
+import { useMemo } from 'react';
 
 const chartData = [
     { date: "Jan", "Ruled": 4000, "Planned": 3800 },
@@ -56,24 +56,19 @@ export default function DashboardPage() {
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
 
   const stockSummary = useMemo(() => {
-    if (!stock) return { totalWeight: 0, totalReels: 0, paperTypes: [] };
+    if (!stock) return { totalWeight: 0, totalReels: 0 };
     const totalWeight = stock.reduce((acc, item) => acc + item.totalWeight, 0);
     const totalReels = stock.reduce((acc, item) => acc + item.numberOfReels, 0);
-    return { totalWeight, totalReels, paperTypes: [] }; // paperTypes summary can be enhanced
+    return { totalWeight, totalReels };
   }, [stock]);
 
   const productionSummary = useMemo(() => {
-    if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: 0 };
+    if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: '0.0' };
     const today = new Date().toDateString();
 
     const todayRulings = rulings.filter(r => {
-      if (r.date instanceof Timestamp) {
-        return r.date.toDate().toDateString() === today;
-      }
-      if (r.date instanceof Date) {
-        return r.date.toDateString() === today;
-      }
-      return false;
+      const rulingDate = r.date instanceof Timestamp ? r.date.toDate() : r.date;
+      return rulingDate.toDateString() === today;
     });
 
     const sheetsRuledToday = todayRulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
@@ -86,11 +81,17 @@ export default function DashboardPage() {
   }, [rulings]);
 
   const recentRulings = useMemo(() => {
-    if (!rulings || !itemTypes) return [];
+    if (!rulings) return [];
+    // Flatten all entries from all rulings, sort by date, and take the top 5
     return rulings
-      .flatMap(r => r.entries.map(e => ({ ...e, reelNo: r.reelNo, serialNo: r.serialNo })))
+      .flatMap(r => r.entries.map(e => ({ ...e, reelNo: r.reelNo, serialNo: r.serialNo, date: r.date })))
+      .sort((a, b) => {
+        const dateA = a.date instanceof Timestamp ? a.date.toMillis() : new Date(a.date).getTime();
+        const dateB = b.date instanceof Timestamp ? b.date.toMillis() : new Date(b.date).getTime();
+        return dateB - dateA;
+      })
       .slice(0, 5);
-  }, [rulings, itemTypes]);
+  }, [rulings]);
 
   const getItemTypeName = (itemTypeId: string) => itemTypes?.find(it => it.id === itemTypeId)?.name || 'N/A';
 
@@ -98,9 +99,9 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="Dashboard"
-        description="Welcome back, Admin! Here's your production summary."
+        description="Welcome back! Here's your production summary."
       />
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -153,8 +154,8 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className="mt-6 grid gap-6 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-full lg:col-span-4">
           <CardHeader>
             <CardTitle>Sheets Ruled vs. Planned</CardTitle>
             <CardDescription>
@@ -201,7 +202,7 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card className="col-span-4 lg:col-span-3">
+        <Card className="col-span-full lg:col-span-3">
           <CardHeader>
             <CardTitle>Recent Rulings</CardTitle>
             <CardDescription>
@@ -209,33 +210,37 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Reel No.</TableHead>
-                  <TableHead>Item</TableHead>
-                  <TableHead className="text-right">Difference</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loadingRulings || loadingItemTypes ? <TableRow><TableCell colSpan={3} className="text-center">Loading...</TableCell></TableRow> : recentRulings.map((ruling, index) => (
-                  <TableRow key={index}>
-                    <TableCell>
-                      <div className="font-medium">{ruling.reelNo}</div>
-                      <div className="hidden text-sm text-muted-foreground md:inline">
-                        {ruling.serialNo}
-                      </div>
-                    </TableCell>
-                    <TableCell>{getItemTypeName(ruling.itemTypeId)}</TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant={ruling.difference > 0 ? "default" : "destructive"} className={ruling.difference > 0 ? "bg-green-600" : ""}>
-                        {ruling.difference.toLocaleString()}
-                      </Badge>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Reel No.</TableHead>
+                    <TableHead>Item</TableHead>
+                    <TableHead className="text-right">Difference</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {loadingRulings || loadingItemTypes ? <TableRow><TableCell colSpan={3} className="text-center">Loading...</TableCell></TableRow> : recentRulings.length > 0 ? recentRulings.map((ruling, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <div className="font-medium">{ruling.reelNo}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {ruling.serialNo}
+                        </div>
+                      </TableCell>
+                      <TableCell>{getItemTypeName(ruling.itemTypeId)}</TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant={ruling.difference >= 0 ? "default" : "destructive"} className={ruling.difference >= 0 ? "bg-green-600" : ""}>
+                          {Math.round(ruling.difference).toLocaleString()}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow><TableCell colSpan={3} className="text-center">No recent rulings found.</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -128,11 +128,13 @@ export default function RulingPage() {
   };
 
   const handleSaveRuling = () => {
-    if (!firestore) return;
+    if (!firestore || !newRuling.status) {
+      alert("Please select a final reel status.");
+      return;
+    };
 
     const rulingToAdd = {
       date: serverTimestamp(),
-      status: 'Partially Used',
       ...newRuling,
     };
     
@@ -197,11 +199,11 @@ export default function RulingPage() {
                 Follow the steps to log a new ruling for a reel.
               </DialogDescription>
             </DialogHeader>
-            <div className="flex-grow overflow-y-auto pr-6">
+            <div className="flex-grow overflow-y-auto pr-6 -mr-6">
             {/* Step 1: Reel Details */}
             {currentStep === 1 && (
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4 py-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="date">Date</Label>
                     <Input id="date" value={new Date().toLocaleDateString()} readOnly disabled />
@@ -258,7 +260,7 @@ export default function RulingPage() {
 
             {/* Step 2: Ruling Entries */}
             {currentStep === 2 && (
-              <div className="py-4 space-y-4">
+              <div className="py-4 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-lg">
                     <div className="space-y-2 md:col-span-2">
                         <Label htmlFor="programId">Program (Optional)</Label>
@@ -325,32 +327,34 @@ export default function RulingPage() {
 
                 <div className="mt-4">
                     <h4 className="font-semibold mb-2">Current Entries for this Reel</h4>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Item</TableHead>
-                                <TableHead>Sheets Ruled</TableHead>
-                                <TableHead>Program</TableHead>
-                                <TableHead></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {newRuling.entries && newRuling.entries.length > 0 ? newRuling.entries.map(entry => (
-                                <TableRow key={entry.id}>
-                                    <TableCell>{getItemTypeName(entry.itemTypeId)}</TableCell>
-                                    <TableCell>{entry.sheetsRuled?.toLocaleString()}</TableCell>
-                                    <TableCell>{getProgramInfo(entry.programId)?.brand || 'N/A'}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button variant="ghost" size="icon" onClick={() => setNewRuling(prev => ({...prev, entries: prev.entries?.filter(e => e.id !== entry.id)}))}>
-                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                        </Button>
-                                    </TableCell>
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Item</TableHead>
+                                    <TableHead>Sheets</TableHead>
+                                    <TableHead>Program</TableHead>
+                                    <TableHead></TableHead>
                                 </TableRow>
-                            )) : (
-                                <TableRow><TableCell colSpan={4} className="text-center">No entries yet.</TableCell></TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {newRuling.entries && newRuling.entries.length > 0 ? newRuling.entries.map(entry => (
+                                    <TableRow key={entry.id}>
+                                        <TableCell className="whitespace-nowrap">{getItemTypeName(entry.itemTypeId)}</TableCell>
+                                        <TableCell>{entry.sheetsRuled?.toLocaleString()}</TableCell>
+                                        <TableCell className="whitespace-nowrap">{getProgramInfo(entry.programId)?.brand || 'N/A'}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" onClick={() => setNewRuling(prev => ({...prev, entries: prev.entries?.filter(e => e.id !== entry.id)}))}>
+                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                )) : (
+                                    <TableRow><TableCell colSpan={4} className="text-center">No entries yet.</TableCell></TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </div>
               </div>
             )}
@@ -372,30 +376,32 @@ export default function RulingPage() {
                         <CardHeader><CardTitle>Ruling Entries & Calculations</CardTitle></CardHeader>
                         <CardContent>
                             {newRuling.entries && newRuling.entries.length > 0 ? (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Item</TableHead>
-                                            <TableHead>Ruled</TableHead>
-                                            <TableHead>Theoretical</TableHead>
-                                            <TableHead className="text-right">Difference</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {newRuling.entries.map(e => (
-                                            <TableRow key={e.id}>
-                                                <TableCell>{getItemTypeName(e.itemTypeId)}</TableCell>
-                                                <TableCell>{e.sheetsRuled?.toLocaleString()}</TableCell>
-                                                <TableCell>{Math.round(e.theoreticalSheets || 0).toLocaleString()}</TableCell>
-                                                <TableCell className="text-right">
-                                                     <Badge variant={e.difference >= 0 ? 'default' : 'destructive'} className={e.difference >= 0 ? 'bg-green-600' : ''}>
-                                                        {Math.round(e.difference || 0).toLocaleString()}
-                                                    </Badge>
-                                                </TableCell>
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Item</TableHead>
+                                                <TableHead>Ruled</TableHead>
+                                                <TableHead>Theoretical</TableHead>
+                                                <TableHead className="text-right">Difference</TableHead>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {newRuling.entries.map(e => (
+                                                <TableRow key={e.id}>
+                                                    <TableCell className="whitespace-nowrap">{getItemTypeName(e.itemTypeId)}</TableCell>
+                                                    <TableCell>{e.sheetsRuled?.toLocaleString()}</TableCell>
+                                                    <TableCell>{Math.round(e.theoreticalSheets || 0).toLocaleString()}</TableCell>
+                                                    <TableCell className="text-right">
+                                                         <Badge variant={e.difference >= 0 ? 'default' : 'destructive'} className={e.difference >= 0 ? 'bg-green-600' : ''}>
+                                                            {Math.round(e.difference || 0).toLocaleString()}
+                                                        </Badge>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             ): <p className="text-sm text-muted-foreground">No ruling entries were added.</p>}
 
                             {calculationSummary && (
@@ -468,36 +474,38 @@ export default function RulingPage() {
                 {rulings.map(ruling => (
                     <AccordionItem value={ruling.id} key={ruling.id}>
                         <AccordionTrigger>
-                            <div className="flex justify-between w-full pr-4">
-                                <span className="font-semibold">Reel No: {ruling.reelNo} (SN: {ruling.serialNo})</span>
-                                <Badge variant={ruling.status === 'Finished' ? 'default' : 'secondary'} className={ruling.status === 'Finished' ? 'bg-green-600' : ''}>{ruling.status}</Badge>
+                            <div className="flex justify-between items-center w-full pr-4 text-left">
+                                <span className="font-semibold">Reel: {ruling.reelNo} (SN: {ruling.serialNo})</span>
+                                <Badge variant={ruling.status === 'Finished' ? 'default' : 'secondary'} className={`ml-2 whitespace-nowrap ${ruling.status === 'Finished' ? 'bg-green-600' : ''}`}>{ruling.status}</Badge>
                             </div>
                         </AccordionTrigger>
                         <AccordionContent>
-                           <Table>
-                             <TableHeader>
-                                <TableRow>
-                                    <TableHead>Item Ruled</TableHead>
-                                    <TableHead>Sheets Ruled</TableHead>
-                                    <TableHead>Program</TableHead>
-                                    <TableHead className="text-right">Difference</TableHead>
-                                </TableRow>
-                             </TableHeader>
-                             <TableBody>
-                                {ruling.entries.map((entry, index) => (
-                                    <TableRow key={index}>
-                                        <TableCell>{getItemTypeName(entry.itemTypeId)}</TableCell>
-                                        <TableCell>{entry.sheetsRuled.toLocaleString()}</TableCell>
-                                        <TableCell>{getProgramInfo(entry.programId)?.brand || 'N/A'}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Badge variant={entry.difference >= 0 ? 'default' : 'destructive'} className={entry.difference >= 0 ? 'bg-green-600' : ''}>
-                                                {Math.round(entry.difference || 0).toLocaleString()}
-                                            </Badge>
-                                        </TableCell>
+                           <div className="overflow-x-auto">
+                               <Table>
+                                 <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Item Ruled</TableHead>
+                                        <TableHead>Sheets Ruled</TableHead>
+                                        <TableHead>Program</TableHead>
+                                        <TableHead className="text-right">Difference</TableHead>
                                     </TableRow>
-                                ))}
-                             </TableBody>
-                           </Table>
+                                 </TableHeader>
+                                 <TableBody>
+                                    {ruling.entries.map((entry, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell className="whitespace-nowrap">{getItemTypeName(entry.itemTypeId)}</TableCell>
+                                            <TableCell>{entry.sheetsRuled.toLocaleString()}</TableCell>
+                                            <TableCell className="whitespace-nowrap">{getProgramInfo(entry.programId)?.brand || 'N/A'}</TableCell>
+                                            <TableCell className="text-right">
+                                                <Badge variant={entry.difference >= 0 ? 'default' : 'destructive'} className={entry.difference >= 0 ? 'bg-green-600' : ''}>
+                                                    {Math.round(entry.difference || 0).toLocaleString()}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                 </TableBody>
+                               </Table>
+                           </div>
                         </AccordionContent>
                     </AccordionItem>
                 ))}

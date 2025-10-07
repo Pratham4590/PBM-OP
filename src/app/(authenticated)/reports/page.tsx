@@ -87,7 +87,7 @@ export default function ReportsPage() {
     doc.setFontSize(12);
     doc.text(`Date: ${new Date().toLocaleDateString()}`, 15, 30);
 
-    const tableColumn = ["Reel No.", "Paper Type", "Item Ruled", "Reel Wt.", "Sheets Ruled", "Theoretical", "Difference"];
+    const tableColumn = ["Reel No.", "Paper Type", "Item Ruled", "Reel Wt. (kg)", "Sheets Ruled", "Theoretical", "Difference"];
     const tableRows: (string | number)[][] = [];
 
     filteredData.forEach(row => {
@@ -95,7 +95,7 @@ export default function ReportsPage() {
             row.reelNo,
             getPaperTypeName(row.paperTypeId),
             getItemTypeName(row.itemTypeId),
-            `${row.reelWeight.toLocaleString()} kg`,
+            row.reelWeight.toLocaleString(),
             row.sheetsRuled.toLocaleString(),
             Math.round(row.theoreticalSheets).toLocaleString(),
             Math.round(row.difference).toLocaleString()
@@ -140,9 +140,9 @@ export default function ReportsPage() {
           <CardDescription>
             A detailed breakdown of every ruling entry. Use the filters to narrow down the results.
           </CardDescription>
-          <div className="flex items-center space-x-4 pt-4">
+          <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 pt-4">
              <Select value={paperFilter} onValueChange={setPaperFilter}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full sm:w-[200px]">
                     <SelectValue placeholder="Filter by paper type..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -151,7 +151,7 @@ export default function ReportsPage() {
                 </SelectContent>
             </Select>
             <Select value={itemFilter} onValueChange={setItemFilter}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full sm:w-[200px]">
                     <SelectValue placeholder="Filter by item type..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -162,53 +162,55 @@ export default function ReportsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Reel No.</TableHead>
-                <TableHead>Paper Type</TableHead>
-                <TableHead>Item Ruled</TableHead>
-                <TableHead>Reel Wt.</TableHead>
-                <TableHead className="text-right">Sheets Ruled</TableHead>
-                <TableHead className="text-right">Theoretical</TableHead>
-                <TableHead className="text-right">Difference</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
-                    Loading reports...
-                  </TableCell>
+                  <TableHead>Reel No.</TableHead>
+                  <TableHead>Paper Type</TableHead>
+                  <TableHead>Item Ruled</TableHead>
+                  <TableHead>Reel Wt.</TableHead>
+                  <TableHead className="text-right">Sheets Ruled</TableHead>
+                  <TableHead className="text-right">Theoretical</TableHead>
+                  <TableHead className="text-right">Difference</TableHead>
                 </TableRow>
-              ) : filteredData.length > 0 ? (
-                filteredData.map((row) => (
-                  <TableRow key={`${row.serialNo}-${row.id}`}>
-                    <TableCell className="font-medium">{row.reelNo}</TableCell>
-                    <TableCell>{getPaperTypeName(row.paperTypeId)}</TableCell>
-                    <TableCell>{getItemTypeName(row.itemTypeId)}</TableCell>
-                    <TableCell>{row.reelWeight.toLocaleString()} kg</TableCell>
-                    <TableCell className="text-right">{row.sheetsRuled.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{Math.round(row.theoreticalSheets).toLocaleString()}</TableCell>
-                    <TableCell className="text-right">
-                       <Badge variant={row.difference >= 0 ? 'default' : 'destructive'} className={row.difference >= 0 ? 'bg-green-600' : ''}>
-                        {Math.round(row.difference).toLocaleString()}
-                      </Badge>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center">
+                      Loading reports...
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    No results found for the selected filters.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                ) : filteredData.length > 0 ? (
+                  filteredData.map((row, index) => (
+                    <TableRow key={`${row.serialNo}-${row.id}-${index}`}>
+                      <TableCell className="font-medium whitespace-nowrap">{row.reelNo}</TableCell>
+                      <TableCell className="whitespace-nowrap">{getPaperTypeName(row.paperTypeId)}</TableCell>
+                      <TableCell className="whitespace-nowrap">{getItemTypeName(row.itemTypeId)}</TableCell>
+                      <TableCell>{row.reelWeight.toLocaleString()} kg</TableCell>
+                      <TableCell className="text-right">{row.sheetsRuled.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{Math.round(row.theoreticalSheets).toLocaleString()}</TableCell>
+                      <TableCell className="text-right">
+                         <Badge variant={row.difference >= 0 ? 'default' : 'destructive'} className={row.difference >= 0 ? 'bg-green-600' : ''}>
+                          {Math.round(row.difference).toLocaleString()}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={7}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      No results found for the selected filters.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </>

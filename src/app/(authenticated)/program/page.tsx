@@ -151,7 +151,7 @@ export default function ProgramPage() {
               Create Program
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl">
+          <DialogContent className="max-w-4xl max-h-[90svh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Create New Production Program</DialogTitle>
               <DialogDescription>
@@ -159,137 +159,139 @@ export default function ProgramPage() {
                 will update automatically.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-4">
-              <div className="md:col-span-2 grid grid-cols-2 gap-4">
-                {/* Inputs */}
-                <div className="space-y-2">
-                  <Label htmlFor="brand">Brand Name</Label>
-                  <Input
-                    id="brand"
-                    value={newProgram.brand || ''}
-                    onChange={(e) => handleInputChange('brand', e.target.value)}
-                  />
+            <div className="flex-grow overflow-y-auto pr-6 -mr-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-4">
+                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Inputs */}
+                  <div className="space-y-2">
+                    <Label htmlFor="brand">Brand Name</Label>
+                    <Input
+                      id="brand"
+                      value={newProgram.brand || ''}
+                      onChange={(e) => handleInputChange('brand', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="paperTypeId">Paper Type</Label>
+                    <Select
+                      onValueChange={(value) =>
+                        handleSelectChange('paperTypeId', value)
+                      }
+                      disabled={loadingPaperTypes}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select paper" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {paperTypes?.map((paper) => (
+                          <SelectItem key={paper.id} value={paper.id}>
+                            {paper.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="itemTypeId">Item Type</Label>
+                     <Select onValueChange={(value) => handleSelectChange('itemTypeId', value)} disabled={loadingItemTypes}>
+                       <SelectTrigger>
+                         <SelectValue placeholder="Select item type" />
+                       </SelectTrigger>
+                       <SelectContent>
+                         {itemTypes?.map((item) => (
+                           <SelectItem key={item.id} value={item.id}>
+                             {item.name}
+                           </SelectItem>
+                         ))}
+                       </SelectContent>
+                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cutoff">Cutoff (cm)</Label>
+                    <Input
+                      id="cutoff"
+                      type="number"
+                      value={newProgram.cutoff || ''}
+                      onChange={(e) => handleInputChange('cutoff', parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notebookPages">Notebook Pages</Label>
+                    <Input
+                      id="notebookPages"
+                      type="number"
+                      value={newProgram.notebookPages || ''}
+                      onChange={(e) => handleInputChange('notebookPages', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                   <div className="space-y-2">
+                    <Label htmlFor="coverIndex">Cover Pages</Label>
+                    <Input
+                      id="coverIndex"
+                      type="number"
+                      value={newProgram.coverIndex || ''}
+                      onChange={(e) => handleInputChange('coverIndex', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="piecesPerBundle">Pieces per Bundle</Label>
+                    <Input
+                      id="piecesPerBundle"
+                      type="number"
+                      value={newProgram.piecesPerBundle || ''}
+                      onChange={(e) => handleInputChange('piecesPerBundle', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bundlesRequired">Bundles Required</Label>
+                    <Input
+                      id="bundlesRequired"
+                      type="number"
+                      value={newProgram.bundlesRequired || ''}
+                      onChange={(e) => handleInputChange('bundlesRequired', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ups">UPS</Label>
+                    <Input
+                      id="ups"
+                      type="number"
+                      value={newProgram.ups || ''}
+                      onChange={(e) => handleInputChange('ups', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="paperTypeId">Paper Type</Label>
-                  <Select
-                    onValueChange={(value) =>
-                      handleSelectChange('paperTypeId', value)
-                    }
-                    disabled={loadingPaperTypes}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select paper" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {paperTypes?.map((paper) => (
-                        <SelectItem key={paper.id} value={paper.id}>
-                          {paper.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="itemTypeId">Item Type</Label>
-                   <Select onValueChange={(value) => handleSelectChange('itemTypeId', value)} disabled={loadingItemTypes}>
-                     <SelectTrigger>
-                       <SelectValue placeholder="Select item type" />
-                     </SelectTrigger>
-                     <SelectContent>
-                       {itemTypes?.map((item) => (
-                         <SelectItem key={item.id} value={item.id}>
-                           {item.name}
-                         </SelectItem>
-                       ))}
-                     </SelectContent>
-                   </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cutoff">Cutoff (cm)</Label>
-                  <Input
-                    id="cutoff"
-                    type="number"
-                    value={newProgram.cutoff || ''}
-                    onChange={(e) => handleInputChange('cutoff', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notebookPages">Notebook Pages</Label>
-                  <Input
-                    id="notebookPages"
-                    type="number"
-                    value={newProgram.notebookPages || ''}
-                    onChange={(e) => handleInputChange('notebookPages', parseInt(e.target.value) || 0)}
-                  />
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="coverIndex">Cover Pages</Label>
-                  <Input
-                    id="coverIndex"
-                    type="number"
-                    value={newProgram.coverIndex || ''}
-                    onChange={(e) => handleInputChange('coverIndex', parseInt(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="piecesPerBundle">Pieces per Bundle</Label>
-                  <Input
-                    id="piecesPerBundle"
-                    type="number"
-                    value={newProgram.piecesPerBundle || ''}
-                    onChange={(e) => handleInputChange('piecesPerBundle', parseInt(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bundlesRequired">Bundles Required</Label>
-                  <Input
-                    id="bundlesRequired"
-                    type="number"
-                    value={newProgram.bundlesRequired || ''}
-                    onChange={(e) => handleInputChange('bundlesRequired', parseInt(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ups">UPS</Label>
-                  <Input
-                    id="ups"
-                    type="number"
-                    value={newProgram.ups || ''}
-                    onChange={(e) => handleInputChange('ups', parseInt(e.target.value) || 0)}
-                  />
-                </div>
-              </div>
-              <div className="space-y-4 rounded-md bg-muted p-4">
-                <h3 className="font-semibold text-lg">Calculations</h3>
-                <div className="space-y-2">
-                  <Label>Paper GSM</Label>
-                  <Input value={newProgram.gsm || ''} readOnly disabled />
-                </div>
-                <div className="space-y-2">
-                  <Label>Paper Length (cm)</Label>
-                  <Input value={newProgram.length || ''} readOnly disabled />
-                </div>
-                <div className="space-y-2">
-                  <Label>Ream Weight (kg)</Label>
-                  <Input
-                    value={calculatedValues.reamWeight.toFixed(2)}
-                    readOnly
-                    disabled
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Total Sheets Required</Label>
-                  <Input
-                    value={Math.ceil(calculatedValues.totalSheetsRequired).toLocaleString()}
-                    readOnly
-                    disabled
-                  />
+                <div className="space-y-4 rounded-md bg-muted p-4 h-fit sticky top-0">
+                  <h3 className="font-semibold text-lg">Calculations</h3>
+                  <div className="space-y-2">
+                    <Label>Paper GSM</Label>
+                    <Input value={newProgram.gsm || ''} readOnly disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Paper Length (cm)</Label>
+                    <Input value={newProgram.length || ''} readOnly disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Ream Weight (kg)</Label>
+                    <Input
+                      value={calculatedValues.reamWeight.toFixed(2)}
+                      readOnly
+                      disabled
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Total Sheets Required</Label>
+                    <Input
+                      value={Math.ceil(calculatedValues.totalSheetsRequired).toLocaleString()}
+                      readOnly
+                      disabled
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="mt-auto pt-4 border-t">
               <Button
                 variant="outline"
                 onClick={() => setIsModalOpen(false)}
@@ -313,38 +315,40 @@ export default function ProgramPage() {
             {loadingPrograms ? (
               <div className="p-4 text-center text-muted-foreground">Loading programs...</div>
             ) : programs && programs.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Brand</TableHead>
-                    <TableHead>Paper</TableHead>
-                    <TableHead>Item</TableHead>
-                    <TableHead>Sheets Req.</TableHead>
-                    <TableHead className="text-right">Ream Wt. (kg)</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {programs.map((program) => (
-                    <TableRow key={program.id}>
-                      <TableCell className="font-medium">
-                        {program.brand}
-                      </TableCell>
-                      <TableCell>
-                        {getPaperTypeName(program.paperTypeId)}
-                      </TableCell>
-                      <TableCell>
-                        {getItemTypeName(program.itemTypeId)}
-                      </TableCell>
-                      <TableCell>
-                        {program.totalSheetsRequired.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {program.reamWeight.toFixed(2)}
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Brand</TableHead>
+                      <TableHead>Paper</TableHead>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Sheets Req.</TableHead>
+                      <TableHead className="text-right">Ream Wt. (kg)</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {programs.map((program) => (
+                      <TableRow key={program.id}>
+                        <TableCell className="font-medium whitespace-nowrap">
+                          {program.brand}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {getPaperTypeName(program.paperTypeId)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {getItemTypeName(program.itemTypeId)}
+                        </TableCell>
+                        <TableCell>
+                          {program.totalSheetsRequired.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {program.reamWeight.toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             ) : (
               <div className="p-4 text-center text-muted-foreground">
                 No programs created yet.

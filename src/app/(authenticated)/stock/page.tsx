@@ -120,7 +120,7 @@ export default function StockPage() {
               Add Stock
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90svh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Stock</DialogTitle>
               <DialogDescription>
@@ -128,12 +128,12 @@ export default function StockPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="paper-type" className="text-right">
+              <div className="space-y-2">
+                <Label htmlFor="paper-type">
                   Paper Type
                 </Label>
                 <Select onValueChange={handleSelectPaper} disabled={loadingPaperTypes}>
-                  <SelectTrigger className="col-span-3">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select a paper type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -145,32 +145,30 @@ export default function StockPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="gsm" className="text-right">
+              <div className="space-y-2">
+                <Label htmlFor="gsm">
                   GSM
                 </Label>
                 <Input
                   id="gsm"
                   value={newStockItem.gsm || ''}
-                  className="col-span-3"
                   readOnly
                   disabled
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="length" className="text-right">
+              <div className="space-y-2">
+                <Label htmlFor="length">
                   Length (cm)
                 </Label>
                 <Input
                   id="length"
                   value={newStockItem.length || ''}
-                  className="col-span-3"
                   readOnly
                   disabled
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="total-weight" className="text-right">
+              <div className="space-y-2">
+                <Label htmlFor="total-weight">
                   Total Weight (kg)
                 </Label>
                 <Input
@@ -183,11 +181,10 @@ export default function StockPage() {
                       totalWeight: parseFloat(e.target.value),
                     })
                   }
-                  className="col-span-3"
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="reels" className="text-right">
+              <div className="space-y-2">
+                <Label htmlFor="reels">
                   Number of Reels
                 </Label>
                 <Input
@@ -200,7 +197,6 @@ export default function StockPage() {
                       numberOfReels: parseInt(e.target.value),
                     })
                   }
-                  className="col-span-3"
                 />
               </div>
             </div>
@@ -220,53 +216,55 @@ export default function StockPage() {
           <CardDescription>A list of all paper stock available.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Paper Type</TableHead>
-                <TableHead>GSM</TableHead>
-                <TableHead>Length (cm)</TableHead>
-                <TableHead>Weight (kg)</TableHead>
-                <TableHead className="text-right">No. of Reels</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loadingStock ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
-                    Loading stock...
-                  </TableCell>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Paper Type</TableHead>
+                  <TableHead>GSM</TableHead>
+                  <TableHead>Length (cm)</TableHead>
+                  <TableHead>Weight (kg)</TableHead>
+                  <TableHead className="text-right">No. of Reels</TableHead>
                 </TableRow>
-              ) : stock && stock.length > 0 ? (
-                stock.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      {formatDate(item.date)}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {getPaperTypeName(item.paperTypeId)}
-                    </TableCell>
-                    <TableCell>{item.gsm}</TableCell>
-                    <TableCell>{item.length}</TableCell>
-                    <TableCell>{item.totalWeight.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">
-                      {item.numberOfReels}
+              </TableHeader>
+              <TableBody>
+                {loadingStock ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-24 text-center">
+                      Loading stock...
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    No stock added yet.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                ) : stock && stock.length > 0 ? (
+                  stock.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="whitespace-nowrap">
+                        {formatDate(item.date)}
+                      </TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">
+                        {getPaperTypeName(item.paperTypeId)}
+                      </TableCell>
+                      <TableCell>{item.gsm}</TableCell>
+                      <TableCell>{item.length}</TableCell>
+                      <TableCell>{item.totalWeight.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">
+                        {item.numberOfReels}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      No stock added yet.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </>
