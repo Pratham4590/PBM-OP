@@ -394,13 +394,13 @@ export default function RulingPage() {
                                 <div className="mt-4 pt-4 border-t">
                                   <h4 className="font-semibold">Total Summary</h4>
                                   <div className="text-sm mt-2 space-y-1">
-                                    <p>Total Sheets Ruled: {calculationSummary.totalSheetsRuled.toLocaleString()}</p>
-                                    <p>Total Theoretical Sheets: {Math.round(calculationSummary.totalTheoreticalSheets).toLocaleString()}</p>
-                                    <p>Overall Difference: 
+                                    <div>Total Sheets Ruled: {calculationSummary.totalSheetsRuled.toLocaleString()}</div>
+                                    <div>Total Theoretical Sheets: {Math.round(calculationSummary.totalTheoreticalSheets).toLocaleString()}</div>
+                                    <div>Overall Difference: 
                                         <Badge variant={calculationSummary.totalDifference >= 0 ? 'default' : 'destructive'} className={`ml-2 ${calculationSummary.totalDifference >= 0 ? 'bg-green-600' : ''}`}>
                                             {Math.round(calculationSummary.totalDifference).toLocaleString()}
                                         </Badge>
-                                    </p>
+                                    </div>
                                   </div>
                                 </div>
                             )}
