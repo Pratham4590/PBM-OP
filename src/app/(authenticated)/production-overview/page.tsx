@@ -32,7 +32,7 @@ import {
 import { Program, ItemType, Stock, PaperType, Ruling } from '@/lib/types';
 import { useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, Timestamp } from 'firebase/firestore';
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
 
@@ -98,7 +98,17 @@ export default function ProductionOverviewPage() {
   const productionSummary = useMemo(() => {
     if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: 0 };
     const today = new Date().toDateString();
-    const todayRulings = rulings.filter(r => (r.date as Date).toDateString() === today);
+    
+    const todayRulings = rulings.filter(r => {
+      if (r.date instanceof Timestamp) {
+        return r.date.toDate().toDateString() === today;
+      }
+      if (r.date instanceof Date) {
+        return r.date.toDateString() === today;
+      }
+      return false;
+    });
+    
     const sheetsRuledToday = todayRulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
 
     const totalSheetsRuled = rulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
@@ -250,5 +260,3 @@ export default function ProductionOverviewPage() {
     </>
   );
 }
-
-    
