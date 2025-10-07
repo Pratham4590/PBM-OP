@@ -30,9 +30,8 @@ import { Separator } from '@/components/ui/separator';
 import { AppLogo } from '@/components/icons';
 import { UserNav } from './user-nav';
 import { ThemeToggle } from '../theme-toggle';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
 import { useEffect, useState } from 'react';
 import type { User as AppUserType } from '@/lib/types';
 
@@ -41,7 +40,7 @@ export const allNavItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['Admin', 'Member', 'Operator'] },
   { href: '/master-data', icon: Database, label: 'Master Data', roles: ['Admin', 'Member'] },
   { href: '/stock', icon: Warehouse, label: 'Stock', roles: ['Admin', 'Member'] },
-  { href: '/program', icon: FileText, label: 'Program', roles: ['Admin', 'Member'] },
+  { href: '/program', icon: FileText, label: 'Program', roles: ['Admin', 'Member', 'Operator'] },
   { href: '/ruling', icon: GitBranch, label: 'Reel Ruling', roles: ['Admin', 'Member', 'Operator'] },
   { href: '/reports', icon: BarChart3, label: 'Reports', roles: ['Admin', 'Member'] },
   { href: '/production-overview', icon: PieChart, label: 'Production Overview', roles: ['Admin', 'Member'] },
@@ -54,21 +53,29 @@ export function SidebarNav() {
   const firestore = useFirestore();
   const [userRole, setUserRole] = useState<string | null>(null);
   const { state } = useSidebar();
-
+  
+  const userDocRef = useMemoFirebase(
+    () => (user && firestore ? doc(firestore, 'users', user.uid) : null),
+    [user, firestore]
+  );
 
   useEffect(() => {
     const fetchUserRole = async () => {
-      if(user && firestore) {
-        const userDocRef = doc(firestore, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          const userData = userDoc.data() as AppUserType;
-          setUserRole(userData.role);
+      if(userDocRef) {
+        try {
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as AppUserType;
+            setUserRole(userData.role);
+          }
+        } catch(e) {
+          // It's possible the doc doesn't exist yet for a new user.
+          // The onSnapshot in useUser should eventually provide it.
         }
       }
     };
     fetchUserRole();
-  }, [user, firestore]);
+  }, [userDocRef]);
 
   const navItems = allNavItems.filter(item => userRole && item.roles.includes(userRole));
 

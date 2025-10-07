@@ -100,7 +100,7 @@ function LoginPageContent() {
             id: user.uid,
             email: user.email,
             displayName: user.email?.split('@')[0] || 'New User',
-            role: 'Member',
+            role: 'Operator',
             createdAt: serverTimestamp(),
             themePreference: 'system',
         };

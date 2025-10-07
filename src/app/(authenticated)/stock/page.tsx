@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useState } from 'react';
-import { Stock, PaperType } from '@/lib/types';
+import { Stock, PaperType, User as AppUser } from '@/lib/types';
 import {
   Card,
   CardContent,
@@ -40,11 +40,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 export default function StockPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
+  const userQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'users') : null, [firestore, user]);
+  const { data: users } = useCollection<AppUser>(userQuery);
+  const currentUser = users?.find(u => u.id === user?.uid);
+
   const stockQuery = useMemoFirebase(() => firestore ? collection(firestore, 'stock') : null, [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
 
@@ -108,6 +113,8 @@ export default function StockPage() {
     }
     return 'N/A';
   }
+  
+  const canEdit = currentUser?.role === 'Admin' || currentUser?.role === 'Member';
 
   return (
     <>
@@ -115,6 +122,7 @@ export default function StockPage() {
         title="Stock Management"
         description="Track and manage your paper stock in real-time."
       >
+        {canEdit && (
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -214,6 +222,7 @@ export default function StockPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        )}
       </PageHeader>
 
       <Card>

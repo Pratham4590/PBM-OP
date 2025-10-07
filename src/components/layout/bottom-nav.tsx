@@ -12,9 +12,8 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { ThemeToggle } from '../theme-toggle';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
 import { useEffect, useState } from 'react';
 import type { User as AppUser } from '@/lib/types';
 import { UserNav } from './user-nav';
@@ -25,10 +24,15 @@ export function BottomNav() {
   const firestore = useFirestore();
   const [userRole, setUserRole] = useState<string | null>(null);
 
+  const userDocRef = useMemoFirebase(
+    () => (user && firestore ? doc(firestore, 'users', user.uid) : null),
+    [user, firestore]
+  );
+
+
   useEffect(() => {
     const fetchUserRole = async () => {
-      if(user && firestore) {
-        const userDocRef = doc(firestore, 'users', user.uid);
+      if(userDocRef) {
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
           const userData = userDoc.data() as AppUser;
@@ -37,7 +41,7 @@ export function BottomNav() {
       }
     };
     fetchUserRole();
-  }, [user, firestore]);
+  }, [userDocRef]);
 
   const navItems = allNavItems.filter(item => userRole && item.roles.includes(userRole));
   

@@ -31,20 +31,25 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
-import { PaperType, ItemType } from '@/lib/types';
-import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { PaperType, ItemType, User as AppUser } from '@/lib/types';
+import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser } from '@/firebase';
 import { collection } from 'firebase/firestore';
 
 export default function MasterDataPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
   
+  const userQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'users') : null, [firestore, user]);
+  const { data: users } = useCollection<AppUser>(userQuery);
+  const currentUser = users?.find(u => u.id === user?.uid);
+
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
 
   const { data: paperTypes, isLoading: loadingPaper } = useCollection<PaperType>(paperTypesQuery);
   const { data: itemTypes, isLoading: loadingItems } = useCollection<ItemType>(itemTypesQuery);
 
-  const [newPaperType, setNewPaperType] = useState<Omit<PaperType, 'id' | 'name'> & { name: string }>({ name: '', gsm: 0, length: 0 });
+  const [newPaperType, setNewPaperType] = useState<Omit<PaperType, 'id'>>({ name: '', gsm: 0, length: 0 });
   const [newItemType, setNewItemType] = useState<Omit<ItemType, 'id'>>({ name: '', shortCode: '' });
 
   const [isPaperModalOpen, setIsPaperModalOpen] = useState(false);
@@ -67,6 +72,8 @@ export default function MasterDataPage() {
       setIsItemModalOpen(false);
     }
   };
+  
+  const canEdit = currentUser?.role === 'Admin' || currentUser?.role === 'Member';
 
   return (
     <>
@@ -74,116 +81,118 @@ export default function MasterDataPage() {
         title="Master Data"
         description="Manage reference data for paper, items, and more."
       >
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <Dialog open={isPaperModalOpen} onOpenChange={setIsPaperModalOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Paper Type
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90svh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add New Paper Type</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="paper-name">
-                    Name
-                  </Label>
-                  <Input
-                    id="paper-name"
-                    value={newPaperType.name}
-                    onChange={(e) =>
-                      setNewPaperType({ ...newPaperType, name: e.target.value })
-                    }
-                  />
+        {canEdit && (
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Dialog open={isPaperModalOpen} onOpenChange={setIsPaperModalOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add Paper Type
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90svh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Add New Paper Type</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="paper-name">
+                      Name
+                    </Label>
+                    <Input
+                      id="paper-name"
+                      value={newPaperType.name}
+                      onChange={(e) =>
+                        setNewPaperType({ ...newPaperType, name: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="paper-gsm">
+                      GSM
+                    </Label>
+                    <Input
+                      id="paper-gsm"
+                      type="number"
+                      value={newPaperType.gsm || ''}
+                      onChange={(e) =>
+                        setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="paper-length">
+                      Length (cm)
+                    </Label>
+                    <Input
+                      id="paper-length"
+                      type="number"
+                      value={newPaperType.length || ''}
+                      onChange={(e) =>
+                        setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })
+                      }
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="paper-gsm">
-                    GSM
-                  </Label>
-                  <Input
-                    id="paper-gsm"
-                    type="number"
-                    value={newPaperType.gsm || ''}
-                    onChange={(e) =>
-                      setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="paper-length">
-                    Length (cm)
-                  </Label>
-                  <Input
-                    id="paper-length"
-                    type="number"
-                    value={newPaperType.length || ''}
-                    onChange={(e) =>
-                      setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })
-                    }
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button onClick={handleAddPaperType}>Add Paper Type</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline">Cancel</Button>
+                  </DialogClose>
+                  <Button onClick={handleAddPaperType}>Add Paper Type</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
-          <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Item Type
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90svh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add New Item Type</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="item-name">
-                    Name
-                  </Label>
-                  <Input
-                    id="item-name"
-                    value={newItemType.name}
-                    onChange={(e) =>
-                      setNewItemType({ ...newItemType, name: e.target.value })
-                    }
-                  />
+            <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add Item Type
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90svh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Add New Item Type</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="item-name">
+                      Name
+                    </Label>
+                    <Input
+                      id="item-name"
+                      value={newItemType.name}
+                      onChange={(e) =>
+                        setNewItemType({ ...newItemType, name: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="item-shortCode">
+                      Short Code
+                    </Label>
+                    <Input
+                      id="item-shortCode"
+                      value={newItemType.shortCode}
+                      onChange={(e) =>
+                        setNewItemType({
+                          ...newItemType,
+                          shortCode: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="item-shortCode">
-                    Short Code
-                  </Label>
-                  <Input
-                    id="item-shortCode"
-                    value={newItemType.shortCode}
-                    onChange={(e) =>
-                      setNewItemType({
-                        ...newItemType,
-                        shortCode: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button onClick={handleAddItemType}>Add Item Type</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline">Cancel</Button>
+                  </DialogClose>
+                  <Button onClick={handleAddItemType}>Add Item Type</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
       </PageHeader>
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
