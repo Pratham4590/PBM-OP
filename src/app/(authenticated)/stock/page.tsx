@@ -39,8 +39,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection, Timestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 export default function StockPage() {
   const firestore = useFirestore();
@@ -67,23 +66,25 @@ export default function StockPage() {
     }
   };
 
-  const handleAddStock = () => {
+  const handleAddStock = async () => {
     if (
+      firestore &&
       newStockItem.paperTypeId &&
       newStockItem.totalWeight &&
       newStockItem.numberOfReels &&
       newStockItem.gsm &&
       newStockItem.length
     ) {
-      const stockToAdd: Partial<Stock> = {
-        date: new Date(),
+      const stockToAdd = {
+        date: serverTimestamp(),
         paperTypeId: newStockItem.paperTypeId,
         gsm: newStockItem.gsm,
         length: newStockItem.length,
         totalWeight: newStockItem.totalWeight,
         numberOfReels: newStockItem.numberOfReels,
       };
-      addDocumentNonBlocking(collection(firestore, 'stock'), stockToAdd);
+      const stockCollection = collection(firestore, 'stock');
+      await addDoc(stockCollection, stockToAdd);
       setNewStockItem({ numberOfReels: 1 }); // Reset form
       setIsModalOpen(false);
     } else {
@@ -100,7 +101,10 @@ export default function StockPage() {
     if (date instanceof Timestamp) {
       return date.toDate().toLocaleDateString();
     }
-    return date.toLocaleDateString();
+    if (date instanceof Date) {
+        return date.toLocaleDateString();
+    }
+    return 'N/A';
   }
 
   return (
@@ -268,5 +272,3 @@ export default function StockPage() {
     </>
   );
 }
-
-    

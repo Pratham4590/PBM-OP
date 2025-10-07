@@ -1,150 +1,210 @@
 {
   "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the application, storing authentication and role information.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's full name."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "The user's role within the application (admin, member, operator)."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was created.",
+          "format": "date-time"
+        },
+        "themePreference": {
+          "type": "string",
+          "description": "The user's preferred theme (light or dark)."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "email",
+        "role",
+        "createdAt",
+        "themePreference"
+      ]
+    },
     "PaperType": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "PaperType",
       "type": "object",
-      "description": "Represents a type of paper with its properties.",
+      "description": "Represents a type of paper used in the notebook manufacturing process.",
       "properties": {
-        "name": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the PaperType entity."
+        },
+        "paperName": {
           "type": "string",
           "description": "The name of the paper type."
         },
         "gsm": {
           "type": "number",
-          "description": "Grams per square meter of the paper."
+          "description": "The Grams per Square Meter (GSM) of the paper."
         },
         "length": {
           "type": "number",
-          "description": "Length of the paper in centimeters."
+          "description": "The length of the paper in centimeters."
         }
       },
       "required": [
-        "name",
+        "id",
+        "paperName",
         "gsm",
         "length"
       ]
     },
     "ItemType": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "ItemType",
       "type": "object",
-      "description": "Represents a type of item being produced.",
+      "description": "Represents a type of item produced (e.g., a specific type of notebook).",
       "properties": {
-        "name": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ItemType entity."
+        },
+        "itemName": {
           "type": "string",
           "description": "The name of the item type."
         },
         "shortCode": {
           "type": "string",
-          "description": "Short code for the item type."
+          "description": "A short code representing the item type."
         }
       },
       "required": [
-        "name",
+        "id",
+        "itemName",
         "shortCode"
       ]
     },
     "Stock": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Stock",
       "type": "object",
-      "description": "Represents the stock of paper reels.",
+      "description": "Represents the current stock of paper reels.",
       "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Stock entity."
+        },
         "date": {
           "type": "string",
-          "description": "Date of the stock entry.",
+          "description": "The date the stock was recorded.",
           "format": "date-time"
         },
         "paperTypeId": {
           "type": "string",
-          "description": "Reference to PaperType."
-        },
-        "length": {
-          "type": "number",
-          "description": "Length of the paper in the stock (cm)."
+          "description": "Reference to PaperType. (Relationship: PaperType 1:N Stock)"
         },
         "gsm": {
           "type": "number",
-          "description": "GSM of the paper in the stock."
+          "description": "The GSM of the paper in the stock."
+        },
+        "length": {
+          "type": "number",
+          "description": "The length of the paper in the stock."
         },
         "totalWeight": {
           "type": "number",
-          "description": "Total weight of the paper in the stock."
+          "description": "The total weight of the paper in the stock."
         },
         "numberOfReels": {
           "type": "number",
-          "description": "Number of reels in the stock."
+          "description": "The number of reels in the stock."
         }
       },
       "required": [
+        "id",
         "date",
         "paperTypeId",
-        "length",
         "gsm",
+        "length",
         "totalWeight",
         "numberOfReels"
       ]
     },
     "Program": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Program",
       "type": "object",
-      "description": "Represents a production program for notebooks.",
+      "description": "Represents a production program, defining the parameters for producing a specific item.",
       "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Program entity."
+        },
         "date": {
           "type": "string",
-          "description": "Date of the program.",
+          "description": "The date of the production program.",
           "format": "date-time"
         },
         "paperTypeId": {
           "type": "string",
-          "description": "Reference to PaperType."
+          "description": "Reference to PaperType. (Relationship: PaperType 1:N Program)"
         },
         "gsm": {
           "type": "number",
-          "description": "GSM of the paper used in the program."
+          "description": "The GSM of the paper used in the program."
         },
         "length": {
           "type": "number",
-          "description": "Length of the paper used in the program."
+          "description": "The length of the paper used in the program."
         },
         "cutoff": {
           "type": "number",
-          "description": "Cutoff value for the program."
+          "description": "The cutoff length used in the program."
         },
         "itemTypeId": {
           "type": "string",
-          "description": "Reference to ItemType."
+          "description": "Reference to ItemType. (Relationship: ItemType 1:N Program)"
         },
         "notebookPages": {
           "type": "number",
-          "description": "Number of pages in the notebook."
+          "description": "The number of pages in the notebook."
         },
         "coverIndex": {
           "type": "number",
-          "description": "Number of cover and index pages."
+          "description": "The number of cover and index pages."
         },
         "ups": {
           "type": "number",
-          "description": "UPS value for the program."
+          "description": "The number of 'ups' (units per sheet)."
         },
         "piecesPerBundle": {
           "type": "number",
-          "description": "Number of pieces per bundle."
+          "description": "The number of pieces per bundle."
         },
         "bundlesRequired": {
           "type": "number",
-          "description": "Number of bundles required for the program."
+          "description": "The number of bundles required."
         },
         "brand": {
           "type": "string",
-          "description": "Brand of the notebook being produced."
-        },
-        "reamWeight": {
-            "type": "number"
-        },
-        "totalSheetsRequired": {
-            "type": "number"
+          "description": "The brand of the notebook."
         }
       },
       "required": [
+        "id",
         "date",
         "paperTypeId",
         "gsm",
@@ -156,88 +216,100 @@
         "ups",
         "piecesPerBundle",
         "bundlesRequired",
-        "brand",
-        "reamWeight",
-        "totalSheetsRequired"
+        "brand"
       ]
     },
-    "Reel": {
+    "ReelRuling": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "ReelRuling",
       "type": "object",
-      "description": "Represents the ruling of a paper reel.",
+      "description": "Represents a reel ruling entry, tracking the usage of a reel for a specific item.",
       "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ReelRuling entity."
+        },
         "date": {
           "type": "string",
-          "description": "Date of the reel ruling.",
+          "description": "The date of the reel ruling.",
           "format": "date-time"
         },
         "serialNo": {
           "type": "string",
-          "description": "Serial number of the reel."
+          "description": "The serial number of the reel."
         },
         "reelNo": {
           "type": "string",
-          "description": "Reel number."
+          "description": "The reel number."
         },
         "paperTypeId": {
           "type": "string",
-          "description": "Reference to PaperType."
+          "description": "Reference to PaperType. (Relationship: PaperType 1:N ReelRuling)"
+        },
+        "itemTypeId": {
+          "type": "string",
+          "description": "Reference to ItemType. (Relationship: ItemType 1:N ReelRuling)"
         },
         "reelWeight": {
           "type": "number",
-          "description": "Weight of the reel."
+          "description": "The weight of the reel."
         },
-        "status": {
-            "type": "string"
+        "sheetsRuled": {
+          "type": "number",
+          "description": "The number of sheets ruled from the reel."
         },
-        "entries": {
-            "type": "array",
-            "items": {
-                "$ref": "#/entities/ReelEntry"
-            }
+        "programId": {
+          "type": "string",
+          "description": "Reference to Program. (Relationship: Program 1:N ReelRuling). Optional if ruling without a program."
+        },
+        "cutoff": {
+          "type": "number",
+          "description": "The cutoff used in the ruling (required if not using a Program)."
         }
       },
       "required": [
+        "id",
         "date",
         "serialNo",
         "reelNo",
         "paperTypeId",
+        "itemTypeId",
         "reelWeight",
-        "status",
-        "entries"
+        "sheetsRuled"
       ]
     },
-    "ReelEntry": {
-        "title": "ReelEntry",
-        "type": "object",
-        "properties": {
-            "itemTypeId": { "type": "string" },
-            "sheetsRuled": { "type": "number" },
-            "programId": { "type": "string" },
-            "cutoff": { "type": "number" },
-            "theoreticalSheets": { "type": "number" },
-            "difference": { "type": "number" }
-        },
-        "required": ["itemTypeId", "sheetsRuled", "cutoff", "theoreticalSheets", "difference"]
-    },
-    "User": {
-      "title": "User",
+    "Report": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Report",
       "type": "object",
-      "description": "Represents a user of the application.",
+      "description": "Represents a generated report summarizing reel ruling data.",
       "properties": {
-        "email": {
+        "id": {
           "type": "string",
-          "description": "Email address of the user.",
-          "format": "email"
+          "description": "Unique identifier for the Report entity."
         },
-        "role": {
+        "date": {
           "type": "string",
-          "description": "Role of the user (Admin, Member, Operator)."
+          "description": "The date the report was generated.",
+          "format": "date-time"
+        },
+        "reelRulingIds": {
+          "type": "array",
+          "description": "References to ReelRulings. (Relationship: ReelRuling N:N Report).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "totals": {
+          "type": "string",
+          "description": "The totals for the report."
         }
       },
       "required": [
-        "email",
-        "role"
+        "id",
+        "date",
+        "reelRulingIds",
+        "totals"
       ]
     }
   },
@@ -248,45 +320,120 @@
     ]
   },
   "firestore": {
-    "collections": {
-      "paper_types": {
-        "schema": {
-          "$ref": "#/entities/PaperType"
-        },
-        "description": "Stores different paper types, including paper name, GSM, and length."
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles with roles for authentication and authorization. User ID is used as the document ID. Includes user's name, email, role, creation timestamp and theme preference.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, matching the Firebase Auth UID."
+            }
+          ]
+        }
       },
-      "item_types": {
-        "schema": {
-          "$ref": "#/entities/ItemType"
-        },
-        "description": "Stores different item types, including item name and short code."
+      {
+        "path": "/masterData/paperTypes/{paperTypeId}",
+        "definition": {
+          "entityName": "PaperType",
+          "schema": {
+            "$ref": "#/backend/entities/PaperType"
+          },
+          "description": "Stores master data for paper types, including paper name, GSM, and length.",
+          "params": [
+            {
+              "name": "paperTypeId",
+              "description": "The unique identifier of the paper type."
+            }
+          ]
+        }
       },
-      "stock": {
-        "schema": {
-          "$ref": "#/entities/Stock"
-        },
-        "description": "Stores the stock levels of different paper types. Only admins can modify."
+      {
+        "path": "/masterData/itemTypes/{itemTypeId}",
+        "definition": {
+          "entityName": "ItemType",
+          "schema": {
+            "$ref": "#/backend/entities/ItemType"
+          },
+          "description": "Stores master data for item types, including item name and short code.",
+          "params": [
+            {
+              "name": "itemTypeId",
+              "description": "The unique identifier of the item type."
+            }
+          ]
+        }
       },
-      "programs": {
-        "schema": {
-          "$ref": "#/entities/Program"
-        },
-        "description": "Stores program information."
+      {
+        "path": "/stock/{stockId}",
+        "definition": {
+          "entityName": "Stock",
+          "schema": {
+            "$ref": "#/backend/entities/Stock"
+          },
+          "description": "Stores stock information, including paper type, length, GSM, total weight, and number of reels. Only accessible and modifiable by admin users.",
+          "params": [
+            {
+              "name": "stockId",
+              "description": "The unique identifier of the stock entry."
+            }
+          ]
+        }
       },
-      "reels": {
-        "schema": {
-          "$ref": "#/entities/Reel"
-        },
-        "description": "Stores reel ruling entries."
+      {
+        "path": "/programs/{programId}",
+        "definition": {
+          "entityName": "Program",
+          "schema": {
+            "$ref": "#/backend/entities/Program"
+          },
+          "description": "Stores program information, including paper type, GSM, length, cutoff, item type, notebook pages, cover+index, ups, pieces per bundle, bundles required, and brand. Includes denormalized members map for authorization independence (if collaboration is required).",
+          "params": [
+            {
+              "name": "programId",
+              "description": "The unique identifier of the program."
+            }
+          ]
+        }
       },
-      "users": {
-        "schema": {
-          "$ref": "#/entities/User"
-        },
-        "description": "Stores user profiles, including roles (Admin, Member, Operator)."
+      {
+        "path": "/reels/{reelRulingId}",
+        "definition": {
+          "entityName": "ReelRuling",
+          "schema": {
+            "$ref": "#/backend/entities/ReelRuling"
+          },
+          "description": "Stores reel ruling entries with multiple ruling support, including date, serial number, reel number, paper type, item type, reel weight, and sheets ruled. Includes denormalized program members map for authorization independence based on the program used (if collaboration is required).",
+          "params": [
+            {
+              "name": "reelRulingId",
+              "description": "The unique identifier of the reel ruling entry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/reports/{reportId}",
+        "definition": {
+          "entityName": "Report",
+          "schema": {
+            "$ref": "#/backend/entities/Report"
+          },
+          "description": "Stores generated reports, including reel ruling IDs and totals.",
+          "params": [
+            {
+              "name": "reportId",
+              "description": "The unique identifier of the report."
+            }
+          ]
+        }
       }
-    }
+    ],
+    "reasoning": "The Firestore data structure is designed to support a secure and scalable notebook manufacturing unit application with real-time updates and role-based access control. The structure emphasizes authorization independence through denormalization to avoid `get()` calls in security rules, ensuring atomic operations and debuggability. Structural segregation is used to group data with similar security requirements, simplifying rules and improving clarity. Access modeling utilizes path-based ownership for user data and membership maps for collaborative data, providing a consistent authorization pattern. All data entries will include `createdBy` UID and timestamp for auditing.\n\n**Authorization Independence:**\n\n*   User roles are stored directly in the `users/{userId}` document, eliminating the need to fetch roles from a separate collection during authorization.\n*   For collaborative data, such as Programs or ReelRulings, the `members` map (if collaboration is extended) would be denormalized into each document to avoid `get()` calls to determine access.\n\n**QAPs (Rules are not Filters):**\n\n*   The segregation of data based on ownership and access levels enables secure `list` operations. For example, operators can securely list only the `ReelRuling` documents associated with programs they have access to. Admin users can list all.\n*   The path-based ownership for user-specific data (e.g., `/users/{userId}`) ensures that only the specified user can access their data, preventing unauthorized listing.\n\n**Example:**\nIf you added the posibility of collaborate on programs, the `Program` document will contain a `members` map with the roles of each user, and the role will be validated in the security rules instead of trying to list all the programs, and filtering on the client based on the result, to ensure that QAPs are followed.\n\nThis structure is optimized for the given application requirements and adheres to the core design principles of authorization independence, clarity of intent, DBAC, QAPs, and invariants."
   }
 }
-
-    

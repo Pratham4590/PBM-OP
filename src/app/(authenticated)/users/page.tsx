@@ -25,8 +25,7 @@ import {
 } from '@/components/ui/select';
 import { User, UserRole } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection, doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 export default function UsersPage() {
@@ -38,16 +37,23 @@ export default function UsersPage() {
   );
   const { data: users, isLoading } = useCollection<User>(usersQuery);
 
-  const handleRoleChange = (userId: string, newRole: UserRole) => {
+  const handleRoleChange = async (userId: string, newRole: UserRole) => {
     if (!firestore) return;
 
     const userDocRef = doc(firestore, 'users', userId);
-    updateDocumentNonBlocking(userDocRef, { role: newRole });
-
-    toast({
-      title: 'Role Updated',
-      description: `User role has been successfully changed to ${newRole}.`,
-    });
+    try {
+      await updateDoc(userDocRef, { role: newRole });
+      toast({
+        title: 'Role Updated',
+        description: `User role has been successfully changed to ${newRole}.`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Could not update user role.",
+      });
+    }
   };
 
   return (

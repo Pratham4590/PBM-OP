@@ -7,6 +7,8 @@ export type User = {
   email?: string;
   displayName?: string;
   role: UserRole;
+  createdAt?: Timestamp;
+  themePreference?: "light" | "dark";
 };
 
 export type PaperType = {

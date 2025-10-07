@@ -33,8 +33,7 @@ import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { PaperType, ItemType } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection } from 'firebase/firestore';
+import { addDoc, collection } from 'firebase/firestore';
 
 export default function MasterDataPage() {
   const firestore = useFirestore();
@@ -45,24 +44,26 @@ export default function MasterDataPage() {
   const { data: paperTypes, isLoading: loadingPaper } = useCollection<PaperType>(paperTypesQuery);
   const { data: itemTypes, isLoading: loadingItems } = useCollection<ItemType>(itemTypesQuery);
 
-  const [newPaperType, setNewPaperType] = useState<Partial<PaperType>>({});
-  const [newItemType, setNewItemType] = useState<Partial<ItemType>>({});
+  const [newPaperType, setNewPaperType] = useState<Omit<PaperType, 'id'>>({ name: '', gsm: 0, length: 0 });
+  const [newItemType, setNewItemType] = useState<Omit<ItemType, 'id'>>({ name: '', shortCode: '' });
 
   const [isPaperModalOpen, setIsPaperModalOpen] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
 
-  const handleAddPaperType = () => {
-    if (newPaperType.name && newPaperType.gsm && newPaperType.length) {
-      addDocumentNonBlocking(collection(firestore, 'paper_types'), newPaperType);
-      setNewPaperType({});
+  const handleAddPaperType = async () => {
+    if (newPaperType.name && newPaperType.gsm && newPaperType.length && firestore) {
+      const paperTypesCollection = collection(firestore, 'paper_types');
+      await addDoc(paperTypesCollection, newPaperType);
+      setNewPaperType({ name: '', gsm: 0, length: 0 });
       setIsPaperModalOpen(false);
     }
   };
 
-  const handleAddItemType = () => {
-    if (newItemType.name && newItemType.shortCode) {
-      addDocumentNonBlocking(collection(firestore, 'item_types'), newItemType);
-      setNewItemType({});
+  const handleAddItemType = async () => {
+    if (newItemType.name && newItemType.shortCode && firestore) {
+      const itemTypesCollection = collection(firestore, 'item_types');
+      await addDoc(itemTypesCollection, newItemType);
+      setNewItemType({ name: '', shortCode: '' });
       setIsItemModalOpen(false);
     }
   };
@@ -92,7 +93,7 @@ export default function MasterDataPage() {
                   </Label>
                   <Input
                     id="paper-name"
-                    value={newPaperType.name || ''}
+                    value={newPaperType.name}
                     onChange={(e) =>
                       setNewPaperType({ ...newPaperType, name: e.target.value })
                     }
@@ -106,9 +107,9 @@ export default function MasterDataPage() {
                   <Input
                     id="paper-gsm"
                     type="number"
-                    value={newPaperType.gsm || ''}
+                    value={newPaperType.gsm}
                     onChange={(e) =>
-                      setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) })
+                      setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })
                     }
                     className="col-span-3"
                   />
@@ -120,9 +121,9 @@ export default function MasterDataPage() {
                   <Input
                     id="paper-length"
                     type="number"
-                    value={newPaperType.length || ''}
+                    value={newPaperType.length}
                     onChange={(e) =>
-                      setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) })
+                      setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })
                     }
                     className="col-span-3"
                   />
@@ -155,7 +156,7 @@ export default function MasterDataPage() {
                   </Label>
                   <Input
                     id="item-name"
-                    value={newItemType.name || ''}
+                    value={newItemType.name}
                     onChange={(e) =>
                       setNewItemType({ ...newItemType, name: e.target.value })
                     }
@@ -168,7 +169,7 @@ export default function MasterDataPage() {
                   </Label>
                   <Input
                     id="item-shortCode"
-                    value={newItemType.shortCode || ''}
+                    value={newItemType.shortCode}
                     onChange={(e) =>
                       setNewItemType({
                         ...newItemType,
@@ -264,5 +265,3 @@ export default function MasterDataPage() {
     </>
   );
 }
-
-    

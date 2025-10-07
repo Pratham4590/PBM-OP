@@ -9,65 +9,89 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useSidebar } from '../ui/sidebar';
+import { useAuth, useUser } from '@/firebase';
+import { useRouter } from 'next/navigation';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function UserNav() {
   const { state } = useSidebar();
+  const { user } = useUser();
+  const auth = useAuth();
+  const router = useRouter();
+  const isMobile = useIsMobile();
+
+  const handleLogout = () => {
+    if (auth) {
+      auth.signOut();
+      router.push('/');
+    }
+  };
+
+  const getInitials = (email?: string | null) => {
+    if (!email) return '..';
+    return email.substring(0, 2).toUpperCase();
+  };
+  
+  const userContent = (
+    <>
+      <Avatar className="h-8 w-8">
+        <AvatarImage
+          src={user?.photoURL || `https://picsum.photos/seed/${user?.uid}/40/40`}
+          alt={user?.email || 'User'}
+        />
+        <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
+      </Avatar>
+      <div
+        className={`text-left transition-opacity duration-200 ${
+          state === 'collapsed' && !isMobile ? 'opacity-0' : 'opacity-100'
+        }`}
+      >
+        <div className="text-sm font-medium">{user?.displayName || user?.email?.split('@')[0]}</div>
+        <div className="text-xs text-muted-foreground">
+          {user?.email}
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="relative h-10 w-full justify-start gap-2 px-2"
+          className="relative h-12 w-full justify-start gap-2 px-2"
         >
-          <Avatar className="h-8 w-8">
-            <AvatarImage
-              src="https://picsum.photos/seed/user/40/40"
-              alt="@admin"
-            />
-            <AvatarFallback>AD</AvatarFallback>
-          </Avatar>
-          <div
-            className={`text-left transition-opacity duration-200 ${
-              state === 'collapsed' ? 'opacity-0' : 'opacity-100'
-            }`}
-          >
-            <div className="text-sm font-medium">Admin</div>
-            <div className="text-xs text-muted-foreground">
-              admin@navigator.com
-            </div>
-          </div>
+          {isMobile ? (
+             <div className="flex items-center gap-3 w-full">{userContent}</div>
+          ) : (
+            userContent
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">Admin</p>
+            <p className="text-sm font-medium leading-none">{user?.displayName || 'User'}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              admin@navigator.com
+              {user?.email}
             </p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
+          <DropdownMenuItem disabled>
             Profile
-            <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem disabled>
             Settings
-            <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/">
+        <DropdownMenuItem onClick={handleLogout}>
             Log out
-            <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
-          </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

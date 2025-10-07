@@ -52,8 +52,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection, Timestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 export default function RulingPage() {
   const firestore = useFirestore();
@@ -103,9 +102,10 @@ export default function RulingPage() {
       const entryToAdd: RulingEntry = {
         id: `${(newRuling.entries?.length || 0) + 1}`,
         ...newEntry,
+        sheetsRuled: newEntry.sheetsRuled,
         cutoff,
         theoreticalSheets,
-        difference: newEntry.sheetsRuled - theoreticalSheets,
+        difference: (newEntry.sheetsRuled || 0) - theoreticalSheets,
         itemTypeId: newEntry.itemTypeId,
       };
       
@@ -127,14 +127,17 @@ export default function RulingPage() {
     }
   };
 
-  const handleSaveRuling = () => {
-     const rulingToAdd: Partial<Ruling> = {
-      date: new Date(),
+  const handleSaveRuling = async () => {
+    if (!firestore) return;
+
+    const rulingToAdd = {
+      date: serverTimestamp(),
       status: 'Partially Used',
       ...newRuling,
     };
-
-    addDocumentNonBlocking(collection(firestore, 'reels'), rulingToAdd);
+    
+    const rulingsCollection = collection(firestore, 'reels');
+    await addDoc(rulingsCollection, rulingToAdd);
     resetForm();
   }
   
@@ -155,9 +158,6 @@ export default function RulingPage() {
 
     let totalTheoreticalSheets = 0;
 
-    // A reel can have multiple entries with different cutoffs if not using a program,
-    // so we can't just calculate total theoretical sheets from the first entry.
-    // However, for this implementation we assume a single cutoff per reel for simplicity.
     const firstEntry = (newRuling.entries || [])[0];
     if (firstEntry && firstEntry.cutoff > 0) {
         const reamWeight = (selectedPaper.length * firstEntry.cutoff * selectedPaper.gsm) / 20000;
@@ -338,7 +338,7 @@ export default function RulingPage() {
                             {newRuling.entries && newRuling.entries.length > 0 ? newRuling.entries.map(entry => (
                                 <TableRow key={entry.id}>
                                     <TableCell>{getItemTypeName(entry.itemTypeId)}</TableCell>
-                                    <TableCell>{entry.sheetsRuled.toLocaleString()}</TableCell>
+                                    <TableCell>{entry.sheetsRuled?.toLocaleString()}</TableCell>
                                     <TableCell>{getProgramInfo(entry.programId)?.brand || 'N/A'}</TableCell>
                                     <TableCell className="text-right">
                                         <Button variant="ghost" size="icon" onClick={() => setNewRuling(prev => ({...prev, entries: prev.entries?.filter(e => e.id !== entry.id)}))}>
@@ -361,7 +361,7 @@ export default function RulingPage() {
                     <Card>
                         <CardHeader><CardTitle>Reel Summary</CardTitle></CardHeader>
                         <CardContent className="text-sm space-y-1">
-                            <p><strong>Date:</strong> {newRuling.date ? (newRuling.date as Date).toLocaleDateString() : new Date().toLocaleDateString()}</p>
+                            <p><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
                             <p><strong>Serial No:</strong> {newRuling.serialNo}</p>
                             <p><strong>Reel No:</strong> {newRuling.reelNo}</p>
                             <p><strong>Paper:</strong> {paperTypes?.find(p => p.id === newRuling.paperTypeId)?.name}</p>
@@ -385,7 +385,7 @@ export default function RulingPage() {
                                         {newRuling.entries.map(e => (
                                             <TableRow key={e.id}>
                                                 <TableCell>{getItemTypeName(e.itemTypeId)}</TableCell>
-                                                <TableCell>{e.sheetsRuled.toLocaleString()}</TableCell>
+                                                <TableCell>{e.sheetsRuled?.toLocaleString()}</TableCell>
                                                 <TableCell>{Math.round(e.theoreticalSheets || 0).toLocaleString()}</TableCell>
                                                 <TableCell className="text-right">
                                                      <Badge variant={e.difference >= 0 ? 'default' : 'destructive'} className={e.difference >= 0 ? 'bg-green-600' : ''}>
@@ -513,5 +513,3 @@ export default function RulingPage() {
     </>
   );
 }
-
-    

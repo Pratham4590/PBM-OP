@@ -22,32 +22,61 @@ import {
   SidebarMenuButton,
   SidebarFooter,
   SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { AppLogo } from '@/components/icons';
 import { UserNav } from './user-nav';
 import { ThemeToggle } from '../theme-toggle';
+import { useUser } from '@/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { useEffect, useState } from 'react';
+import type { User as AppUser } from '@/lib/types';
 
-export const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/master-data', icon: Database, label: 'Master Data' },
-  { href: '/stock', icon: Warehouse, label: 'Stock' },
-  { href: '/program', icon: FileText, label: 'Program' },
-  { href: '/ruling', icon: GitBranch, label: 'Reel Ruling' },
-  { href: '/reports', icon: BarChart3, label: 'Reports' },
-  { href: '/production-overview', icon: PieChart, label: 'Production Overview' },
-  { href: '/users', icon: Users, label: 'Users' },
+
+export const allNavItems = [
+  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['Admin', 'Member', 'Operator'] },
+  { href: '/master-data', icon: Database, label: 'Master Data', roles: ['Admin', 'Member'] },
+  { href: '/stock', icon: Warehouse, label: 'Stock', roles: ['Admin', 'Member'] },
+  { href: '/program', icon: FileText, label: 'Program', roles: ['Admin', 'Member'] },
+  { href: '/ruling', icon: GitBranch, label: 'Reel Ruling', roles: ['Admin', 'Member', 'Operator'] },
+  { href: '/reports', icon: BarChart3, label: 'Reports', roles: ['Admin', 'Member'] },
+  { href: '/production-overview', icon: PieChart, label: 'Production Overview', roles: ['Admin', 'Member'] },
+  { href: '/users', icon: Users, label: 'Users', roles: ['Admin'] },
 ];
 
 export function SidebarNav() {
   const pathname = usePathname();
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const { state } = useSidebar();
+
+
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      if(user && firestore) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data() as AppUser;
+          setUserRole(userData.role);
+        }
+      }
+    };
+    fetchUserRole();
+  }, [user, firestore]);
+
+  const navItems = allNavItems.filter(item => userRole && item.roles.includes(userRole));
+
 
   return (
     <Sidebar>
       <SidebarHeader className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <AppLogo className="h-8 w-8 text-primary" />
-          <span className="text-xl font-semibold">Navigator</span>
+          {state === 'expanded' && <span className="text-xl font-semibold">Navigator</span>}
         </div>
         <SidebarTrigger />
       </SidebarHeader>
@@ -74,7 +103,7 @@ export function SidebarNav() {
       <SidebarFooter>
         <div className='flex items-center justify-between p-2'>
             <UserNav />
-            <ThemeToggle />
+           {state === 'expanded' && <ThemeToggle />}
         </div>
       </SidebarFooter>
     </Sidebar>

@@ -39,8 +39,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 export default function ProgramPage() {
   const firestore = useFirestore();
@@ -112,16 +111,17 @@ export default function ProgramPage() {
     return { reamWeight: 0, totalSheetsRequired: 0 };
   }, [newProgram]);
 
-  const handleCreateProgram = () => {
-    const programToAdd: Partial<Program> = {
-      date: new Date(),
+  const handleCreateProgram = async () => {
+    if (!firestore) return;
+
+    const programToAdd = {
+      date: serverTimestamp(),
       ...newProgram,
       ...calculatedValues,
     };
 
-    if (firestore) {
-      addDocumentNonBlocking(collection(firestore, 'programs'), programToAdd);
-    }
+    const programsCollection = collection(firestore, 'programs');
+    await addDoc(programsCollection, programToAdd);
     
     setNewProgram({
       brand: '',
