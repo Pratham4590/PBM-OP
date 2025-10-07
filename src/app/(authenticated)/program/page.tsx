@@ -87,28 +87,22 @@ export default function ProgramPage() {
 
   const calculatedValues = useMemo(() => {
     const {
+      notebookPages = 0,
+      coverIndex = 0,
+      ups = 0,
+      piecesPerBundle = 0,
+      bundlesRequired = 0,
       length = 0,
       cutoff = 0,
-      notebookPages = 0,
       gsm = 0,
-      bundlesRequired = 0,
-      piecesPerBundle = 0,
-      ups = 0,
-      coverIndex = 0,
     } = newProgram;
-    if (
-      length > 0 &&
-      cutoff > 0 &&
-      notebookPages > 0 &&
-      gsm > 0 &&
-      ups > 0
-    ) {
-      const sheetsPerNotebook = (notebookPages / 2 / ups) + coverIndex;
-      const totalSheetsRequired = sheetsPerNotebook * piecesPerBundle * bundlesRequired;
-      const reamWeight = (length * cutoff * gsm * 500) / 10000;
-      return { reamWeight, totalSheetsRequired };
-    }
-    return { reamWeight: 0, totalSheetsRequired: 0 };
+
+    const counting = notebookPages > 0 && ups > 0 ? (notebookPages - coverIndex) / ups : 0;
+    const sheetsNeeded = piecesPerBundle > 0 && ups > 0 ? (piecesPerBundle / ups) * counting : 0;
+    const totalSheetsRequired = bundlesRequired * sheetsNeeded;
+    const reamWeight = length > 0 && cutoff > 0 && gsm > 0 ? (length * cutoff * gsm * 500) / 10000 : 0;
+    
+    return { reamWeight, totalSheetsRequired: Math.ceil(totalSheetsRequired) };
   }, [newProgram]);
 
   const handleCreateProgram = () => {
@@ -162,7 +156,6 @@ export default function ProgramPage() {
             <div className="flex-grow overflow-y-auto pr-6 -mr-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-4">
                 <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Inputs */}
                   <div className="space-y-2">
                     <Label htmlFor="brand">Brand Name</Label>
                     <Input
@@ -225,7 +218,7 @@ export default function ProgramPage() {
                     />
                   </div>
                    <div className="space-y-2">
-                    <Label htmlFor="coverIndex">Cover Pages</Label>
+                    <Label htmlFor="coverIndex">Cover &amp; Index Pages</Label>
                     <Input
                       id="coverIndex"
                       type="number"
@@ -242,7 +235,7 @@ export default function ProgramPage() {
                       onChange={(e) => handleInputChange('piecesPerBundle', parseInt(e.target.value) || 0)}
                     />
                   </div>
-                  <div className="space-y-2">
+                   <div className="space-y-2">
                     <Label htmlFor="bundlesRequired">Bundles Required</Label>
                     <Input
                       id="bundlesRequired"
@@ -251,7 +244,7 @@ export default function ProgramPage() {
                       onChange={(e) => handleInputChange('bundlesRequired', parseInt(e.target.value) || 0)}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 sm:col-span-2">
                     <Label htmlFor="ups">UPS</Label>
                     <Input
                       id="ups"
@@ -282,7 +275,7 @@ export default function ProgramPage() {
                   <div className="space-y-2">
                     <Label>Total Sheets Required</Label>
                     <Input
-                      value={Math.ceil(calculatedValues.totalSheetsRequired).toLocaleString()}
+                      value={calculatedValues.totalSheetsRequired.toLocaleString()}
                       readOnly
                       disabled
                     />
