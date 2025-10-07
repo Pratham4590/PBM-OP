@@ -49,6 +49,7 @@ import {
 } from '@/components/ui/accordion';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
+import { addDoc } from 'firebase/firestore';
 
 export default function ProgramPage() {
   const firestore = useFirestore();
@@ -256,7 +257,7 @@ export default function ProgramPage() {
               Create Program
             </Button>
           </DialogTrigger>
-          <DialogContent className="p-0 flex flex-col max-w-4xl h-full md:h-auto">
+          <DialogContent className="p-0 flex flex-col max-w-4xl h-full md:h-auto md:max-h-[90vh]">
             <DialogHeader className="p-4 border-b sticky top-0 bg-background z-10">
               <DialogTitle>Create New Production Program</DialogTitle>
               <DialogDescription>
@@ -264,7 +265,7 @@ export default function ProgramPage() {
                 will update automatically.
               </DialogDescription>
             </DialogHeader>
-            <div className="flex-1 overflow-y-auto p-4 max-h-[calc(100vh-160px)]">
+            <div className="flex-1 overflow-y-auto p-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2 sm:col-span-2">
@@ -365,7 +366,7 @@ export default function ProgramPage() {
                     />
                   </div>
                 </div>
-                <div className="space-y-4 rounded-md bg-muted p-4 h-fit sticky top-0">
+                <div className="space-y-4 rounded-md bg-muted p-4 h-fit md:sticky md:top-0">
                   <h3 className="font-semibold text-lg">Calculations</h3>
                    <div className="space-y-2">
                     <Label>Counting</Label>
@@ -395,11 +396,11 @@ export default function ProgramPage() {
               </div>
             </div>
 
-            <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10">
+            <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 flex flex-row justify-end gap-2 w-full">
               <DialogClose asChild>
                 <Button variant="outline" disabled={isSaving}>Cancel</Button>
               </DialogClose>
-              <Button onClick={handleCreateProgram} disabled={isSaving}>
+              <Button onClick={handleCreateProgram} disabled={isSaving} className="w-full sm:w-auto">
                 {isSaving ? 'Saving...' : 'Create Program'}
               </Button>
             </DialogFooter>
