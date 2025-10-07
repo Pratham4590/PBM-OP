@@ -1,15 +1,120 @@
-import { PageHeader } from "@/components/page-header";
+'use client';
+
+import { PageHeader } from '@/components/page-header';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { User, UserRole } from '@/lib/types';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { useToast } from '@/hooks/use-toast';
 
 export default function UsersPage() {
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const usersQuery = useMemoFirebase(
+    () => (firestore ? collection(firestore, 'users') : null),
+    [firestore]
+  );
+  const { data: users, isLoading } = useCollection<User>(usersQuery);
+
+  const handleRoleChange = (userId: string, newRole: UserRole) => {
+    if (!firestore) return;
+
+    const userDocRef = doc(firestore, 'users', userId);
+    updateDocumentNonBlocking(userDocRef, { role: newRole });
+
+    toast({
+      title: 'Role Updated',
+      description: `User role has been successfully changed to ${newRole}.`,
+    });
+  };
+
   return (
     <>
       <PageHeader
         title="Users & Management"
         description="Manage user roles and permissions. (Admin only)"
       />
-      <div className="p-4 border-2 border-dashed border-muted-foreground/50 rounded-lg h-96 flex items-center justify-center">
-        <p className="text-muted-foreground">User management table for promoting/demoting users will be displayed here.</p>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>User List</CardTitle>
+          <CardDescription>
+            A list of all registered users in the system.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Email</TableHead>
+                <TableHead className="w-[180px]">Role</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={2} className="h-24 text-center">
+                    Loading users...
+                  </TableCell>
+                </TableRow>
+              ) : users && users.length > 0 ? (
+                users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.email}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={user.role}
+                        onValueChange={(newRole: UserRole) =>
+                          handleRoleChange(user.id, newRole)
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Admin">Admin</SelectItem>
+                          <SelectItem value="Member">Member</SelectItem>
+                          <SelectItem value="Operator">Operator</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={2}
+                    className="h-24 text-center text-muted-foreground"
+                  >
+                    No users found.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </>
   );
 }
