@@ -1,116 +1,161 @@
 /**
- * @fileoverview Firestore Security Rules for Paper Reel Management App
+ * @fileoverview Firestore Security Rules for the notebook production application.
  *
  * Core Philosophy:
- * This ruleset enforces a role-based access control model. Admins have full access,
- * while other users have read-only access to most collections.
- * User-specific data is stored under the `/users/{userId}` path and is only accessible
- * by the owning user.
+ * This ruleset implements a role-based access control (RBAC) model with an admin override.
+ * Data is generally open for reading, but writes are restricted based on user roles.
  *
  * Data Structure:
- * - `/paper_types`: Stores paper type definitions.
- * - `/item_types`: Stores item type definitions.
- * - `/stock`: Stores stock information.
- * - `/programs`: Stores program information.
- * - `/reels`: Stores reel information.
- * - `/users/{userId}`: Stores user-specific data.
+ * - /paper_types: Publicly readable, admin-only writable.
+ * - /item_types: Publicly readable, admin-only writable.
+ * - /stock: Publicly readable, admin-only writable.
+ * - /programs: Publicly readable, admin-only writable.
+ * - /reels: Publicly readable, admin-only writable.
+ * - /users/{userId}: User-specific data, readable and writable by the owner, admin-only writable.
  *
  * Key Security Decisions:
- * - Only admins can modify stock information.
- * - Users can only read and create reels, programs, item_types, and paper_types
- * - Users can only read their own user document.
- * - Listing of the `/stock` collection is disallowed for non-admins (addresses the error reported).
+ * - Public Read Access: The rules grant public read access to most collections (`paper_types`, `item_types`, `stock`, `programs`, `reels`). This is suitable for prototyping and allows for easy data exploration. In a production environment, consider restricting read access based on roles or other criteria.
+ * - Admin Override: The `isAdmin()` function provides a blanket override for all write operations. This simplifies development but should be carefully controlled in production.
+ * - No User Listing: The rules do not allow listing all users. This protects user privacy.
+ *
+ * Denormalization for Authorization:
+ * - The `users` collection stores user roles directly in the document. This avoids the need for separate role lookups and enables efficient role-based access control.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    /**
+     * @description Checks if the user is signed in.
+     * @param {string} userId - The user's ID.
+     * @return {boolean} True if the user is signed in, false otherwise.
+     */
     function isSignedIn() {
       return request.auth != null;
     }
 
+    /**
+     * @description Checks if the user is an admin.
+     * @return {boolean} True if the user is an admin, false otherwise.
+     */
     function isAdmin() {
       return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
     }
 
+    /**
+     * @description Checks if the user is the owner of the document.
+     * @param {string} userId - The user's ID.
+     * @return {boolean} True if the user is the owner, false otherwise.
+     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * @description Rules for the paper_types collection. Allows read access to all, restricts write access to none
-     * @path /databases/{database}/documents/paper_types
-     * @allow (get, list) Authenticated user can read paper types.
-     * @deny (create, update, delete) No one can create, update, or delete paper types.
-     * @principle Allows public read access to paper type information.
+     * @description Checks if the user is the owner of the existing document.
+     * @param {string} userId - The user's ID.
+     * @return {boolean} True if the user is the owner and the document exists.
+     */
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Rules for the 'paper_types' collection.
+     * @path /databases/{database}/documents/paper_types/{paperTypeId}
+     * @allow (get, list) Any user can read paper types.
+     * @allow (create, update, delete) Only admins can modify paper types.
+     * @deny (create) Non-admins cannot create paper types.
+     * @principle Allows public read access with admin-only writes.
      */
     match /paper_types/{paperTypeId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for the item_types collection. Allows read access to all, restricts write access to none
-     * @path /databases/{database}/documents/item_types
-     * @allow (get, list) Authenticated user can read item types.
-     * @deny (create, update, delete) No one can create, update, or delete item types.
-     * @principle Allows public read access to item type information.
+     * @description Rules for the 'item_types' collection.
+     * @path /databases/{database}/documents/item_types/{itemTypeId}
+     * @allow (get, list) Any user can read item types.
+     * @allow (create, update, delete) Only admins can modify item types.
+     * @deny (create) Non-admins cannot create item types.
+     * @principle Allows public read access with admin-only writes.
      */
     match /item_types/{itemTypeId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for the stock collection. Allows read access to all, restricts write access to admins.
-     * @path /databases/{database}/documents/stock
-     * @allow (get) Authenticated user can read stock.
-     * @deny (list) Non-admin user can't list the stock collection.
+     * @description Rules for the 'stock' collection.
+     * @path /databases/{database}/documents/stock/{stockId}
+     * @allow (get, list) Any user can read stock information.
      * @allow (create, update, delete) Only admins can modify stock information.
-     * @deny (create, update, delete) Non-admins cannot write to the stock collection.
-     * @principle Restricts write access to stock information to admins only.
+     * @deny (create) Non-admins cannot create stock entries.
+     * @principle Allows public read access with admin-only writes.
      */
     match /stock/{stockId} {
       allow get: if true;
-      allow list: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for the programs collection. Allows read access to all, restricts write access to none
-     * @path /databases/{database}/documents/programs
-     * @allow (get, list) Authenticated user can read programs.
-     * @deny (create, update, delete) No one can create, update, or delete programs.
-     * @principle Allows public read access to programs.
+     * @description Rules for the 'programs' collection.
+     * @path /databases/{database}/documents/programs/{programId}
+     * @allow (get, list) Any user can read program information.
+     * @allow (create, update, delete) Only admins can modify program information.
+     * @deny (create) Non-admins cannot create program entries.
+     * @principle Allows public read access with admin-only writes.
      */
     match /programs/{programId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
-    /**
-     * @description Rules for the reels collection. Allows read access to all, restricts write access to none
-     * @path /databases/{database}/documents/reels
-     * @allow (get, list) Authenticated user can read reels.
-     * @deny (create, update, delete) No one can create, update, or delete reels.
-     * @principle Allows public read access to reels.
-     */
+      /**
+       * @description Rules for the 'reels' collection.
+       * @path /databases/{database}/documents/reels/{reelId}
+       * @allow (get, list) Any user can read reel information.
+       * @allow (create, update, delete) Only admins can modify reel information.
+       * @deny (create) Non-admins cannot create reel entries.
+       * @principle Allows public read access with admin-only writes.
+       */
     match /reels/{reelId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for the users collection.  Users can read their own document.
+     * @description Rules for the 'users' collection.
      * @path /databases/{database}/documents/users/{userId}
-     * @allow (get) Authenticated user can read their own user document.
-     * @deny (list, create, update, delete) Users cannot list, create, update, or delete user documents.
-     * @principle Restricts access to user documents to the owning user.
+     * @allow (get) Any signed-in user can get a specific user profile.
+     * @allow (create) A user can create their own profile.
+     * @allow (update) Only the user or an admin can update the profile.
+     * @allow (delete) Only the user or an admin can delete the profile.
+     * @deny (list) Listing all users is not allowed.
+     * @principle Enforces document ownership and prevents user enumeration.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create, update, delete: if false;
+        allow get: if isSignedIn();
+        allow list: if false;
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId) || isAdmin();
+        allow delete: if isExistingOwner(userId) || isAdmin();
     }
   }
 }
