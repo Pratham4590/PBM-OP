@@ -11,37 +11,75 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/firebase";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { collection, doc, setDoc } from "firebase/firestore";
+import { useFirestore } from "@/firebase";
+
 
 function LoginPageContent() {
   const loginImage = placeholderImages.find(p => p.id === 'login-bg');
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const [email, setEmail] = useState('admin@navigator.com');
-  const [password, setPassword] = useState('password');
+  
+  const [isLoginView, setIsLoginView] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!auth) return;
     setIsLoading(true);
     try {
-      if (!auth) throw new Error("Auth service not available");
       await signInWithEmailAndPassword(auth, email, password);
       router.push('/dashboard');
-      // Toast on success can be good, but redirect is primary feedback
     } catch (error: any) {
-      console.error("Login failed:", error);
       toast({
         variant: "destructive",
         title: "Login Failed",
-        description: error.message || "Invalid credentials. Please try again.",
+        description: "Invalid credentials. Please try again.",
       });
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth || !firestore) return;
+    setIsLoading(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Add user to the 'users' collection in Firestore
+      const userDocRef = doc(firestore, 'users', user.uid);
+      await setDoc(userDocRef, {
+          email: user.email,
+          role: 'Member' // Default role
+      });
+
+      toast({
+        title: "Sign Up Successful",
+        description: "Your account has been created. Please log in.",
+      });
+      setIsLoginView(true); // Switch to login view
+      setEmail('');
+      setPassword('');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Sign Up Failed",
+        description: error.message || "Could not create account.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }
   
   return (
     <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2 xl:min-h-screen">
@@ -56,10 +94,10 @@ function LoginPageContent() {
                 <h1 className="text-3xl font-bold">Notebook Navigator</h1>
             </div>
             <p className="text-balance text-muted-foreground">
-              Enter your credentials to access your account
+              {isLoginView ? 'Enter your credentials to access your account' : 'Create a new account to get started'}
             </p>
           </div>
-          <form onSubmit={handleLogin} className="grid gap-4">
+          <form onSubmit={isLoginView ? handleLogin : handleSignUp} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -75,12 +113,15 @@ function LoginPageContent() {
             <div className="grid gap-2">
               <div className="flex items-center">
                 <Label htmlFor="password">Password</Label>
-                <Link
-                  href="#"
-                  className="ml-auto inline-block text-sm underline"
-                >
-                  Forgot your password?
-                </Link>
+                {isLoginView && (
+                    <Link
+                    href="#"
+                    className="ml-auto inline-block text-sm underline"
+                    onClick={(e) => { e.preventDefault(); alert("Feature not implemented yet."); }}
+                    >
+                    Forgot your password?
+                    </Link>
+                )}
               </div>
               <Input 
                 id="password" 
@@ -92,16 +133,21 @@ function LoginPageContent() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Logging in...' : 'Login'}
+              {isLoading ? (isLoginView ? 'Logging in...' : 'Signing up...') : (isLoginView ? 'Login' : 'Sign Up')}
             </Button>
             <Button variant="outline" className="w-full" disabled>
               Login with Google
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{" "}
-            <Link href="#" className="underline">
-              Sign up
+            {isLoginView ? "Don't have an account?" : "Already have an account?"}{" "}
+            <Link href="#" className="underline" onClick={(e) => {
+                e.preventDefault();
+                setIsLoginView(!isLoginView);
+                setEmail('');
+                setPassword('');
+            }}>
+              {isLoginView ? 'Sign up' : 'Login'}
             </Link>
           </div>
         </div>
