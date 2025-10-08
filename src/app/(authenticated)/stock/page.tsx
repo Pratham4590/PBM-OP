@@ -120,7 +120,7 @@ export default function StockPage() {
   };
 
   const getPaperTypeName = (paperTypeId: string) => {
-    return paperTypes?.find(p => p.id === paperTypeId)?.name || 'N/A';
+    return paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
   }
 
   const formatDate = (date: Date | Timestamp | undefined) => {
@@ -199,7 +199,7 @@ export default function StockPage() {
                   <SelectContent>
                     {paperTypes?.map((paper) => (
                       <SelectItem key={paper.id} value={paper.id}>
-                        {paper.name}
+                        {paper.paperName}
                       </SelectItem>
                     ))}
                   </SelectContent>

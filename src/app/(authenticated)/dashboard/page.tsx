@@ -58,11 +58,9 @@ export default function DashboardPage() {
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   
   const stockQuery = useMemoFirebase(() => {
-    // CRITICAL: Wait until user loading is complete AND we know the role.
     if (isLoadingCurrentUser || !firestore) {
       return null;
     }
-    // Only fetch stock if the user is NOT an operator.
     if (isOperator) {
         return null;
     }
@@ -110,7 +108,7 @@ export default function DashboardPage() {
       .slice(0, 5);
   }, [rulings]);
 
-  const getItemTypeName = (itemTypeId: string) => itemTypes?.find(it => it.id === itemTypeId)?.name || 'N/A';
+  const getItemTypeName = (itemTypeId: string) => itemTypes?.find(it => it.id === itemTypeId)?.itemName || 'N/A';
   
   if (isLoadingCurrentUser) {
     return (

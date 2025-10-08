@@ -51,11 +51,9 @@ export default function ProductionOverviewPage() {
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
 
   const stockQuery = useMemoFirebase(() => {
-    // CRITICAL: Wait until user loading is complete AND we know the role.
     if (isLoadingCurrentUser || !firestore) {
         return null;
     }
-    // Only fetch stock if the user is NOT an operator.
     if (isOperator) {
         return null;
     }
@@ -80,7 +78,7 @@ export default function ProductionOverviewPage() {
     });
 
     return Object.entries(stockByPaperType).map(([paperTypeId, reelCount]) => ({
-        name: paperTypes.find(pt => pt.id === paperTypeId)?.name || 'Unknown',
+        name: paperTypes.find(pt => pt.id === paperTypeId)?.paperName || 'Unknown',
         value: reelCount,
     }));
    }, [stock, paperTypes, isOperator, loadingStock, loadingPaperTypes]);
@@ -91,7 +89,7 @@ export default function ProductionOverviewPage() {
     const summary: { [key: string]: { ruled: number, theoretical: number } } = {};
     rulings.forEach(ruling => {
       ruling.entries.forEach(entry => {
-        const itemTypeName = itemTypes.find(it => it.id === entry.itemTypeId)?.name || 'Unknown';
+        const itemTypeName = itemTypes.find(it => it.id === entry.itemTypeId)?.itemName || 'Unknown';
         if (!summary[itemTypeName]) {
           summary[itemTypeName] = { ruled: 0, theoretical: 0 };
         }
@@ -269,7 +267,7 @@ export default function ProductionOverviewPage() {
                                 return (
                                     <TableRow key={program.id}>
                                         <TableCell className="font-medium">{program.brand}</TableCell>
-                                        <TableCell>{itemType?.name || 'N/A'}</TableCell>
+                                        <TableCell>{itemType?.itemName || 'N/A'}</TableCell>
                                         <TableCell>{program.totalSheetsRequired.toLocaleString()}</TableCell>
                                         <TableCell>{sheetsCompleted.toLocaleString()}</TableCell>
                                         <TableCell>
