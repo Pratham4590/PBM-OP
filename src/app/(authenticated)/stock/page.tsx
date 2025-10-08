@@ -13,7 +13,7 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetDescription } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -255,7 +255,7 @@ export default function StockPage() {
               <DialogTrigger asChild>
                 <Button onClick={() => openModal()}><PlusCircle className="mr-2 h-4 w-4" />Add Stock</Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[90svh] flex flex-col">
+              <DialogContent className="max-h-[90vh] flex flex-col">
                 <DialogHeader>
                   <DialogTitle>{editingStock ? 'Edit' : 'Add New'} Stock</DialogTitle>
                   <DialogDescription>Enter the details of the paper stock.</DialogDescription>
