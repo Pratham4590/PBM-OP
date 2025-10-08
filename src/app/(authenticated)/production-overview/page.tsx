@@ -43,19 +43,17 @@ export default function ProductionOverviewPage() {
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
   
-  const isOperator = useMemo(() => currentUser?.role === 'Operator', [currentUser]);
-
   const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
 
   const stockQuery = useMemoFirebase(() => {
-    if (isLoadingCurrentUser || !firestore || isOperator) {
-        return null;
+    if (!firestore || isLoadingCurrentUser || currentUser?.role === 'Operator') {
+      return null;
     }
     return collection(firestore, 'stock');
-  }, [firestore, isOperator, isLoadingCurrentUser]);
+  }, [firestore, currentUser, isLoadingCurrentUser]);
 
   const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
@@ -145,6 +143,8 @@ export default function ProductionOverviewPage() {
         </div>
     )
   }
+
+  const isOperator = currentUser?.role === 'Operator';
 
   return (
     <>

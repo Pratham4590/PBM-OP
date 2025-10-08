@@ -69,14 +69,12 @@ export default function StockPage() {
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
   
-  const isOperator = useMemo(() => currentUser?.role === 'Operator', [currentUser]);
-
   const stockQuery = useMemoFirebase(() => {
-    if (isLoadingCurrentUser || !firestore || isOperator) {
+    if (!firestore || isLoadingCurrentUser || currentUser?.role === 'Operator') {
       return null;
     }
     return collection(firestore, 'stock');
-  }, [firestore, isLoadingCurrentUser, isOperator]);
+  }, [firestore, currentUser, isLoadingCurrentUser]);
   
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
 
@@ -180,7 +178,7 @@ export default function StockPage() {
     )
   }
 
-  if (isOperator) {
+  if (currentUser?.role === 'Operator') {
       return (
         <>
             <PageHeader title="Stock Management" description="Track and manage your paper stock in real-time." />
