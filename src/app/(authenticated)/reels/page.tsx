@@ -252,7 +252,11 @@ export default function ReelsPage() {
         const statusMatch = filterStatus === 'all' || reel.status === filterStatus;
         const reelNoMatch = filterReelNo === '' || reel.reelNo.toLowerCase().includes(filterReelNo.toLowerCase());
         return paperMatch && statusMatch && reelNoMatch;
-    }).sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+    }).sort((a, b) => {
+        if (!b.createdAt) return -1;
+        if (!a.createdAt) return 1;
+        return b.createdAt.toMillis() - a.createdAt.toMillis()
+    });
   }, [reels, filterPaper, filterStatus, filterReelNo]);
 
   const getPaperTypeName = (paperTypeId: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
