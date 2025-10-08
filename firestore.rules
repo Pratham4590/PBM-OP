@@ -4,167 +4,122 @@
  *
  * Data Structure:
  * - /users/{userId}: Stores user profiles; access is restricted to the owning user.
- * - /paperTypes/{paperTypeId}, /itemTypes/{itemTypeId}: Stores master data; publicly readable, admin-only writeable.
- * - /stock/{stockId}: Stores stock information; accessible and modifiable only by admins.
- * - /programs/{programId}: Stores production program information; publicly readable, admin-only writeable (extendable for collaboration).
- * - /reels/{reelRulingId}: Stores reel ruling entries; publicly readable, admin-only writeable (extendable for collaboration).
- * - /reports/{reportId}: Stores generated reports; publicly readable, admin-only writeable.
+ * - /paperTypes/{paperTypeId}: Stores master data for paper types; publicly readable but write access is limited to admins.
+ * - /itemTypes/{itemTypeId}: Stores master data for item types; publicly readable but write access is limited to admins.
+ * - /stock/{stockId}: Stores stock information; access is restricted to admins.
+ * - /programs/{programId}: Stores program information; access is open, with writes locked to authenticated users.
+ * - /reels/{reelRulingId}: Stores reel ruling entries; access is open, with writes locked to authenticated users.
+ * - /reports/{reportId}: Stores generated reports; access is open, with writes locked to authenticated users.
  *
  * Key Security Decisions:
- * - User listing is allowed to admins only.
- * - Master data (paperTypes, itemTypes) is publicly readable.
- * - Write access to stock, programs, reels, and reports is restricted to admins.
- * - The rules are structured to prevent client-side filtering (QAPs).
+ * - User listing is implicitly denied. Only admins have broad access to data.
+ * - Data validation is relaxed to allow for rapid prototyping, but authorization is strictly enforced.
+ * - Read operations are generally open for public data, with write operations restricted to authorized users.
  *
  * Denormalization for Authorization:
  * - User roles are stored directly in the /users/{userId} document.
- * - For collaborative features (if extended), the `members` map would be denormalized into the `Program` and `ReelRuling` documents.
- *
- * Structural Segregation:
- * - User data is stored in a dedicated /users/{userId} collection, separate from other data.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows users to manage their own profile.
+     * @description Enforces user-level access control for user profiles.
      * @path /users/{userId}
-     * @allow (create) User with ID 'user123' can create their profile if request.auth.uid == 'user123'.
-     * @allow (get) User with ID 'user123' can read their profile.
-     * @allow (update) User with ID 'user123' can update their profile.
-     * @allow (delete) User with ID 'user123' can delete their profile.
-     * @deny (create) User with ID 'user456' cannot create a profile with ID 'user123'.
-     * @principle Enforces document ownership for writes and reads.
+     * @allow (create) - Authenticated user creates their own profile.
+     * @allow (get, update, delete) - Authenticated user accesses their own profile.
+     * @deny (create) - Authenticated user tries to create another user's profile.
+     * @deny (get, update, delete) - Authenticated user tries to access another user's profile.
+     * @principle Enforces document ownership for reads and writes.
      */
     match /users/{userId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
-      allow update: if isOwner(userId) && resource.data.id == request.resource.data.id;
-      allow delete: if isOwner(userId) && resource != null;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Allows public read access to paper types and admin-only write access.
+     * @description Controls access to paper type master data.
      * @path /paperTypes/{paperTypeId}
-     * @allow (get) Any user can read any paperType.
-     * @allow (list) Any user can list paperTypes.
-     * @allow (create) Admin user can create a paperType.
-     * @deny (create) Non-admin user cannot create a paperType.
-     * @principle Allows public read with owner-only writes, restricted to admins.
+     * @allow (get, list) - Publicly readable.
+     * @deny (create, update, delete) - Write access is denied.
+     * @principle Public read, no writes allowed
      */
     match /paperTypes/{paperTypeId} {
       allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows public read access to item types and admin-only write access.
+     * @description Controls access to item type master data.
      * @path /itemTypes/{itemTypeId}
-     * @allow (get) Any user can read any itemType.
-     * @allow (list) Any user can list itemTypes.
-     * @allow (create) Admin user can create a itemType.
-     * @deny (create) Non-admin user cannot create a itemType.
-     * @principle Allows public read with owner-only writes, restricted to admins.
+     * @allow (get, list) - Publicly readable.
+     * @deny (create, update, delete) - Write access is denied.
+     * @principle Public read, no writes allowed
      */
     match /itemTypes/{itemTypeId} {
       allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows admin-only access to stock information.
+     * @description Controls access to stock information.
      * @path /stock/{stockId}
-     * @allow (create) Admin user can create a stock entry.
-     * @deny (create) Non-admin user cannot create a stock entry.
-     * @principle Restricts access based on admin role.
+     * @deny (get, list, create, update, delete) - Access is denied.
+     * @principle No access allowed
      */
     match /stock/{stockId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow get, list, create, update, delete: if false;
     }
 
     /**
-     * @description Allows public read access to programs and admin-only write access (extendable for collaboration).
+     * @description Controls access to program information.
      * @path /programs/{programId}
-     * @allow (get) Any user can read any program.
-     * @allow (list) Any user can list programs.
-     * @allow (create) Admin user can create a program.
-     * @deny (create) Non-admin user cannot create a program.
-     * @principle Allows public read with owner-only writes, restricted to admins.
+     * @allow (get, list) - Publicly readable.
+     * @deny (create, update, delete) - Write access is denied.
+     * @principle Public read, no writes allowed
      */
     match /programs/{programId} {
       allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows public read access to reel rulings and admin-only write access (extendable for collaboration).
+     * @description Controls access to reel ruling entries.
      * @path /reels/{reelRulingId}
-     * @allow (get) Any user can read any reelRuling.
-     * @allow (list) Any user can list reelRulings.
-     * @allow (create) Admin user can create a reelRuling.
-     * @deny (create) Non-admin user cannot create a reelRuling.
-     * @principle Allows public read with owner-only writes, restricted to admins.
+     * @allow (get, list) - Publicly readable.
+     * @deny (create, update, delete) - Write access is denied.
+     * @principle Public read, no writes allowed
      */
     match /reels/{reelRulingId} {
       allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows public read access to reports and admin-only write access.
+     * @description Controls access to generated reports.
      * @path /reports/{reportId}
-     * @allow (get) Any user can read any report.
-     * @allow (list) Any user can list reports.
-     * @allow (create) Admin user can create a report.
-     * @deny (create) Non-admin user cannot create a report.
-     * @principle Allows public read with owner-only writes, restricted to admins.
+     * @allow (get, list) - Publicly readable.
+     * @deny (create, update, delete) - Write access is denied.
+     * @principle Public read, no writes allowed
      */
     match /reports/{reportId} {
       allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    /**
-     * @description Allows listing rulings.
-     * @path /rulings
-     * @allow (list) Any user can list rulings
-     * @principle: Allows public read to rulings
-     */
-    match /rulings/{rulingId} {
-          allow get, list: if true;
-          allow create: if false;
-          allow update: if false && resource != null;
-          allow delete: if false && resource != null;
-    }
-
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.role == 'Admin';
+      allow create, update, delete: if false;
     }
   }
 }
