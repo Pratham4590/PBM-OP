@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -530,42 +531,44 @@ export default function RulingPage() {
                             <div className="flex justify-between items-center w-full pr-4 text-left">
                                 <span className="font-semibold">Reel: {ruling.reelNo} (SN: {ruling.serialNo})</span>
                                 <div className="flex items-center">
-                                <Badge variant={ruling.status === 'Finished' ? 'default' : 'secondary'} className={`ml-2 whitespace-nowrap ${ruling.status === 'Finished' ? 'bg-green-600' : ''}`}>{ruling.status}</Badge>
-                                {canEdit && (
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="ml-2" onClick={(e) => e.stopPropagation()}>
-                                            <MoreVertical className="h-4 w-4" />
-                                        </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent>
-                                        <DropdownMenuItem onClick={() => openEditModal(ruling)}>
-                                            <Edit className="mr-2 h-4 w-4" />
-                                            <span>Edit</span>
-                                        </DropdownMenuItem>
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                <Trash2 className="mr-2 h-4 w-4 text-destructive" />
-                                                <span className="text-destructive">Delete</span>
+                                    <Badge variant={ruling.status === 'Finished' ? 'default' : 'secondary'} className={`ml-2 whitespace-nowrap ${ruling.status === 'Finished' ? 'bg-green-600' : ''}`}>{ruling.status}</Badge>
+                                    {canEdit && (
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="ml-2">
+                                                <MoreVertical className="h-4 w-4" />
+                                            </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent>
+                                            <DropdownMenuItem onClick={() => openEditModal(ruling)}>
+                                                <Edit className="mr-2 h-4 w-4" />
+                                                <span>Edit</span>
                                             </DropdownMenuItem>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                This action cannot be undone. This will permanently delete the reel ruling for reel <strong>{ruling.reelNo}</strong>.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteRuling(ruling.id)}>Delete</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                )}
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
+                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                    <span>Delete</span>
+                                                </DropdownMenuItem>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                    This action cannot be undone. This will permanently delete the reel ruling for reel <strong>{ruling.reelNo}</strong>.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteRuling(ruling.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                    )}
                                 </div>
                             </div>
                         </AccordionTrigger>
@@ -611,3 +614,5 @@ export default function RulingPage() {
     </>
   );
 }
+
+    
