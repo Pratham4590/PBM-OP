@@ -74,11 +74,11 @@ export default function DashboardPage() {
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
 
   const stockSummary = useMemo(() => {
-    if (isOperator || !stock) return { totalWeight: 0, totalReels: 0 };
+    if (loadingStock || isOperator || !stock) return { totalWeight: 0, totalReels: 0 };
     const totalWeight = stock.reduce((acc, item) => acc + item.totalWeight, 0);
     const totalReels = stock.reduce((acc, item) => acc + item.numberOfReels, 0);
     return { totalWeight, totalReels };
-  }, [stock, isOperator]);
+  }, [stock, isOperator, loadingStock]);
 
   const productionSummary = useMemo(() => {
     if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: '0.0' };
@@ -280,5 +280,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    

@@ -69,7 +69,7 @@ export default function ProductionOverviewPage() {
   const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
 
    const stockDistribution = useMemo(() => {
-    if (isOperator || !stock || !paperTypes) return [];
+    if (loadingStock || isOperator || !stock || !paperTypes) return [];
     
     const stockByPaperType: { [key: string]: number } = {};
     stock.forEach(s => {
@@ -83,7 +83,7 @@ export default function ProductionOverviewPage() {
         name: paperTypes.find(pt => pt.id === paperTypeId)?.name || 'Unknown',
         value: reelCount,
     }));
-   }, [stock, paperTypes, isOperator]);
+   }, [stock, paperTypes, isOperator, loadingStock, loadingPaperTypes]);
    
    const rulingSummary = useMemo(() => {
     if (!rulings || !itemTypes) return [];
@@ -108,10 +108,10 @@ export default function ProductionOverviewPage() {
   }, [rulings, itemTypes]);
 
   const stockSummary = useMemo(() => {
-    if (isOperator || !stock) return { totalWeight: 0, paperTypes: [] };
+    if (loadingStock || isOperator || !stock) return { totalWeight: 0, paperTypes: [] };
     const totalWeight = stock.reduce((acc, s) => acc + s.totalWeight, 0);
     return { totalWeight, paperTypes: paperTypes || [] };
-  }, [stock, paperTypes, isOperator]);
+  }, [stock, paperTypes, isOperator, loadingStock, loadingPaperTypes]);
 
   const productionSummary = useMemo(() => {
     if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: 0 };
@@ -295,5 +295,3 @@ export default function ProductionOverviewPage() {
     </>
   );
 }
-
-    
