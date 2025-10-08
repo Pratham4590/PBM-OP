@@ -88,7 +88,7 @@
         },
         "shortCode": {
           "type": "string",
-          "description": "A short code representing the item type."
+          "description": "A short, unique code representing the item type (e.g., RN01)."
         }
       },
       "required": [
