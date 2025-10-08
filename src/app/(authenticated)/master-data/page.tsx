@@ -48,8 +48,8 @@ export default function MasterDataPage() {
   const { data: paperTypes, isLoading: loadingPaper } = useCollection<PaperType>(paperTypesQuery);
   const { data: itemTypes, isLoading: loadingItems } = useCollection<ItemType>(itemTypesQuery);
 
-  const [newPaperType, setNewPaperType] = useState<Omit<PaperType, 'id'>>({ name: '', gsm: 0, length: 0 });
-  const [newItemType, setNewItemType] = useState<Omit<ItemType, 'id'>>({ name: '', shortCode: '' });
+  const [newPaperType, setNewPaperType] = useState<Omit<PaperType, 'id' | 'name'> & { name: string }>({ name: '', gsm: 0, length: 0 });
+  const [newItemType, setNewItemType] = useState<Omit<ItemType, 'id' | 'name'> & { name: string }>({ name: '', shortCode: '' });
 
   const [isPaperModalOpen, setIsPaperModalOpen] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -72,7 +72,7 @@ export default function MasterDataPage() {
     }
   };
   
-  const canEdit = !isLoadingCurrentUser && (currentUser?.role === 'Admin' || currentUser?.role === 'Member');
+  const canEdit = !isLoadingCurrentUser && currentUser?.role === 'Admin';
 
   return (
     <>
