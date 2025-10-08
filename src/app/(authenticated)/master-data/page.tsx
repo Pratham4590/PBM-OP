@@ -43,8 +43,8 @@ import {
   DialogTitle,
   DialogFooter,
   DialogTrigger,
-  DialogClose,
 } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useMemo, useState } from 'react';
@@ -52,12 +52,14 @@ import { PaperType, ItemType, User as AppUser } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 
 export default function MasterDataPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
@@ -167,6 +169,48 @@ export default function MasterDataPage() {
     toast({ title: 'Item Type Deleted' });
   }
 
+  const PaperModalContent = () => (
+    <>
+      <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="paper-name">Paper Name</Label>
+          <Input id="paper-name" value={newPaperType.paperName || ''} onChange={(e) => setNewPaperType({ ...newPaperType, paperName: e.target.value })} placeholder="e.g., JK Maplitho" className="h-11" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="paper-gsm">GSM (Grams per Square Meter)</Label>
+          <Input id="paper-gsm" type="number" value={newPaperType.gsm || ''} onChange={(e) => setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })} placeholder="e.g., 58" className="h-11" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="paper-length">Length (cm)</Label>
+          <Input id="paper-length" type="number" value={newPaperType.length || ''} onChange={(e) => setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })} placeholder="e.g., 60" className="h-11" />
+        </div>
+      </div>
+      <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10">
+        <Button variant="outline" onClick={handleClosePaperModal} className="h-11 w-full sm:w-auto">Cancel</Button>
+        <Button onClick={handleSavePaperType} className="h-11 w-full sm:w-auto">Save Paper Type</Button>
+      </DialogFooter>
+    </>
+  );
+
+  const ItemModalContent = () => (
+    <>
+      <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="item-name">Item Name</Label>
+          <Input id="item-name" value={newItemType.itemName || ''} onChange={(e) => setNewItemType({ ...newItemType, itemName: e.target.value })} placeholder="e.g., Ruled Notebook" className="h-11" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="item-shortCode">Short Code</Label>
+          <Input id="item-shortCode" value={newItemType.shortCode || ''} onChange={(e) => setNewItemType({ ...newItemType, shortCode: e.target.value })} placeholder="e.g., RN01" className="h-11" />
+        </div>
+      </div>
+      <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10">
+        <Button variant="outline" onClick={handleCloseItemModal} className="h-11 w-full sm:w-auto">Cancel</Button>
+        <Button onClick={handleSaveItemType} className="h-11 w-full sm:w-auto">Save Item Type</Button>
+      </DialogFooter>
+    </>
+  );
+
 
   return (
     <>
@@ -176,65 +220,65 @@ export default function MasterDataPage() {
       >
         {canEdit && (
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <Dialog open={isPaperModalOpen} onOpenChange={setIsPaperModalOpen}>
-              <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto" onClick={() => openPaperModal()}>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Add Paper Type
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-h-[90svh] flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>{editingPaperType ? 'Edit' : 'Add New'} Paper Type</DialogTitle>
-                </DialogHeader>
-                <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="paper-name">Paper Name</Label>
-                    <Input id="paper-name" value={newPaperType.paperName || ''} onChange={(e) => setNewPaperType({ ...newPaperType, paperName: e.target.value })} placeholder="e.g., JK Maplitho" className="h-11" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="paper-gsm">GSM (Grams per Square Meter)</Label>
-                    <Input id="paper-gsm" type="number" value={newPaperType.gsm || ''} onChange={(e) => setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })} placeholder="e.g., 58" className="h-11" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="paper-length">Length (cm)</Label>
-                    <Input id="paper-length" type="number" value={newPaperType.length || ''} onChange={(e) => setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })} placeholder="e.g., 60" className="h-11" />
-                  </div>
-                </div>
-                <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10">
-                  <Button variant="outline" onClick={handleClosePaperModal}>Cancel</Button>
-                  <Button onClick={handleSavePaperType}>Save Paper Type</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
-              <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto" onClick={() => openItemModal()}>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Add Item Type
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-h-[90svh] flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>{editingItemType ? 'Edit' : 'Add New'} Item Type</DialogTitle>
-                </DialogHeader>
-                <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="item-name">Item Name</Label>
-                    <Input id="item-name" value={newItemType.itemName || ''} onChange={(e) => setNewItemType({ ...newItemType, itemName: e.target.value })} placeholder="e.g., Ruled Notebook" className="h-11" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="item-shortCode">Short Code</Label>
-                    <Input id="item-shortCode" value={newItemType.shortCode || ''} onChange={(e) => setNewItemType({ ...newItemType, shortCode: e.target.value })} placeholder="e.g., RN01" className="h-11" />
-                  </div>
-                </div>
-                <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10">
-                  <Button variant="outline" onClick={handleCloseItemModal}>Cancel</Button>
-                  <Button onClick={handleSaveItemType}>Save Item Type</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            {isMobile ? (
+              <>
+                <Sheet open={isPaperModalOpen} onOpenChange={setIsPaperModalOpen}>
+                  <SheetTrigger asChild>
+                    <Button className="w-full sm:w-auto" onClick={() => openPaperModal()}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Paper Type
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="bottom" className="p-0 flex flex-col h-[90svh]">
+                    <SheetHeader className="p-4 border-b">
+                      <SheetTitle>{editingPaperType ? 'Edit' : 'Add New'} Paper Type</SheetTitle>
+                    </SheetHeader>
+                    <PaperModalContent />
+                  </SheetContent>
+                </Sheet>
+                <Sheet open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
+                  <SheetTrigger asChild>
+                    <Button className="w-full sm:w-auto" onClick={() => openItemModal()}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Item Type
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="bottom" className="p-0 flex flex-col h-[90svh]">
+                    <SheetHeader className="p-4 border-b">
+                      <SheetTitle>{editingItemType ? 'Edit' : 'Add New'} Item Type</SheetTitle>
+                    </SheetHeader>
+                    <ItemModalContent />
+                  </SheetContent>
+                </Sheet>
+              </>
+            ) : (
+              <>
+                <Dialog open={isPaperModalOpen} onOpenChange={setIsPaperModalOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="w-full sm:w-auto" onClick={() => openPaperModal()}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Paper Type
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-h-[90svh] flex flex-col">
+                    <DialogHeader>
+                      <DialogTitle>{editingPaperType ? 'Edit' : 'Add New'} Paper Type</DialogTitle>
+                    </DialogHeader>
+                    <PaperModalContent />
+                  </DialogContent>
+                </Dialog>
+                <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="w-full sm:w-auto" onClick={() => openItemModal()}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Item Type
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-h-[90svh] flex flex-col">
+                    <DialogHeader>
+                      <DialogTitle>{editingItemType ? 'Edit' : 'Add New'} Item Type</DialogTitle>
+                    </DialogHeader>
+                    <ItemModalContent />
+                  </DialogContent>
+                </Dialog>
+              </>
+            )}
           </div>
         )}
       </PageHeader>

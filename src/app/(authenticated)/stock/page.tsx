@@ -13,6 +13,7 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetDescription } from '@/components/ui/sheet';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,11 +60,13 @@ import {
 import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, Timestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function StockPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
@@ -81,6 +84,7 @@ export default function StockPage() {
   const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [editingStock, setEditingStock] = useState<Stock | null>(null);
   const [newStockItem, setNewStockItem] = useState<Partial<Stock>>({
     numberOfReels: 1,
@@ -91,14 +95,6 @@ export default function StockPage() {
     if (isLoadingCurrentUser || !currentUser) return false;
     return currentUser.role === 'Admin' || currentUser.role === 'Member';
   }, [currentUser, isLoadingCurrentUser]);
-
-  useEffect(() => {
-    if (isModalOpen && editingStock) {
-      setNewStockItem(editingStock);
-    } else if (isModalOpen && !editingStock) {
-      setNewStockItem({ numberOfReels: 1, totalWeight: 0 });
-    }
-  }, [isModalOpen, editingStock]);
 
   const openModal = (stockItem?: Stock) => {
     if (stockItem) {
@@ -133,6 +129,7 @@ export default function StockPage() {
       toast({ variant: 'destructive', title: 'Error', description: 'Please fill out all fields.' });
       return;
     }
+    setIsSaving(true);
     
     const dataToSave = {
       paperTypeId: newStockItem.paperTypeId,
@@ -153,6 +150,7 @@ export default function StockPage() {
       toast({ title: 'Stock Added' });
     }
     
+    setIsSaving(false);
     closeModal();
   };
   
@@ -172,6 +170,42 @@ export default function StockPage() {
     if (date instanceof Date) return date.toLocaleDateString();
     return 'N/A';
   }
+
+  const ModalContent = () => (
+    <>
+      <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="paper-type">Paper Type</Label>
+          <Select value={newStockItem.paperTypeId} onValueChange={handleSelectPaper} disabled={loadingPaperTypes}>
+            <SelectTrigger className="h-11"><SelectValue placeholder="Select a paper type" /></SelectTrigger>
+            <SelectContent>
+              {paperTypes?.map((paper) => (<SelectItem key={paper.id} value={paper.id}>{paper.paperName}</SelectItem>))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2"><Label htmlFor="gsm">GSM</Label><Input id="gsm" value={newStockItem.gsm || ''} readOnly disabled className="h-11" /></div>
+          <div className="space-y-2"><Label htmlFor="length">Length (cm)</Label><Input id="length" value={newStockItem.length || ''} readOnly disabled className="h-11" /></div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="total-weight">Total Weight (kg)</Label>
+            <Input id="total-weight" type="number" value={newStockItem.totalWeight || ''} onChange={(e) => setNewStockItem({ ...newStockItem, totalWeight: parseFloat(e.target.value) || 0 })} className="h-11" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="reels">Number of Reels</Label>
+            <Input id="reels" type="number" value={newStockItem.numberOfReels || ''} onChange={(e) => setNewStockItem({ ...newStockItem, numberOfReels: parseInt(e.target.value) || 0 })} className="h-11" />
+          </div>
+        </div>
+      </div>
+      <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2">
+         <Button variant="outline" onClick={closeModal} disabled={isSaving} className="h-11 w-full sm:w-auto">Cancel</Button>
+        <Button onClick={handleSaveStock} disabled={isSaving} className="h-11 w-full sm:w-auto">
+          {isSaving ? 'Saving...' : 'Save Stock'}
+        </Button>
+      </DialogFooter>
+    </>
+  );
 
   if (isLoadingCurrentUser) {
     return (
@@ -203,46 +237,33 @@ export default function StockPage() {
         description="Track and manage your paper stock in real-time."
       >
         {canEdit && (
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => openModal()}><PlusCircle className="mr-2 h-4 w-4" />Add Stock</Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[90svh] flex flex-col">
-            <DialogHeader>
-              <DialogTitle>{editingStock ? 'Edit' : 'Add New'} Stock</DialogTitle>
-              <DialogDescription>Enter the details of the paper stock.</DialogDescription>
-            </DialogHeader>
-            <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="paper-type">Paper Type</Label>
-                <Select value={newStockItem.paperTypeId} onValueChange={handleSelectPaper} disabled={loadingPaperTypes}>
-                  <SelectTrigger className="h-11"><SelectValue placeholder="Select a paper type" /></SelectTrigger>
-                  <SelectContent>
-                    {paperTypes?.map((paper) => (<SelectItem key={paper.id} value={paper.id}>{paper.paperName}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label htmlFor="gsm">GSM</Label><Input id="gsm" value={newStockItem.gsm || ''} readOnly disabled className="h-11" /></div>
-                <div className="space-y-2"><Label htmlFor="length">Length (cm)</Label><Input id="length" value={newStockItem.length || ''} readOnly disabled className="h-11" /></div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="total-weight">Total Weight (kg)</Label>
-                  <Input id="total-weight" type="number" value={newStockItem.totalWeight || ''} onChange={(e) => setNewStockItem({ ...newStockItem, totalWeight: parseFloat(e.target.value) || 0 })} className="h-11" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reels">Number of Reels</Label>
-                  <Input id="reels" type="number" value={newStockItem.numberOfReels || ''} onChange={(e) => setNewStockItem({ ...newStockItem, numberOfReels: parseInt(e.target.value) || 0 })} className="h-11" />
-                </div>
-              </div>
-            </div>
-            <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10">
-               <Button variant="outline" onClick={closeModal}>Cancel</Button>
-              <Button onClick={handleSaveStock}>Save Stock</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          isMobile ? (
+            <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
+              <SheetTrigger asChild>
+                <Button onClick={() => openModal()}><PlusCircle className="mr-2 h-4 w-4" />Add Stock</Button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="p-0 flex flex-col h-[90svh]">
+                <SheetHeader className="p-4 border-b">
+                  <SheetTitle>{editingStock ? 'Edit' : 'Add New'} Stock</SheetTitle>
+                  <SheetDescription>Enter the details of the paper stock.</SheetDescription>
+                </SheetHeader>
+                <ModalContent />
+              </SheetContent>
+            </Sheet>
+          ) : (
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => openModal()}><PlusCircle className="mr-2 h-4 w-4" />Add Stock</Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90svh] flex flex-col">
+                <DialogHeader>
+                  <DialogTitle>{editingStock ? 'Edit' : 'Add New'} Stock</DialogTitle>
+                  <DialogDescription>Enter the details of the paper stock.</DialogDescription>
+                </DialogHeader>
+                <ModalContent />
+              </DialogContent>
+            </Dialog>
+          )
         )}
       </PageHeader>
 
@@ -258,30 +279,32 @@ export default function StockPage() {
             ) : stock && stock.length > 0 ? (
               stock.map((item) => (
                 <Card key={item.id}>
-                  <CardContent className="p-4 space-y-2">
+                  <CardHeader className="p-4">
                     <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium">{getPaperTypeName(item.paperTypeId)}</p>
-                        <p className="text-sm text-muted-foreground">{formatDate(item.date)}</p>
+                        <div>
+                          <CardTitle className="text-lg">{getPaperTypeName(item.paperTypeId)}</CardTitle>
+                          <CardDescription>{formatDate(item.date)}</CardDescription>
+                        </div>
+                        {canEdit && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="-mt-2 -mr-2"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              <DropdownMenuItem onClick={() => openModal(item)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
+                              <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                      <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete this stock entry.</AlertDialogDescription></AlertDialogHeader>
+                                      <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteStock(item.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
+                                  </AlertDialogContent>
+                              </AlertDialog>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
-                      {canEdit && (
-                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="-mt-2 -mr-2"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuItem onClick={() => openModal(item)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete this stock entry.</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteStock(item.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
                     <div className="text-sm text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1 pt-2 border-t">
                         <span>GSM:</span><span className="font-medium text-foreground text-right">{item.gsm}</span>
                         <span>Length:</span><span className="font-medium text-foreground text-right">{item.length} cm</span>

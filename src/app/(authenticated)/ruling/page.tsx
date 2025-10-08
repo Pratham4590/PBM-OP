@@ -12,8 +12,15 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTrigger,
-  DialogClose,
 } from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,12 +81,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 
 export default function RulingPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
@@ -108,6 +117,13 @@ export default function RulingPage() {
   const openEditModal = (ruling: Ruling) => {
     setEditingRuling(ruling);
     setNewRuling(ruling);
+    setCurrentStep(1);
+    setIsModalOpen(true);
+  }
+
+  const openNewModal = () => {
+    setEditingRuling(null);
+    setNewRuling({ entries: [] });
     setCurrentStep(1);
     setIsModalOpen(true);
   }
@@ -155,6 +171,12 @@ export default function RulingPage() {
         entries: [...(prev.entries || []), entryToAdd],
       }));
       setNewEntry({});
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Missing Fields',
+        description: 'Please ensure Item, Sheets Ruled, and Program/Cutoff are filled.',
+      });
     }
   };
 
@@ -162,15 +184,29 @@ export default function RulingPage() {
     if (currentStep === 1) {
       if (newRuling.serialNo && newRuling.reelNo && newRuling.paperTypeId && newRuling.reelWeight) {
         setCurrentStep(2);
+      } else {
+        toast({
+            variant: 'destructive',
+            title: 'Missing Details',
+            description: 'Please fill in all reel details before proceeding.',
+        });
       }
     } else if (currentStep === 2) {
-        setCurrentStep(3);
+      if (!newRuling.entries || newRuling.entries.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'No Entries',
+          description: 'Please add at least one ruling entry.',
+        });
+        return;
+      }
+      setCurrentStep(3);
     }
   };
 
   const handleSaveRuling = () => {
     if (!firestore || !newRuling.status) {
-      alert("Please select a final reel status.");
+      toast({ variant: 'destructive', title: 'Error', description: 'Please select a final reel status.' });
       return;
     };
 
@@ -230,26 +266,276 @@ export default function RulingPage() {
     };
   }, [newRuling, selectedPaper]);
 
-  const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.name;
+  const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName || 'N/A';
 
-  if (isLoadingCurrentUser) {
-    return (
-      <>
-        <PageHeader
-          title="Reel Ruling"
-          description="Log reel ruling with or without a program, and manage multiple rulings per reel."
-        />
-        <Card>
-          <CardHeader>
-            <CardTitle>Loading Rulings...</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Please wait...</p>
-          </CardContent>
-        </Card>
-      </>
-    );
-  }
+  const renderModalContent = () => (
+    <>
+      <div className="flex-grow overflow-y-auto pr-6 -mr-6">
+      {/* Step 1: Reel Details */}
+      {currentStep === 1 && (
+        <div className="space-y-4 py-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="date">Date</Label>
+              <Input id="date" value={new Date((newRuling.date as Timestamp)?.toDate() || Date.now()).toLocaleDateString()} readOnly disabled className="h-11"/>
+            </div>
+             <div className="space-y-2">
+              <Label htmlFor="serialNo">Serial No.</Label>
+              <Input
+                id="serialNo"
+                value={newRuling.serialNo || ''}
+                onChange={(e) => setNewRuling({ ...newRuling, serialNo: e.target.value })}
+                className="h-11"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reelNo">Reel No.</Label>
+              <Input
+                id="reelNo"
+                value={newRuling.reelNo || ''}
+                onChange={(e) => setNewRuling({ ...newRuling, reelNo: e.target.value })}
+                className="h-11"
+              />
+            </div>
+             <div className="space-y-2">
+              <Label htmlFor="reelWeight">Reel Weight (kg)</Label>
+              <Input
+                id="reelWeight"
+                type="number"
+                value={newRuling.reelWeight || ''}
+                onChange={(e) => setNewRuling({ ...newRuling, reelWeight: parseFloat(e.target.value) || 0 })}
+                className="h-11"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="paperTypeId">Paper Type</Label>
+            <Select value={newRuling.paperTypeId || ''} onValueChange={(value) => setNewRuling({ ...newRuling, paperTypeId: value })}>
+              <SelectTrigger className="h-11">
+                <SelectValue placeholder="Select paper" />
+              </SelectTrigger>
+              <SelectContent>
+                {paperTypes?.map((paper) => (
+                  <SelectItem key={paper.id} value={paper.id}>
+                    {paper.paperName} ({paper.gsm}gsm)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedPaper && (
+              <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-muted-foreground">
+                  <p>GSM: {selectedPaper.gsm}</p>
+                  <p>Length: {selectedPaper.length} cm</p>
+              </div>
+          )}
+        </div>
+      )}
+
+      {/* Step 2: Ruling Entries */}
+      {currentStep === 2 && (
+        <div className="py-4 space-y-6">
+          <Card className="border-border">
+            <CardHeader><CardTitle>Add Ruling Entry</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                  <Label htmlFor="programId">Program (Optional)</Label>
+                  <Select onValueChange={(value) => {
+                      const program = getProgramInfo(value);
+                      setNewEntry({
+                          ...newEntry,
+                          programId: value === 'no-program' ? undefined : value,
+                          itemTypeId: program?.itemTypeId,
+                          cutoff: program?.cutoff,
+                      })
+                  }}>
+                      <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Select a program" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="no-program">No Program</SelectItem>
+                          {programs?.map((prog) => (
+                              <SelectItem key={prog.id} value={prog.id}>{prog.brand} - {getItemTypeName(prog.itemTypeId)}</SelectItem>
+                          ))}
+                      </SelectContent>
+                  </Select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="itemTypeId">Item Type</Label>
+                    <Select
+                        value={newEntry.itemTypeId || ''}
+                        onValueChange={(value) => setNewEntry({...newEntry, itemTypeId: value})}
+                        disabled={!!newEntry.programId}
+                    >
+                        <SelectTrigger className="h-11">
+                            <SelectValue placeholder="Select item"/>
+                        </SelectTrigger>
+                        <SelectContent>
+                            {itemTypes?.map((item) => (
+                                <SelectItem key={item.id} value={item.id}>{item.itemName}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="cutoff">Cutoff (cm)</Label>
+                    <Input
+                        id="cutoff"
+                        type="number"
+                        value={newEntry.cutoff || ''}
+                        onChange={(e) => setNewEntry({...newEntry, cutoff: parseFloat(e.target.value)})}
+                        disabled={!!newEntry.programId}
+                        className="h-11"
+                    />
+                </div>
+              </div>
+               <div className="space-y-2">
+                  <Label htmlFor="sheetsRuled">Sheets Ruled</Label>
+                  <Input
+                      id="sheetsRuled"
+                      type="number"
+                      value={newEntry.sheetsRuled || ''}
+                      onChange={(e) => setNewEntry({...newEntry, sheetsRuled: parseInt(e.target.value) || 0})}
+                      className="h-11"
+                  />
+              </div>
+              <Button onClick={handleAddRulingEntry} className="w-full h-11">Add Ruling Entry</Button>
+            </CardContent>
+          </Card>
+
+          <div className="mt-4">
+              <h4 className="font-semibold mb-2">Current Entries for this Reel</h4>
+              <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                      <TableHeader>
+                          <TableRow>
+                              <TableHead>Item</TableHead>
+                              <TableHead>Sheets</TableHead>
+                              <TableHead>Program</TableHead>
+                              <TableHead className="w-[50px]"></TableHead>
+                          </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                          {newRuling.entries && newRuling.entries.length > 0 ? newRuling.entries.map(entry => (
+                              <TableRow key={entry.id}>
+                                  <TableCell className="whitespace-nowrap">{getItemTypeName(entry.itemTypeId)}</TableCell>
+                                  <TableCell>{entry.sheetsRuled?.toLocaleString()}</TableCell>
+                                  <TableCell className="whitespace-nowrap">{getProgramInfo(entry.programId)?.brand || 'N/A'}</TableCell>
+                                  <TableCell className="text-right">
+                                      <Button variant="ghost" size="icon" onClick={() => setNewRuling(prev => ({...prev, entries: prev.entries?.filter(e => e.id !== entry.id)}))}>
+                                          <Trash2 className="h-4 w-4 text-destructive" />
+                                      </Button>
+                                  </TableCell>
+                              </TableRow>
+                          )) : (
+                              <TableRow><TableCell colSpan={4} className="text-center h-24">No entries yet.</TableCell></TableRow>
+                          )}
+                      </TableBody>
+                  </Table>
+              </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Step 3: Summary & Finish */}
+      {currentStep === 3 && (
+          <div className="py-4 space-y-4">
+              <Card>
+                  <CardHeader><CardTitle>Reel Summary</CardTitle></CardHeader>
+                  <CardContent className="text-sm space-y-1">
+                      <p><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
+                      <p><strong>Serial No:</strong> {newRuling.serialNo}</p>
+                      <p><strong>Reel No:</strong> {newRuling.reelNo}</p>
+                      <p><strong>Paper:</strong> {paperTypes?.find(p => p.id === newRuling.paperTypeId)?.paperName}</p>
+                      <p><strong>Reel Weight:</strong> {newRuling.reelWeight} kg</p>                        
+                  </CardContent>
+              </Card>
+               <Card>
+                  <CardHeader><CardTitle>Ruling Entries & Calculations</CardTitle></CardHeader>
+                  <CardContent>
+                      {newRuling.entries && newRuling.entries.length > 0 ? (
+                          <div className="overflow-x-auto">
+                              <Table>
+                                  <TableHeader>
+                                      <TableRow>
+                                          <TableHead>Item</TableHead>
+                                          <TableHead>Ruled</TableHead>
+                                          <TableHead>Theoretical</TableHead>
+                                          <TableHead className="text-right">Difference</TableHead>
+                                      </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                      {newRuling.entries.map(e => (
+                                          <TableRow key={e.id}>
+                                              <TableCell className="whitespace-nowrap">{getItemTypeName(e.itemTypeId)}</TableCell>
+                                              <TableCell>{e.sheetsRuled?.toLocaleString()}</TableCell>
+                                              <TableCell>{Math.round(e.theoreticalSheets || 0).toLocaleString()}</TableCell>
+                                              <TableCell className="text-right">
+                                                   <Badge variant={e.difference >= 0 ? 'default' : 'destructive'} className={e.difference >= 0 ? 'bg-green-600' : ''}>
+                                                      {Math.round(e.difference || 0).toLocaleString()}
+                                                  </Badge>
+                                              </TableCell>
+                                          </TableRow>
+                                      ))}
+                                  </TableBody>
+                              </Table>
+                          </div>
+                      ): <p className="text-sm text-muted-foreground">No ruling entries were added.</p>}
+
+                      {calculationSummary && (
+                          <div className="mt-4 pt-4 border-t">
+                            <h4 className="font-semibold">Total Summary</h4>
+                            <div className="text-sm mt-2 space-y-1">
+                              <div>Total Sheets Ruled: {calculationSummary.totalSheetsRuled.toLocaleString()}</div>
+                              <div>Total Theoretical Sheets: {Math.round(calculationSummary.totalTheoreticalSheets).toLocaleString()}</div>
+                              <div className="flex items-center">Overall Difference: 
+                                  <Badge variant={calculationSummary.totalDifference >= 0 ? 'default' : 'destructive'} className={`ml-2 ${calculationSummary.totalDifference >= 0 ? 'bg-green-600' : ''}`}>
+                                      {Math.round(calculationSummary.totalDifference).toLocaleString()}
+                                  </Badge>
+                              </div>
+                            </div>
+                          </div>
+                      )}
+                  </CardContent>
+              </Card>
+              <div className="space-y-2">
+                  <Label htmlFor="status">Final Reel Status</Label>
+                   <Select value={newRuling.status} onValueChange={(value) => setNewRuling({...newRuling, status: value as "Partially Used" | "Finished"})}>
+                      <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Select final status"/>
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="Partially Used">Partially Used</SelectItem>
+                          <SelectItem value="Finished">Finished</SelectItem>
+                      </SelectContent>
+                  </Select>
+              </div>
+          </div>
+      )}
+      </div>
+      <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2">
+        <Button variant="outline" onClick={resetForm} className="h-11 w-full sm:w-auto">
+          Cancel
+        </Button>
+        {currentStep > 1 && (
+           <Button variant="secondary" onClick={() => setCurrentStep(currentStep - 1)} className="h-11 w-full sm:w-auto">
+              Back
+          </Button>
+        )}
+        {currentStep < 3 && (
+          <Button onClick={handleNextStep} className="h-11 w-full sm:w-auto">
+            Next
+          </Button>
+        )}
+        {currentStep === 3 && (
+           <Button onClick={handleSaveRuling} className="h-11 w-full sm:w-auto">
+              Save Ruling
+          </Button>
+        )}
+      </DialogFooter>
+    </>
+  );
 
   return (
     <>
@@ -257,281 +543,43 @@ export default function RulingPage() {
         title="Reel Ruling"
         description="Log reel ruling with or without a program, and manage multiple rulings per reel."
       >
-        <Dialog open={isModalOpen} onOpenChange={(isOpen) => {
-            if (!isOpen) resetForm();
-            setIsModalOpen(isOpen);
-        }}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setIsModalOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add Reel Ruling
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90svh] flex flex-col">
-            <DialogHeader>
-              <DialogTitle>{editingRuling ? 'Edit' : 'Add'} Reel Ruling</DialogTitle>
-              <DialogDescription>
-                {editingRuling ? 'Update the details for this reel ruling.' : 'Follow the steps to log a new ruling for a reel.'}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex-grow overflow-y-auto pr-6 -mr-6">
-            {/* Step 1: Reel Details */}
-            {currentStep === 1 && (
-              <div className="space-y-4 py-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="date">Date</Label>
-                    <Input id="date" value={new Date((newRuling.date as Timestamp)?.toDate() || Date.now()).toLocaleDateString()} readOnly disabled />
-                  </div>
-                   <div className="space-y-2">
-                    <Label htmlFor="serialNo">Serial No.</Label>
-                    <Input
-                      id="serialNo"
-                      value={newRuling.serialNo || ''}
-                      onChange={(e) => setNewRuling({ ...newRuling, serialNo: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reelNo">Reel No.</Label>
-                    <Input
-                      id="reelNo"
-                      value={newRuling.reelNo || ''}
-                      onChange={(e) => setNewRuling({ ...newRuling, reelNo: e.target.value })}
-                    />
-                  </div>
-                   <div className="space-y-2">
-                    <Label htmlFor="reelWeight">Reel Weight (kg)</Label>
-                    <Input
-                      id="reelWeight"
-                      type="number"
-                      value={newRuling.reelWeight || ''}
-                      onChange={(e) => setNewRuling({ ...newRuling, reelWeight: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="paperTypeId">Paper Type</Label>
-                  <Select value={newRuling.paperTypeId || ''} onValueChange={(value) => setNewRuling({ ...newRuling, paperTypeId: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select paper" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {paperTypes?.map((paper) => (
-                        <SelectItem key={paper.id} value={paper.id}>
-                          {paper.paperName} ({paper.gsm}gsm)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {selectedPaper && (
-                    <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-muted-foreground">
-                        <p>GSM: {selectedPaper.gsm}</p>
-                        <p>Length: {selectedPaper.length} cm</p>
-                    </div>
-                )}
-              </div>
-            )}
-
-            {/* Step 2: Ruling Entries */}
-            {currentStep === 2 && (
-              <div className="py-4 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-lg">
-                    <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="programId">Program (Optional)</Label>
-                        <Select onValueChange={(value) => {
-                            const program = getProgramInfo(value);
-                            setNewEntry({
-                                ...newEntry,
-                                programId: value === 'no-program' ? undefined : value,
-                                itemTypeId: program?.itemTypeId,
-                                cutoff: program?.cutoff,
-                            })
-                        }}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a program" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="no-program">No Program</SelectItem>
-                                {programs?.map((prog) => (
-                                    <SelectItem key={prog.id} value={prog.id}>{prog.brand} - {getItemTypeName(prog.itemTypeId)}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="itemTypeId">Item Type</Label>
-                        <Select
-                            value={newEntry.itemTypeId || ''}
-                            onValueChange={(value) => setNewEntry({...newEntry, itemTypeId: value})}
-                            disabled={!!newEntry.programId}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select item"/>
-                            </SelectTrigger>
-                            <SelectContent>
-                                {itemTypes?.map((item) => (
-                                    <SelectItem key={item.id} value={item.id}>{item.itemName}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="cutoff">Cutoff (cm)</Label>
-                        <Input
-                            id="cutoff"
-                            type="number"
-                            value={newEntry.cutoff || ''}
-                            onChange={(e) => setNewEntry({...newEntry, cutoff: parseFloat(e.target.value)})}
-                            disabled={!!newEntry.programId}
-                        />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="sheetsRuled">Sheets Ruled</Label>
-                        <Input
-                            id="sheetsRuled"
-                            type="number"
-                            value={newEntry.sheetsRuled || ''}
-                            onChange={(e) => setNewEntry({...newEntry, sheetsRuled: parseInt(e.target.value) || 0})}
-                        />
-                    </div>
-                    <div className="md:col-span-2">
-                        <Button onClick={handleAddRulingEntry} className="w-full">Add Ruling Entry</Button>
-                    </div>
-                </div>
-
-                <div className="mt-4">
-                    <h4 className="font-semibold mb-2">Current Entries for this Reel</h4>
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Item</TableHead>
-                                    <TableHead>Sheets</TableHead>
-                                    <TableHead>Program</TableHead>
-                                    <TableHead></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {newRuling.entries && newRuling.entries.length > 0 ? newRuling.entries.map(entry => (
-                                    <TableRow key={entry.id}>
-                                        <TableCell className="whitespace-nowrap">{getItemTypeName(entry.itemTypeId)}</TableCell>
-                                        <TableCell>{entry.sheetsRuled?.toLocaleString()}</TableCell>
-                                        <TableCell className="whitespace-nowrap">{getProgramInfo(entry.programId)?.brand || 'N/A'}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon" onClick={() => setNewRuling(prev => ({...prev, entries: prev.entries?.filter(e => e.id !== entry.id)}))}>
-                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                )) : (
-                                    <TableRow><TableCell colSpan={4} className="text-center">No entries yet.</TableCell></TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Step 3: Summary & Finish */}
-            {currentStep === 3 && (
-                <div className="py-4 space-y-4">
-                    <Card>
-                        <CardHeader><CardTitle>Reel Summary</CardTitle></CardHeader>
-                        <CardContent className="text-sm space-y-1">
-                            <p><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
-                            <p><strong>Serial No:</strong> {newRuling.serialNo}</p>
-                            <p><strong>Reel No:</strong> {newRuling.reelNo}</p>
-                            <p><strong>Paper:</strong> {paperTypes?.find(p => p.id === newRuling.paperTypeId)?.paperName}</p>
-                            <p><strong>Reel Weight:</strong> {newRuling.reelWeight} kg</p>                        
-                        </CardContent>
-                    </Card>
-                     <Card>
-                        <CardHeader><CardTitle>Ruling Entries & Calculations</CardTitle></CardHeader>
-                        <CardContent>
-                            {newRuling.entries && newRuling.entries.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Item</TableHead>
-                                                <TableHead>Ruled</TableHead>
-                                                <TableHead>Theoretical</TableHead>
-                                                <TableHead className="text-right">Difference</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {newRuling.entries.map(e => (
-                                                <TableRow key={e.id}>
-                                                    <TableCell className="whitespace-nowrap">{getItemTypeName(e.itemTypeId)}</TableCell>
-                                                    <TableCell>{e.sheetsRuled?.toLocaleString()}</TableCell>
-                                                    <TableCell>{Math.round(e.theoreticalSheets || 0).toLocaleString()}</TableCell>
-                                                    <TableCell className="text-right">
-                                                         <Badge variant={e.difference >= 0 ? 'default' : 'destructive'} className={e.difference >= 0 ? 'bg-green-600' : ''}>
-                                                            {Math.round(e.difference || 0).toLocaleString()}
-                                                        </Badge>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            ): <p className="text-sm text-muted-foreground">No ruling entries were added.</p>}
-
-                            {calculationSummary && (
-                                <div className="mt-4 pt-4 border-t">
-                                  <h4 className="font-semibold">Total Summary</h4>
-                                  <div className="text-sm mt-2 space-y-1">
-                                    <div>Total Sheets Ruled: {calculationSummary.totalSheetsRuled.toLocaleString()}</div>
-                                    <div>Total Theoretical Sheets: {Math.round(calculationSummary.totalTheoreticalSheets).toLocaleString()}</div>
-                                    <div className="flex items-center">Overall Difference: 
-                                        <Badge variant={calculationSummary.totalDifference >= 0 ? 'default' : 'destructive'} className={`ml-2 ${calculationSummary.totalDifference >= 0 ? 'bg-green-600' : ''}`}>
-                                            {Math.round(calculationSummary.totalDifference).toLocaleString()}
-                                        </Badge>
-                                    </div>
-                                  </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                    <div className="space-y-2">
-                        <Label htmlFor="status">Final Reel Status</Label>
-                         <Select value={newRuling.status} onValueChange={(value) => setNewRuling({...newRuling, status: value as "Partially Used" | "Finished"})}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select final status"/>
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="Partially Used">Partially Used</SelectItem>
-                                <SelectItem value="Finished">Finished</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-            )}
-            </div>
-            <DialogFooter className="mt-auto pt-4 border-t">
-              <Button variant="outline" onClick={resetForm}>
-                Cancel
+        {isMobile ? (
+          <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <SheetTrigger asChild>
+              <Button onClick={openNewModal}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Reel Ruling
               </Button>
-              {currentStep > 1 && (
-                 <Button variant="secondary" onClick={() => setCurrentStep(currentStep - 1)}>
-                    Back
-                </Button>
-              )}
-              {currentStep < 3 && (
-                <Button onClick={handleNextStep}>
-                  Next
-                </Button>
-              )}
-              {currentStep === 3 && (
-                 <Button onClick={handleSaveRuling}>
-                    Save Ruling
-                </Button>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="p-0 flex flex-col h-[90svh]">
+              <SheetHeader className="p-4 border-b">
+                <SheetTitle>{editingRuling ? 'Edit' : 'Add'} Reel Ruling</SheetTitle>
+                <SheetDescription>
+                  {editingRuling ? 'Update the details for this reel ruling.' : 'Follow the steps to log a new ruling for a reel.'}
+                </SheetDescription>
+              </SheetHeader>
+              {renderModalContent()}
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openNewModal}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Reel Ruling
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="p-0 max-w-4xl max-h-[90vh] flex flex-col">
+              <DialogHeader className="p-6 pb-0">
+                <DialogTitle>{editingRuling ? 'Edit' : 'Add'} Reel Ruling</DialogTitle>
+                <DialogDescription>
+                  {editingRuling ? 'Update the details for this reel ruling.' : 'Follow the steps to log a new ruling for a reel.'}
+                </DialogDescription>
+              </DialogHeader>
+              {renderModalContent()}
+            </DialogContent>
+          </Dialog>
+        )}
       </PageHeader>
       <div className="mt-6">
         <Card>
