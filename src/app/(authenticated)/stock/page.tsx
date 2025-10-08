@@ -68,6 +68,7 @@ export default function StockPage() {
   
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
+  
   const isOperator = useMemo(() => currentUser?.role === 'Operator', [currentUser]);
 
   const stockQuery = useMemoFirebase(() => {
@@ -351,5 +352,3 @@ export default function StockPage() {
     </>
   );
 }
-
-    

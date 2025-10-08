@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, Timestamp, doc } from 'firebase/firestore';
-import { ItemType, Ruling, Stock, User as AppUser } from '@/lib/types';
+import { ItemType, Ruling as RulingType, Stock, User as AppUser } from '@/lib/types';
 import { useMemo } from 'react';
 
 const chartData = [
@@ -64,7 +64,7 @@ export default function DashboardPage() {
     return collection(firestore, 'stock');
   }, [firestore, isOperator, isLoadingCurrentUser]);
   
-  const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
+  const { data: rulings, isLoading: loadingRulings } = useCollection<RulingType>(rulingsQuery);
   const { data: stock, isLoading: loadingStock } = useCollection<Stock>(stockQuery);
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
 
@@ -275,5 +275,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    
