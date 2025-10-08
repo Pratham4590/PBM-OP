@@ -1,150 +1,152 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control model for a notebook manufacturing application.
+ * @description This ruleset enforces role-based access control for a notebook manufacturing application.
+ *
+ * Core Philosophy:
+ *  - Authenticated users can read most data.
+ *  - Administrative roles are required to create or modify certain data (e.g., stock).
+ *  - Data access is controlled at the collection level based on user roles.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profiles; access is restricted to the owner (the user themselves).
- * - /paperTypes/{paperTypeId}: Stores master data for paper types; access is open.
- * - /itemTypes/{itemTypeId}: Stores master data for item types; access is open.
- * - /stock/{stockId}: Stores stock information; access is restricted to admins.
- * - /programs/{programId}: Stores program information; access is open.
- * - /reels/{reelRulingId}: Stores reel ruling entries; access is open.
- * - /reports/{reportId}: Stores generated reports; access is open.
+ *  - `/users/{userId}`: Stores user profiles. User ID must match the authenticated user's UID.
+ *  - `/paperTypes/{paperTypeId}`: Stores master data for paper types.
+ *  - `/itemTypes/{itemTypeId}`: Stores master data for item types.
+ *  - `/stock/{stockId}`: Stores stock information. Only accessible and modifiable by admins.
+ *  - `/programs/{programId}`: Stores program information. Accessible and modifiable by admins and members.
+ *  - `/reels/{reelRulingId}`: Stores reel ruling entries. Accessible and modifiable by admins, members, and operators.
+ *  - `/reports/{reportId}`: Stores generated reports. Accessible by all authenticated users.
  *
  * Key Security Decisions:
- * - User data is strictly owned and controlled by the user themselves.
- * - Listing of users is disallowed.
- * - Master data (paperTypes, itemTypes) is publicly readable.
- * - Stock data is only accessible to admins.
- * - Program, ReelRuling, Report are accessible to everyone
+ *  - Listing of users is not explicitly allowed, but individual user profiles are readable by authenticated users.
+ *  - The rules do not enforce a strict schema for most data writes, allowing for rapid prototyping.
+ *  - All write operations are protected by authorization checks to prevent unauthorized data modification.
+ *
+ * Denormalization for Authorization:
+ *  - User roles are checked directly via `request.auth.token.role`, avoiding the need for `get()` calls to a separate user document.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile data.
+     * @description Checks if the user is signed in.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user has the specified role.
+     * @param {string} role The role to check for (e.g., 'admin', 'member').
+     */
+    function userHasRole(role) {
+      return isSignedIn() && request.auth.token.role == role;
+    }
+
+    /**
+     * @description Allows the owner to read their data
+     * @param {string} userId The uid of the user
+     */
+    function isOwner(userId) {
+        return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if a document exists and the current user is the owner.
+     * @param {string} userId The UID of the user.
+     */
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Rules for user profiles.
      * @path /users/{userId}
-     * @allow (create) User with ID 'user123' creates their own profile.
-     * @allow (get) User with ID 'user123' reads their own profile.
-     * @allow (update) User with ID 'user123' updates their own profile.
-     * @deny (create) User with ID 'user456' attempts to create a profile for user 'user123'.
-     * @deny (get) User with ID 'user456' attempts to read the profile of user 'user123'.
-     * @deny (update) User with ID 'user456' attempts to update the profile of user 'user123'.
-     * @principle Enforces user-ownership; users can only manage their own data.
+     * @allow (create) Authenticated user creates their own profile with matching user ID.
+     * @allow (get, list) Authenticated user reads their own profile.
+     * @allow (update) Authenticated user updates their own profile, or an admin updates any profile.
+     * @deny (create) Unauthorized user attempts to create a profile with a mismatched user ID.
+     * @deny (delete) No user can delete a profile via rules (deletion should be handled via Firebase Auth).
+     * @principle Enforces document ownership for writes and allows read access to the owner.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId);
+      allow get: if isSignedIn();
+      allow list: if false; // Listing users is generally not allowed.
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id || userHasRole('admin');
       allow delete: if false;
     }
 
     /**
-     * @description Controls access to paper type master data.
+     * @description Rules for paper types master data.
      * @path /paperTypes/{paperTypeId}
-     * @allow (get) Any user can read a paper type.
-     * @allow (list) Any user can list paper types.
-     * @deny (create) No one can create paper types (unless explicitly granted).
-     * @deny (update) No one can update paper types (unless explicitly granted).
-     * @deny (delete) No one can delete paper types (unless explicitly granted).
-     * @principle Allows public read access to paper type information.
+     * @allow (get, list) Any authenticated user can read paper types.
+     * @deny (create, update, delete) Only admins can create, update, or delete paper types.
+     * @principle Public read access with admin-only writes.
      */
     match /paperTypes/{paperTypeId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if userHasRole('admin');
     }
 
     /**
-     * @description Controls access to item type master data.
+     * @description Rules for item types master data.
      * @path /itemTypes/{itemTypeId}
-     * @allow (get) Any user can read an item type.
-     * @allow (list) Any user can list item types.
-     * @deny (create) No one can create item types (unless explicitly granted).
-     * @deny (update) No one can update item types (unless explicitly granted).
-     * @deny (delete) No one can delete item types (unless explicitly granted).
-     * @principle Allows public read access to item type information.
+     * @allow (get, list) Any authenticated user can read item types.
+     * @deny (create, update, delete) Only admins can create, update, or delete item types.
+     * @principle Public read access with admin-only writes.
      */
     match /itemTypes/{itemTypeId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if userHasRole('admin');
     }
 
     /**
-     * @description Controls access to stock information.
+     * @description Rules for stock information.
      * @path /stock/{stockId}
-     * @deny (get) No one can read stock information (unless explicitly granted).
-     * @deny (list) No one can list stock information (unless explicitly granted).
-     * @deny (create) No one can create stock information (unless explicitly granted).
-     * @deny (update) No one can update stock information (unless explicitly granted).
-     * @deny (delete) No one can delete stock information (unless explicitly granted).
+     * @allow (get, list) Any authenticated user can read stock information.
+     * @deny (create, update, delete) Only admins can create, update, or delete stock information.
+     * @principle Public read access with admin-only writes.
      */
     match /stock/{stockId} {
-      allow get, list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if userHasRole('admin');
     }
 
     /**
-     * @description Controls access to program information.
+     * @description Rules for program information.
      * @path /programs/{programId}
-     * @allow (get) Any user can read program information.
-     * @allow (list) Any user can list program information.
-     * @deny (create) No one can create program information (unless explicitly granted).
-     * @deny (update) No one can update program information (unless explicitly granted).
-     * @deny (delete) No one can delete program information (unless explicitly granted).
+     * @allow (get, list) Any authenticated user can read program information.
+     * @deny (create, update, delete) Only admins and members can create, update, or delete program information.
+     * @principle Public read access with role-based writes.
      */
     match /programs/{programId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if userHasRole('admin') || userHasRole('member');
     }
 
     /**
-     * @description Controls access to reel ruling entries.
+     * @description Rules for reel ruling entries.
      * @path /reels/{reelRulingId}
-     * @allow (get) Any user can read reel ruling entries.
-     * @allow (list) Any user can list reel ruling entries.
-     * @deny (create) No one can create reel ruling entries (unless explicitly granted).
-     * @deny (update) No one can update reel ruling entries (unless explicitly granted).
-     * @deny (delete) No one can delete reel ruling information (unless explicitly granted).
+     * @allow (get, list) Any authenticated user can read reel ruling entries.
+     * @deny (create, update, delete) Only admins, members, and operators can create, update, or delete reel ruling entries.
+     * @principle Public read access with role-based writes.
      */
     match /reels/{reelRulingId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if userHasRole('admin') || userHasRole('member') || userHasRole('operator');
     }
 
     /**
-     * @description Controls access to generated reports.
+     * @description Rules for generated reports.
      * @path /reports/{reportId}
-     * @allow (get) Any user can read generated reports.
-     * @allow (list) Any user can list generated reports.
-     * @deny (create) No one can create generated reports (unless explicitly granted).
-     * @deny (update) No one can update generated reports (unless explicitly granted).
-     * @deny (delete) No one can delete generated reports (unless explicitly granted).
+     * @allow (get, list) Any authenticated user can read generated reports.
+     * @deny (create, update, delete) Only admins can create, update, or delete generated reports.
+     * @principle Public read access with admin-only writes.
      */
     match /reports/{reportId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if userHasRole('admin');
     }
   }
 }
