@@ -146,7 +146,7 @@ const ProgramForm = ({
     const sheetsPerNotebook = netPages > 0 && ups > 0 ? netPages / ups : 0;
     const sheetsPerBundle = piecesPerBundle > 0 && ups > 0 ? (piecesPerBundle / ups) * sheetsPerNotebook : 0;
     const totalSheetsRequired = bundlesRequired * sheetsPerBundle;
-    const reamWeight = length > 0 && cutoff > 0 && gsm > 0 ? (length * cutoff * gsm * 500) / 10000 : 0;
+    const reamWeight = length > 0 && cutoff > 0 && gsm > 0 ? (length * cutoff * gsm) / 20000 : 0;
     
     return { reamWeight, totalSheetsRequired: Math.ceil(totalSheetsRequired), counting: sheetsPerNotebook, sheetsPerBundle };
   }, [program]);
