@@ -100,7 +100,10 @@ export default function RulingPage() {
   const [newRuling, setNewRuling] = useState<Partial<Ruling>>({ entries: [] });
   const [newEntry, setNewEntry] = useState<Partial<RulingEntry>>({});
 
-  const canEdit = useMemo(() => currentUser?.role === 'Admin' || currentUser?.role === 'Member', [currentUser]);
+  const canEdit = useMemo(() => {
+    if (isLoadingCurrentUser || !currentUser) return false;
+    return currentUser.role === 'Admin' || currentUser.role === 'Member';
+  }, [currentUser, isLoadingCurrentUser]);
 
   const openEditModal = (ruling: Ruling) => {
     setEditingRuling(ruling);
