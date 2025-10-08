@@ -49,11 +49,11 @@ export default function ProductionOverviewPage() {
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
 
   const stockQuery = useMemoFirebase(() => {
-    if (isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
+    if (!currentUser || currentUser.role === 'Operator') {
       return null;
     }
     return firestore ? collection(firestore, 'stock') : null;
-  }, [firestore, currentUser, isLoadingCurrentUser]);
+  }, [firestore, currentUser]);
 
   const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);

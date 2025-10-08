@@ -142,12 +142,12 @@ export default function StockPage() {
     try {
       if (editingStock) {
         const docRef = doc(firestore, 'stock', editingStock.id);
-        await updateDocumentNonBlocking(docRef, dataToSave);
+        updateDocumentNonBlocking(docRef, dataToSave);
         toast({ title: 'Stock Updated' });
       } else {
         const stockToAdd = { ...dataToSave, date: serverTimestamp() };
         const stockCollection = collection(firestore, 'stock');
-        await addDocumentNonBlocking(stockCollection, stockToAdd);
+        addDocumentNonBlocking(stockCollection, stockToAdd);
         toast({ title: 'Stock Added' });
       }
       closeModal();
