@@ -59,8 +59,13 @@ export default function DashboardPage() {
   
   // Conditionally create the stock query only AFTER we know the user is not an operator
   const stockQuery = useMemoFirebase(() => {
-    if (isLoadingCurrentUser || !firestore || isOperator) {
+    // Wait until the user's role is confirmed.
+    if (isLoadingCurrentUser || !firestore) {
       return null;
+    }
+    // Only fetch stock if the user is NOT an operator.
+    if (isOperator) {
+        return null;
     }
     return collection(firestore, 'stock');
   }, [firestore, isOperator, isLoadingCurrentUser]);
@@ -108,9 +113,10 @@ export default function DashboardPage() {
 
   const getItemTypeName = (itemTypeId: string) => itemTypes?.find(it => it.id === itemTypeId)?.name || 'N/A';
 
+  // Comprehensive loading state
   const isLoading = isLoadingCurrentUser || loadingRulings || loadingItemTypes || (!isOperator && loadingStock);
   
-  if (isLoading) {
+  if (isLoadingCurrentUser) { // Start with a more specific loading state
     return (
         <div className="flex h-full w-full items-center justify-center">
             <div className="text-lg text-muted-foreground">Loading Dashboard...</div>

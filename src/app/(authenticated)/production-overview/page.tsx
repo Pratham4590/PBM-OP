@@ -51,7 +51,12 @@ export default function ProductionOverviewPage() {
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
 
   const stockQuery = useMemoFirebase(() => {
-    if (isLoadingCurrentUser || !firestore || isOperator) {
+    // Wait until the user's role is confirmed.
+    if (isLoadingCurrentUser || !firestore) {
+        return null;
+    }
+    // Only fetch stock if the user is NOT an operator.
+    if (isOperator) {
         return null;
     }
     return collection(firestore, 'stock');
@@ -138,9 +143,10 @@ export default function ProductionOverviewPage() {
     return progress;
   }, [programs, rulings]);
   
+  // Comprehensive loading state
   const isLoading = isLoadingCurrentUser || loadingPrograms || loadingItemTypes || loadingPaperTypes || loadingRulings || (!isOperator && loadingStock);
   
-  if (isLoading) {
+  if (isLoadingCurrentUser) { // Start with a more specific loading state
     return (
         <div className="flex h-full w-full items-center justify-center">
             <div className="text-lg text-muted-foreground">Loading Production Data...</div>
