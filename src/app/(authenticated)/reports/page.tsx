@@ -46,7 +46,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking } from '@/firebase';
-import { collection, Timestamp, doc, writeBatch } from 'firebase/firestore';
+import { collection, Timestamp, doc, writeBatch, getDoc } from 'firebase/firestore';
 import { Ruling as RulingType, PaperType, ItemType, Reel, User as AppUser } from '@/lib/types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -79,6 +79,10 @@ export default function ReportsPage() {
       const paperMatch = paperFilter === 'all' || row.paperTypeId === paperFilter;
       const itemMatch = itemFilter === 'all' || row.rulingEntries.some(e => e.itemTypeId === itemFilter);
       return paperMatch && itemMatch;
+    }).sort((a, b) => {
+        const dateA = a.date instanceof Timestamp ? a.date.toMillis() : new Date(a.date as string).getTime();
+        const dateB = b.date instanceof Timestamp ? b.date.toMillis() : new Date(b.date as string).getTime();
+        return dateB - dateA;
     });
   }, [rulings, paperFilter, itemFilter]);
 
@@ -102,7 +106,7 @@ export default function ReportsPage() {
         const reelDocRef = doc(firestore, 'reels', ruling.reelId);
         
         // We need the current state of the reel to update it
-        const reelDoc = await doc(reelDocRef).get();
+        const reelDoc = await getDoc(reelDocRef);
         if (reelDoc.exists()) {
             const reelData = reelDoc.data() as Reel;
             const newAvailableSheets = (reelData.availableSheets || 0) + ruling.totalSheetsRuled;
@@ -110,7 +114,8 @@ export default function ReportsPage() {
             const reelUpdate: Partial<Reel> = {
                 availableSheets: newAvailableSheets,
                 // If the reel was finished as a result of this ruling, make it 'In Use' again
-                status: reelData.status === 'Finished' ? 'In Use' : reelData.status,
+                // If it now has sheets again, it should not be finished.
+                status: reelData.status === 'Finished' && newAvailableSheets > 100 ? 'In Use' : reelData.status,
             };
             batch.update(reelDocRef, reelUpdate);
         }
@@ -118,6 +123,7 @@ export default function ReportsPage() {
         await batch.commit();
         toast({ title: 'Ruling Deleted', description: `The ruling for reel ${ruling.reelNo} has been deleted and stock has been reverted.`});
     } catch(e: any) {
+        console.error("Error deleting ruling: ", e);
         toast({ variant: 'destructive', title: 'Delete failed', description: e.message });
     }
   }
@@ -327,5 +333,3 @@ export default function ReportsPage() {
     </>
   );
 }
-
-    
