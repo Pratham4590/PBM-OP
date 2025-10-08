@@ -72,13 +72,15 @@ export default function StockPage() {
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
   
   const stockQuery = useMemoFirebase(() => {
-    if (!firestore || isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
+    // IMPORTANT: Wait for user data to load and check the role before creating the query.
+    if (!firestore || isLoadingCurrentUser || !currentUser) {
       return null;
     }
+    // Only create the query if the user has the correct role.
     if (currentUser.role === 'Admin' || currentUser.role === 'Member') {
       return collection(firestore, 'stock');
     }
-    return null;
+    return null; // Return null for Operators or if role is not yet determined.
   }, [firestore, currentUser, isLoadingCurrentUser]);
   
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);

@@ -50,14 +50,17 @@ export default function ProductionOverviewPage() {
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
 
   const stockQuery = useMemoFirebase(() => {
-    if (!firestore || isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
+    // IMPORTANT: Wait for user data to load and check the role before creating the query.
+    if (!firestore || isLoadingCurrentUser || !currentUser) {
       return null;
     }
+    // Only create the query if the user has the correct role.
     if (currentUser.role === 'Admin' || currentUser.role === 'Member') {
       return collection(firestore, 'stock');
     }
-    return null;
+    return null; // Return null for Operators or if role is not yet determined.
   }, [firestore, currentUser, isLoadingCurrentUser]);
+
 
   const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
@@ -164,7 +167,7 @@ export default function ProductionOverviewPage() {
                 <CardTitle className="text-sm font-medium">Total Stock Weight</CardTitle>
             </CardHeader>
             <CardContent>
-                {loadingStock ? <Skeleton className="h-8 w-3/4" /> : <div className="text-2xl font-bold">{`${stockSummary.totalWeight.toLocaleString()} kg`}</div>}
+                {loadingStock || isLoadingCurrentUser ? <Skeleton className="h-8 w-3/4" /> : <div className="text-2xl font-bold">{`${stockSummary.totalWeight.toLocaleString()} kg`}</div>}
                 {loadingStock || loadingPaperTypes ? <Skeleton className="h-4 w-1/2 mt-1" /> : <p className="text-xs text-muted-foreground">Across {stockSummary.paperTypesCount} paper types</p>}
             </CardContent>
             </Card>
@@ -208,7 +211,7 @@ export default function ProductionOverviewPage() {
                 <CardDescription>A breakdown of paper types in stock.</CardDescription>
             </CardHeader>
             <CardContent>
-                 {loadingStock || loadingPaperTypes ? (
+                 {loadingStock || loadingPaperTypes || isLoadingCurrentUser ? (
                     <div className="flex items-center justify-center h-[250px] text-muted-foreground">Loading chart...</div>
                 ) : (
                 <ResponsiveContainer width="100%" height={250}>
