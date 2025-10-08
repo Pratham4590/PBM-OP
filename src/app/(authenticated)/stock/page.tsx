@@ -42,10 +42,12 @@ import {
 } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from '@/firebase';
 import { collection, serverTimestamp, Timestamp, doc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 export default function StockPage() {
   const firestore = useFirestore();
   const { user } = useUser();
+  const { toast } = useToast();
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser } = useDoc<AppUser>(currentUserDocRef);
 
@@ -91,11 +93,20 @@ export default function StockPage() {
       };
       const stockCollection = collection(firestore, 'stock');
       addDocumentNonBlocking(stockCollection, stockToAdd);
-      setNewStockItem({ numberOfReels: 1 }); // Reset form
+      
+      toast({
+        title: 'Stock Added',
+        description: 'New stock has been successfully recorded.',
+      });
+
+      setNewStockItem({ numberOfReels: 1, totalWeight: 0, paperTypeId: undefined, gsm: undefined, length: undefined }); // Reset form
       setIsModalOpen(false);
     } else {
-      // Basic validation feedback
-      alert('Please fill all fields');
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Please fill out all fields before submitting.',
+      });
     }
   };
 
@@ -141,7 +152,7 @@ export default function StockPage() {
                 <Label htmlFor="paper-type">
                   Paper Type
                 </Label>
-                <Select onValueChange={handleSelectPaper} disabled={loadingPaperTypes}>
+                <Select value={newStockItem.paperTypeId} onValueChange={handleSelectPaper} disabled={loadingPaperTypes}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a paper type" />
                   </SelectTrigger>
