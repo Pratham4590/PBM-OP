@@ -2,8 +2,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/page-header';
-import { Plus, X, Edit, Trash2 } from 'lucide-react';
+import { Plus, X, Edit, Trash2, Camera } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -23,6 +22,15 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -32,7 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Reel, PaperType, User as AppUser } from '@/lib/types';
 import {
   Card,
@@ -49,6 +57,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const StockForm = ({
   paperTypes,
@@ -67,6 +76,41 @@ const StockForm = ({
   const [reelCount, setReelCount] = useState(1);
   const selectedPaper = useMemo(() => paperTypes?.find(p => p.id === reelData.paperTypeId), [reelData.paperTypeId, paperTypes]);
   const { toast } = useToast();
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+
+  useEffect(() => {
+    if (isCameraOpen) {
+        const getCameraPermission = async () => {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({video: true});
+            setHasCameraPermission(true);
+
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+            }
+          } catch (error) {
+            console.error('Error accessing camera:', error);
+            setHasCameraPermission(false);
+            toast({
+              variant: 'destructive',
+              title: 'Camera Access Denied',
+              description: 'Please enable camera permissions in your browser settings.',
+            });
+          }
+        };
+        getCameraPermission();
+    } else {
+        if (videoRef.current && videoRef.current.srcObject) {
+            const stream = videoRef.current.srcObject as MediaStream;
+            stream.getTracks().forEach(track => track.stop());
+            videoRef.current.srcObject = null;
+        }
+    }
+  }, [isCameraOpen, toast]);
+
 
   const handleSave = () => {
     if (!reelData.paperTypeId || !reelData.weight) {
@@ -85,6 +129,36 @@ const StockForm = ({
   return (
     <>
       <div className="p-4 space-y-4 overflow-y-auto">
+        <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" className="w-full h-11">
+                    <Camera className="mr-2 h-4 w-4" /> Use Camera
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Scan Reel</DialogTitle>
+                    <DialogDescription>Point the camera at the reel information.</DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col items-center justify-center p-4">
+                   <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay muted />
+                   {hasCameraPermission === false && (
+                        <Alert variant="destructive" className="mt-4">
+                            <AlertTitle>Camera Access Denied</AlertTitle>
+                            <AlertDescription>
+                                Please allow camera access in your browser to use this feature.
+                            </AlertDescription>
+                        </Alert>
+                   )}
+                </div>
+                 <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsCameraOpen(false)}>Cancel</Button>
+                    <Button>Capture</Button>
+                 </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+
         <div className="space-y-2">
           <Label htmlFor="paper-type">Paper Type</Label>
           <Select
@@ -223,8 +297,7 @@ export default function StockPage() {
         const reelNoMatch = reel.reelNo.toLowerCase().includes(lowercasedFilter);
         return paperNameMatch || reelNoMatch;
     }).sort((a,b) => {
-        if (!b.createdAt || !b.createdAt.toMillis) return -1;
-        if (!a.createdAt || !a.createdAt.toMillis) return 1;
+        if (!b.createdAt || !a.createdAt) return 0;
         return b.createdAt.toMillis() - a.createdAt.toMillis()
     });
   }, [reels, searchFilter, paperTypes]);
