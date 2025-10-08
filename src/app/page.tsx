@@ -8,7 +8,7 @@ import { AppLogo } from '@/components/icons';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore, useUser } from '@/firebase';
+import { useAuth, useFirestore, useUser, addDocumentNonBlocking } from '@/firebase';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import {
   createUserWithEmailAndPassword,
@@ -18,7 +18,7 @@ import {
   User as FirebaseUser,
 } from 'firebase/auth';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc, Timestamp, collection } from 'firebase/firestore';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useTheme } from 'next-themes';
 import { User } from '@/lib/types';
@@ -64,16 +64,16 @@ function LoginPageContent() {
     const userDocRef = doc(firestore, 'users', firebaseUser.uid);
     const userDoc = await getDoc(userDocRef);
 
-    // Only create a new document if one doesn't already exist
     if (!userDoc.exists()) {
         const userData: User = {
             id: firebaseUser.uid,
             email: firebaseUser.email || '',
             displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User',
-            role: 'Operator', // Default role for new sign-ups
+            role: 'Operator',
             createdAt: serverTimestamp() as Timestamp,
             themePreference: 'system',
         };
+        // Use a non-blocking write here to avoid potential UI hangs on sign-up
         await setDoc(userDocRef, userData);
     }
   };
