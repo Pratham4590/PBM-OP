@@ -48,6 +48,7 @@ export default function StockPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser } = useDoc<AppUser>(currentUserDocRef);
 
@@ -58,8 +59,9 @@ export default function StockPage() {
   const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newStockItem, setNewStockItem] = useState<Partial<Stock>>({
+  const [newStockItem, setNewStockItem] = useState<Partial<Omit<Stock, 'id' | 'date'>>>({
     numberOfReels: 1,
+    totalWeight: 0,
   });
 
   const handleSelectPaper = (paperTypeId: string) => {
@@ -114,7 +116,8 @@ export default function StockPage() {
     return paperTypes?.find(p => p.id === paperTypeId)?.name || 'N/A';
   }
 
-  const formatDate = (date: Date | Timestamp) => {
+  const formatDate = (date: Date | Timestamp | undefined) => {
+    if (!date) return 'N/A';
     if (date instanceof Timestamp) {
       return date.toDate().toLocaleDateString();
     }
