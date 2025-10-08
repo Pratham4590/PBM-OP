@@ -77,7 +77,7 @@ const PaperModalContent = ({
         </div>
         <div className="space-y-2">
           <Label htmlFor="paper-length">Length (cm)</Label>
-          <Input id="paper-length" type="number" value={newPaperType.length || ''} onChange={(e) => setNewPaperType({ ...newPaper_type, length: parseFloat(e.target.value) || 0 })} placeholder="e.g., 60" className="h-11" />
+          <Input id="paper-length" type="number" value={newPaperType.length || ''} onChange={(e) => setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })} placeholder="e.g., 60" className="h-11" />
         </div>
       </div>
       <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
@@ -458,3 +458,5 @@ export default function MasterDataPage() {
     </>
   );
 }
+
+    
