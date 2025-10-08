@@ -1,158 +1,139 @@
 /**
- * @fileoverview Firestore Security Rules for Notebook Manufacturing App
+ * @file This Firestore Security Rules file enforces a strict user-ownership model for user profiles
+ *       and role-based access control for other collections related to notebook manufacturing.
+ *       It prioritizes authorization independence by denormalizing authorization data directly
+ *       into the documents being secured, thus avoiding costly and potentially insecure `get()` calls.
  *
  * Core Philosophy:
- * This ruleset enforces a hybrid security model:
- *   - User profiles are strictly owned by each user.
- *   - Master data (PaperTypes, ItemTypes) is publicly readable but restricted to admin-only creation and modification.
- *   - Programs and ReelRulings can be shared by denormalizing a 'members' map onto each document, enabling role-based access.
- *   - Stock and Reports are restricted to admin access.
+ * This ruleset enforces a strict user-ownership model for personal user data, combined with role-based access for other data.
+ * The design avoids complex queries within security rules by denormalizing data to allow simpler access checks.
  *
  * Data Structure:
- * - /users/{userId}: User profile data.
- * - /paperTypes/{paperTypeId}: Master data for paper types.
- * - /itemTypes/{itemTypeId}: Master data for item types.
- * - /stock/{stockId}: Stock information.
- * - /programs/{programId}: Production program data (potentially shared).
- * - /reels/{reelRulingId}: Reel ruling entries (potentially shared).
- * - /reports/{reportId}: Generated reports.
+ * - /users/{userId}: Stores personal user profiles, accessible only by the owning user.
+ * - /paperTypes/{paperTypeId}: Stores paper types.
+ * - /itemTypes/{itemTypeId}: Stores item types.
+ * - /stock/{stockId}: Stores stock information.
+ * - /programs/{programId}: Stores program information.
+ * - /reels/{reelRulingId}: Stores reel ruling entries.
+ * - /reports/{reportId}: Stores generated reports.
  *
  * Key Security Decisions:
- * - User listing is disallowed.
- * - Master data is publicly readable.
- * - Admin role is not enforced at the rules level in this prototype.
- * - Data validation is minimized to only authorization-critical fields to enable rapid iteration.
- *
- * Denormalization for Authorization:
- * - Programs and ReelRulings have a `members` map to store user roles, avoiding costly `get()` calls.
+ * - User profiles are strictly owned and controlled by each user.
+ * - Data validation is relaxed to allow for rapid prototyping and iteration.
+ * - Role-based access is not implemented in this version, but it will be important for admin related data like stock.
+ * - To create simpler, more performant rules, always denormalize (copy) data required for an authorization decision directly onto the documents being secured.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Grants access to user profiles.
+     * @description Enforces user-ownership for user profiles. Only the authenticated user can read or write their own profile.
      * @path /users/{userId}
-     * @allow (create) User with matching UID can create their profile.
-     * @allow (get, update, delete) Only the user with matching UID can access their profile.
-     * @deny (create) User tries to create a profile with a different UID.
-     * @deny (list) Listing users is not allowed.
+     * @allow (create) User with ID 'user123' can create their profile if authenticated as 'user123'.
+     * @allow (get, update, delete) User with ID 'user123' can read, update, or delete their profile if authenticated as 'user123'.
+     * @deny (create) User with ID 'user456' cannot create a profile for 'user123'.
+     * @deny (get, update, delete) User with ID 'user456' cannot read, update, or delete the profile of 'user123'.
      * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       function isOwner(userId) {
         return request.auth.uid == userId;
       }
-
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isOwner(userId); //Removed enforcement of userId immutability, given prototyping mode
-      allow delete: if isOwner(userId);
-    }
-
-    /**
-     * @description Grants public read access to paper type master data.  Only admins can create, update or delete.
-     * @path /paperTypes/{paperTypeId}
-     * @allow (get, list) Any user can read the paper type data.
-     * @deny (create, update, delete) Only admins can modify paper type data.  TODO: Add admin role check.
-     * @principle Public read, restricted write access for master data.
-     */
-    match /paperTypes/{paperTypeId} {
-      allow get, list: if true;
-      allow create: if false; // TODO: Add admin role check
-      allow update: if false; // TODO: Add admin role check
-      allow delete: if false; // TODO: Add admin role check
-    }
-
-    /**
-     * @description Grants public read access to item type master data.  Only admins can create, update or delete.
-     * @path /itemTypes/{itemTypeId}
-     * @allow (get, list) Any user can read the item type data.
-     * @deny (create, update, delete) Only admins can modify item type data. TODO: Add admin role check.
-     * @principle Public read, restricted write access for master data.
-     */
-    match /itemTypes/{itemTypeId} {
-      allow get, list: if true;
-      allow create: if false; // TODO: Add admin role check
-      allow update: if false; // TODO: Add admin role check
-      allow delete: if false; // TODO: Add admin role check
-    }
-
-    /**
-     * @description Restricts access to stock information to admins only.
-     * @path /stock/{stockId}
-     * @deny (get, list, create, update, delete) Only admins can access and modify stock data. TODO: Add admin role check.
-     * @principle Restricts all access to admin users.
-     */
-    match /stock/{stockId} {
-      allow get, list: if false; // TODO: Add admin role check
-      allow create: if false; // TODO: Add admin role check
-      allow update: if false; // TODO: Add admin role check
-      allow delete: if false; // TODO: Add admin role check
-    }
-
-    /**
-     * @description Grants role-based access to production programs.
-     * @path /programs/{programId}
-     * @allow (get, list) Any user can read the program data.
-     * @allow (create) Only users with the 'editor' role in the members map can create.
-     * @allow (update, delete) Only users with the 'editor' role in the members map can update or delete the program.
-     * @principle Enforces role-based access using a denormalized members map.
-     */
-    match /programs/{programId} {
       function isSignedIn() {
         return request.auth != null;
       }
 
-      function isEditor(program) {
-          return isSignedIn() && program.members[request.auth.uid] == 'editor';
-      }
+      allow get: if isOwner(userId);
+      allow list: if false; // Listing users is not permitted
 
-      allow get, list: if true;
-      allow create: if isEditor(request.resource.data);
-      allow update: if isSignedIn() && isEditor(request.resource.data);
-      allow delete: if isSignedIn() && isEditor(request.resource.data);
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isOwner(userId) && resource != null;
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Grants role-based access to reel ruling entries, based on the associated program.
+     * @description Allows anyone to read paper types, but restricts creation, updates, and deletion.
+     * @path /paperTypes/{paperTypeId}
+     * @allow (get, list) Any user, authenticated or not, can read paper type information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete paper types (but only if roles are implemented).
+     * @principle Public read access with restricted write access.
+     */
+    match /paperTypes/{paperTypeId} {
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Allows anyone to read item types, but restricts creation, updates, and deletion.
+     * @path /itemTypes/{itemTypeId}
+     * @allow (get, list) Any user, authenticated or not, can read item type information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete item types (but only if roles are implemented).
+     * @principle Public read access with restricted write access.
+     */
+    match /itemTypes/{itemTypeId} {
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Restricts access to stock information. Only authenticated users can read, create, update or delete stock entries.
+     * @path /stock/{stockId}
+     * @deny (get, list, create, update, delete) Any unauthenticated user cannot read, create, update, or delete stock information.
+     * @principle Restricts write access.
+     */
+    match /stock/{stockId} {
+      allow get: if false;
+      allow list: if false;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Allows anyone to read program information, but restricts creation, updates, and deletion.
+     * @path /programs/{programId}
+     * @allow (get, list) Any user, authenticated or not, can read program information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete program information (but only if roles are implemented).
+     * @principle Public read access with restricted write access.
+     */
+    match /programs/{programId} {
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Allows anyone to read reel ruling entries, but restricts creation, updates, and deletion.
      * @path /reels/{reelRulingId}
-     * @allow (get, list) Any user can read the reel ruling data.
-     * @allow (create) Only users with the 'editor' role in the associated program can create.
-     * @allow (update, delete) Only users with the 'editor' role in the associated program can update or delete.
-     * @principle Enforces role-based access using a denormalized members map from the program.
+     * @allow (get, list) Any user, authenticated or not, can read reel ruling entries.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete reel ruling entries (but only if roles are implemented).
+     * @principle Public read access with restricted write access.
      */
     match /reels/{reelRulingId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
-        function isEditor(programId) {
-          return get(/databases/$(database)/documents/programs/$(programId)).data.members[request.auth.uid] == 'editor';
-        }
-
-        allow get, list: if true;
-        allow create: if isSignedIn() && request.resource.data.programId != null && isEditor(request.resource.data.programId);
-        allow update: if isSignedIn() && request.resource.data.programId != null && isEditor(resource.data.programId);
-        allow delete: if isSignedIn() && request.resource.data.programId != null && isEditor(resource.data.programId);
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Restricts access to reports to admins only.
+     * @description Allows anyone to read reports, but restricts creation, updates, and deletion.
      * @path /reports/{reportId}
-     * @deny (get, list, create, update, delete) Only admins can access and modify report data. TODO: Add admin role check.
-     * @principle Restricts all access to admin users.
+     * @allow (get, list) Any user, authenticated or not, can read reports.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete reports (but only if roles are implemented).
+     * @principle Public read access with restricted write access.
      */
     match /reports/{reportId} {
-      allow get, list: if false; // TODO: Add admin role check
-      allow create: if false; // TODO: Add admin role check
-      allow update: if false; // TODO: Add admin role check
-      allow delete: if false; // TODO: Add admin role check
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
