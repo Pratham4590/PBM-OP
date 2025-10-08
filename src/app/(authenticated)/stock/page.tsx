@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -72,13 +71,29 @@ const StockForm = ({
   isSaving: boolean,
   editingReel: Partial<Reel> | null
 }) => {
-  const [reelData, setReelData] = useState<Partial<Reel>>(editingReel || { weight: 0 });
+  const [reelData, setReelData] = useState<Partial<Reel>>({});
   const [reelCount, setReelCount] = useState(1);
-  const selectedPaper = useMemo(() => paperTypes?.find(p => p.id === reelData.paperTypeId), [reelData.paperTypeId, paperTypes]);
   const { toast } = useToast();
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  
+  useEffect(() => {
+    if (editingReel) {
+      setReelData(editingReel);
+      setReelCount(1);
+    } else {
+      setReelData({ weight: undefined, reelNo: '', paperTypeId: '' });
+    }
+  }, [editingReel]);
+
+  const selectedPaper = useMemo(() => paperTypes?.find(p => p.id === reelData.paperTypeId), [reelData.paperTypeId, paperTypes]);
+  
+  useEffect(() => {
+    if (selectedPaper) {
+      setReelData(prev => ({ ...prev, gsm: selectedPaper.gsm, length: selectedPaper.length }));
+    }
+  }, [selectedPaper]);
 
 
   useEffect(() => {
@@ -113,8 +128,8 @@ const StockForm = ({
 
 
   const handleSave = () => {
-    if (!reelData.paperTypeId || !reelData.weight) {
-      toast({ variant: "destructive", title: "Error", description: "Paper Type and Weight are required."});
+    if (!reelData.paperTypeId || reelData.weight === undefined || reelData.weight <= 0) {
+      toast({ variant: "destructive", title: "Error", description: "Paper Type and a valid Weight are required."});
       return;
     }
     const dataToSave: Partial<Reel> = {
@@ -132,7 +147,7 @@ const StockForm = ({
         <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
             <DialogTrigger asChild>
                 <Button variant="outline" className="w-full h-11">
-                    <Camera className="mr-2 h-4 w-4" /> Use Camera
+                    <Camera className="mr-2 h-4 w-4" /> Use Camera to Scan Reel
                 </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
@@ -158,7 +173,6 @@ const StockForm = ({
             </DialogContent>
         </Dialog>
 
-
         <div className="space-y-2">
           <Label htmlFor="paper-type">Paper Type</Label>
           <Select
@@ -168,7 +182,7 @@ const StockForm = ({
           >
             <SelectTrigger id="paper-type" className="h-11"><SelectValue placeholder="Select paper" /></SelectTrigger>
             <SelectContent>
-              {paperTypes?.map(p => <SelectItem key={p.id} value={p.id}>{p.paperName} ({p.gsm}gsm)</SelectItem>)}
+              {paperTypes?.map(p => <SelectItem key={p.id} value={p.id}>{p.paperName} ({p.gsm}gsm, {p.length}cm)</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -188,7 +202,7 @@ const StockForm = ({
         {editingReel && reelData.reelNo && (
             <div className="space-y-2">
                 <Label htmlFor="reel-no-edit">Reel Number</Label>
-                <Input id="reel-no-edit" value={reelData.reelNo} disabled className="h-11" />
+                <Input id="reel-no-edit" value={reelData.reelNo} onChange={(e) => setReelData(prev => ({...prev, reelNo: e.target.value}))} className="h-11" />
             </div>
         )}
         <div className="grid grid-cols-2 gap-4">
@@ -212,7 +226,7 @@ const StockForm = ({
         <SheetClose asChild>
             <Button variant="outline" className="w-full h-11">Cancel</Button>
         </SheetClose>
-        <Button onClick={handleSave} disabled={isSaving} className="w-full h-11">{isSaving ? "Saving..." : "Add Stock"}</Button>
+        <Button onClick={handleSave} disabled={isSaving} className="w-full h-11">{isSaving ? "Saving..." : (editingReel ? "Save Changes" : "Add Stock")}</Button>
       </SheetFooter>
     </>
   )
@@ -222,11 +236,10 @@ export default function StockPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
-  const isMobile = useIsMobile();
-
+  
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [editingReel, setEditingReel] = useState<Partial<Reel> | null>(null);
+  const [editingReel, setEditingReel] = useState<Reel | null>(null);
   
   const [searchFilter, setSearchFilter] = useState('');
 
@@ -260,8 +273,8 @@ export default function StockPage() {
        updateDocumentNonBlocking(docRef, reelData);
        toast({ title: 'Reel Updated' });
     } else {
-        const baseReelNumber = reelData.reelNo ? parseInt(reelData.reelNo.replace(/[^0-9]/g, ''), 10) : null;
-        const prefix = reelData.reelNo ? reelData.reelNo.replace(/[0-9]/g, '') : 'Reel-';
+        const baseReelNumber = reelData.reelNo && /\d+$/.test(reelData.reelNo) ? parseInt(reelData.reelNo.match(/\d+$/)![0], 10) : null;
+        const prefix = reelData.reelNo ? reelData.reelNo.replace(/\d+$/, '') : 'Reel-';
 
         for (let i = 0; i < reelCount; i++) {
             const newReelNo = baseReelNumber !== null ? `${prefix}${baseReelNumber + i}` : `${prefix}${Date.now() + i}`;
@@ -292,13 +305,15 @@ export default function StockPage() {
     if (!reels) return [];
     const lowercasedFilter = searchFilter.toLowerCase();
     return reels.filter(reel => {
+        if (!searchFilter) return true;
         const paperType = paperTypes?.find(p => p.id === reel.paperTypeId);
         const paperNameMatch = paperType?.paperName.toLowerCase().includes(lowercasedFilter);
         const reelNoMatch = reel.reelNo.toLowerCase().includes(lowercasedFilter);
         return paperNameMatch || reelNoMatch;
     }).sort((a,b) => {
         if (!b.createdAt || !a.createdAt) return 0;
-        return b.createdAt.toMillis() - a.createdAt.toMillis()
+        if (!b.createdAt.toMillis || !a.createdAt.toMillis) return 0;
+        return b.createdAt.toMillis() - a.createdAt.toMillis();
     });
   }, [reels, searchFilter, paperTypes]);
 
@@ -315,14 +330,14 @@ export default function StockPage() {
     switch (status) {
         case 'Available': return 'bg-green-600 dark:bg-green-800';
         case 'Partially Used': return 'bg-amber-500 dark:bg-amber-700';
-        case 'Finished': return '';
+        case 'Finished': return 'border-dashed';
     }
   };
 
   const isLoading = loadingReels || loadingPaperTypes;
   
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-[calc(100vh-5rem)] sm:h-screen">
       <header className="sticky top-0 bg-background/95 backdrop-blur z-10 p-4 border-b">
          <h1 className="text-2xl font-bold text-center mb-4">📦 Stock Management</h1>
          <div className="relative">
@@ -377,28 +392,35 @@ export default function StockPage() {
                         <CardFooter className="flex justify-between items-center">
                             <Badge variant={statusVariant(reel.status)} className={statusColor(reel.status)}>{reel.status}</Badge>
                             {canEdit && (
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="text-destructive"><Trash2 className="h-4 w-4"/></Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>This will permanently delete reel <strong>{reel.reelNo}</strong>.</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDeleteReel(reel.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
+                                <div className="flex items-center gap-1">
+                                    <Button variant="ghost" size="icon" onClick={() => openSheet(reel)}>
+                                        <Edit className="h-4 w-4"/>
+                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                                <Trash2 className="h-4 w-4"/>
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>This will permanently delete reel <strong>{reel.reelNo}</strong>.</AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteReel(reel.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
                             )}
                         </CardFooter>
                     </Card>
                 ))
             ) : (
                 <div className="md:col-span-2 lg:col-span-3 xl:col-span-4 text-center py-16">
-                    <p className="text-muted-foreground">No stock found for your search.</p>
+                    <p className="text-muted-foreground">No stock found. { searchFilter ? "Try a different search." : "Add some stock to get started."}</p>
                 </div>
             )}
         </div>
