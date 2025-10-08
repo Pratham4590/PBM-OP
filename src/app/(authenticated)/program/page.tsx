@@ -39,8 +39,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from '@/firebase';
-import { collection, serverTimestamp, doc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { collection, serverTimestamp, doc, addDoc } from 'firebase/firestore';
 import {
   Accordion,
   AccordionContent,
@@ -49,7 +49,6 @@ import {
 } from '@/components/ui/accordion';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
-import { addDoc } from 'firebase/firestore';
 
 export default function ProgramPage() {
   const firestore = useFirestore();
@@ -139,23 +138,38 @@ export default function ProgramPage() {
     
     // Basic validation
     const requiredFields: (keyof Program)[] = ['brand', 'paperTypeId', 'itemTypeId', 'cutoff', 'notebookPages', 'ups', 'piecesPerBundle', 'bundlesRequired'];
-    const isFormValid = requiredFields.every(field => newProgram[field] !== undefined && newProgram[field] !== '' && newProgram[field] !== 0);
+    const isFormValid = requiredFields.every(field => {
+      const value = newProgram[field as keyof typeof newProgram];
+      return value !== undefined && value !== '' && (typeof value !== 'number' || value > 0);
+    });
 
     if (!isFormValid) {
         toast({
             variant: 'destructive',
             title: 'Missing Fields',
-            description: 'Please fill out all required fields.',
+            description: 'Please fill out all required fields with valid numbers greater than zero.',
         });
         return;
     }
 
     setIsSaving(true);
     
-    const programToAdd = {
+    const programToAdd: Omit<Program, 'id' | 'date'> = {
+      brand: newProgram.brand!,
+      paperTypeId: newProgram.paperTypeId!,
+      itemTypeId: newProgram.itemTypeId!,
+      gsm: newProgram.gsm!,
+      length: newProgram.length!,
+      cutoff: newProgram.cutoff!,
+      notebookPages: newProgram.notebookPages!,
+      coverIndex: newProgram.coverIndex!,
+      ups: newProgram.ups!,
+      piecesPerBundle: newProgram.piecesPerBundle!,
+      bundlesRequired: newProgram.bundlesRequired!,
+      reamWeight: calculatedValues.reamWeight,
+      totalSheetsRequired: calculatedValues.totalSheetsRequired,
+      counting: calculatedValues.counting,
       date: serverTimestamp(),
-      ...newProgram,
-      ...calculatedValues,
     };
     
     try {
@@ -175,9 +189,14 @@ export default function ProgramPage() {
         piecesPerBundle: 0,
         ups: 0,
         coverIndex: 0,
+        paperTypeId: undefined,
+        itemTypeId: undefined,
+        gsm: 0,
+        length: 0,
       });
       setIsModalOpen(false);
     } catch(error) {
+       console.error("Failed to create program:", error);
        toast({
         variant: 'destructive',
         title: 'Error',
@@ -213,13 +232,13 @@ export default function ProgramPage() {
                 </div>
               </AccordionTrigger>
               <AccordionContent>
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 text-sm p-2">
                   <p><strong>Paper:</strong> {getPaperTypeName(program.paperTypeId)} ({program.gsm}gsm, {program.length}cm)</p>
-                  <p><strong>Sheets Required:</strong> {program.totalSheetsRequired.toLocaleString()}</p>
-                  <p><strong>Ream Weight:</strong> {program.reamWeight.toFixed(2)} kg</p>
+                  <p><strong>Sheets Required:</strong> {program.totalSheetsRequired?.toLocaleString()}</p>
+                  <p><strong>Ream Weight:</strong> {program.reamWeight?.toFixed(2)} kg</p>
                   <p><strong>Cutoff:</strong> {program.cutoff} cm</p>
                   <p><strong>UPS:</strong> {program.ups}</p>
-                  <p><strong>Counting:</strong> {typeof program.counting === 'number' ? program.counting.toFixed(2) : 'N/A'}</p>
+                  <p><strong>Counting:</strong> {program.counting ? program.counting.toFixed(2) : 'N/A'}</p>
                 </div>
               </AccordionContent>
             </AccordionItem>
@@ -253,10 +272,10 @@ export default function ProgramPage() {
                     {getItemTypeName(program.itemTypeId)}
                   </TableCell>
                   <TableCell>
-                    {program.totalSheetsRequired.toLocaleString()}
+                    {program.totalSheetsRequired?.toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right">
-                    {program.reamWeight.toFixed(2)}
+                    {program.reamWeight?.toFixed(2)}
                   </TableCell>
                 </TableRow>
               ))}
@@ -430,13 +449,13 @@ export default function ProgramPage() {
               </div>
             </div>
 
-            <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 flex flex-row justify-end gap-2 w-full">
-              <DialogClose asChild>
-                <Button variant="outline" disabled={isSaving}>Cancel</Button>
-              </DialogClose>
+            <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 flex flex-row-reverse sm:flex-row sm:justify-end gap-2 w-full">
               <Button onClick={handleCreateProgram} disabled={isSaving} className="w-full sm:w-auto">
                 {isSaving ? 'Saving...' : 'Create Program'}
               </Button>
+              <DialogClose asChild>
+                <Button variant="outline" disabled={isSaving} className="w-full sm:w-auto">Cancel</Button>
+              </DialogClose>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -458,5 +477,3 @@ export default function ProgramPage() {
     </>
   );
 }
-
-    
