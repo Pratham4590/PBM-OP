@@ -33,6 +33,9 @@ export default function UsersPage() {
   const firestore = useFirestore();
   const { user: currentUserAuth, isUserLoading: isAuthLoading } = useUser();
   const { toast } = useToast();
+  
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
   const currentUserDocRef = useMemoFirebase(
     () => (firestore && currentUserAuth ? doc(firestore, 'users', currentUserAuth.uid) : null),
@@ -41,9 +44,16 @@ export default function UsersPage() {
   
   const { data: currentUserData, isLoading: isLoadingCurrentUserDoc } = useDoc<User>(currentUserDocRef);
 
-  const isAdmin = currentUserData?.role === 'Admin';
+  useEffect(() => {
+    if (!isLoadingCurrentUserDoc) {
+      if (currentUserData?.role === 'Admin') {
+        setIsAdmin(true);
+      }
+      setIsCheckingAdmin(false);
+    }
+  }, [currentUserData, isLoadingCurrentUserDoc]);
   
-  // Only query all users if the current user is a confirmed admin
+  // Only define the query if the user is a confirmed admin
   const allUsersQuery = useMemoFirebase(
     () => (firestore && isAdmin ? collection(firestore, 'users') : null),
     [firestore, isAdmin]
@@ -61,7 +71,7 @@ export default function UsersPage() {
     });
   };
 
-  const isLoading = isAuthLoading || isLoadingCurrentUserDoc;
+  const isLoading = isAuthLoading || isCheckingAdmin;
   
   if (isLoading) {
      return (
