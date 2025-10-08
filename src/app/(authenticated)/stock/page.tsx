@@ -11,8 +11,9 @@ import {
   DialogDescription,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,7 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Stock, PaperType, User as AppUser } from '@/lib/types';
 import {
   Card,
@@ -61,60 +62,149 @@ import { collection, serverTimestamp, Timestamp, doc } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+
+const stockSchema = z.object({
+  paperTypeId: z.string().min(1, { message: "Paper type is required." }),
+  totalWeight: z.number().positive({ message: "Weight must be positive." }),
+  numberOfReels: z.number().int().positive({ message: "Reels must be a positive whole number." }),
+  gsm: z.number().optional(),
+  length: z.number().optional(),
+});
+
+type StockFormData = z.infer<typeof stockSchema>;
 
 const StockModalContent = ({
-    newStockItem,
-    setNewStockItem,
-    paperTypes,
-    loadingPaperTypes,
-    handleSelectPaper,
-    handleSaveStock,
-    closeModal,
-    isSaving,
+  paperTypes,
+  loadingPaperTypes,
+  onSave,
+  onClose,
+  isSaving,
+  initialData,
 }: {
-    newStockItem: Partial<Stock>;
-    setNewStockItem: React.Dispatch<React.SetStateAction<Partial<Stock>>>;
-    paperTypes: PaperType[] | null;
-    loadingPaperTypes: boolean;
-    handleSelectPaper: (paperTypeId: string) => void;
-    handleSaveStock: () => void;
-    closeModal: () => void;
-    isSaving: boolean;
-}) => (
-    <>
-      <div className="p-4 space-y-4 overflow-y-auto max-h-[80vh]">
-        <div className="space-y-2">
-          <Label htmlFor="paper-type">Paper Type</Label>
-          <Select value={newStockItem.paperTypeId} onValueChange={handleSelectPaper} disabled={loadingPaperTypes}>
-            <SelectTrigger className="h-11"><SelectValue placeholder="Select a paper type" /></SelectTrigger>
-            <SelectContent>
-              {paperTypes?.map((paper) => (<SelectItem key={paper.id} value={paper.id}>{paper.paperName}</SelectItem>))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2"><Label htmlFor="gsm">GSM</Label><Input id="gsm" value={newStockItem.gsm || ''} readOnly disabled className="h-11" /></div>
-          <div className="space-y-2"><Label htmlFor="length">Length (cm)</Label><Input id="length" value={newStockItem.length || ''} readOnly disabled className="h-11" /></div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="total-weight">Total Weight (kg)</Label>
-            <Input id="total-weight" type="number" value={newStockItem.totalWeight || ''} onChange={(e) => setNewStockItem({ ...newStockItem, totalWeight: parseFloat(e.target.value) || 0 })} className="h-11" />
+  paperTypes: PaperType[] | null;
+  loadingPaperTypes: boolean;
+  onSave: (data: StockFormData) => void;
+  onClose: () => void;
+  isSaving: boolean;
+  initialData?: Partial<Stock> | null;
+}) => {
+  
+  const form = useForm<StockFormData>({
+    resolver: zodResolver(stockSchema),
+    defaultValues: {
+      paperTypeId: initialData?.paperTypeId || '',
+      totalWeight: initialData?.totalWeight || undefined,
+      numberOfReels: initialData?.numberOfReels || undefined,
+      gsm: initialData?.gsm || undefined,
+      length: initialData?.length || undefined,
+    }
+  });
+
+  const { control, handleSubmit, watch, setValue } = form;
+  const paperTypeId = watch('paperTypeId');
+
+  useEffect(() => {
+    if (paperTypeId) {
+      const selectedPaper = paperTypes?.find((p) => p.id === paperTypeId);
+      if (selectedPaper) {
+        setValue('gsm', selectedPaper.gsm);
+        setValue('length', selectedPaper.length);
+      }
+    }
+  }, [paperTypeId, paperTypes, setValue]);
+
+  return (
+    <Form {...form}>
+      <form onSubmit={handleSubmit(onSave)} className="flex flex-col h-full">
+        <div className="p-4 space-y-4 overflow-y-auto flex-grow">
+          <FormField
+            control={control}
+            name="paperTypeId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Paper Type</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loadingPaperTypes}>
+                  <FormControl>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="Select a paper type" /></SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {paperTypes?.map((paper) => (<SelectItem key={paper.id} value={paper.id}>{paper.paperName}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <div className="grid grid-cols-2 gap-4">
+             <FormField
+                control={control}
+                name="gsm"
+                render={({ field }) => (
+                <FormItem>
+                    <FormLabel>GSM</FormLabel>
+                    <FormControl>
+                        <Input {...field} readOnly disabled className="h-11 bg-muted/50" />
+                    </FormControl>
+                </FormItem>
+                )}
+            />
+            <FormField
+                control={control}
+                name="length"
+                render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Length (cm)</FormLabel>
+                    <FormControl>
+                        <Input {...field} readOnly disabled className="h-11 bg-muted/50" />
+                    </FormControl>
+                </FormItem>
+                )}
+            />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="reels">Number of Reels</Label>
-            <Input id="reels" type="number" value={newStockItem.numberOfReels || ''} onChange={(e) => setNewStockItem({ ...newStockItem, numberOfReels: parseInt(e.target.value) || 0 })} className="h-11" />
+          <div className="grid grid-cols-2 gap-4">
+             <FormField
+                control={control}
+                name="totalWeight"
+                render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Total Weight (kg)</FormLabel>
+                    <FormControl>
+                        <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} className="h-11" />
+                    </FormControl>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
+            <FormField
+                control={control}
+                name="numberOfReels"
+                render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Number of Reels</FormLabel>
+                    <FormControl>
+                        <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} className="h-11" />
+                    </FormControl>
+                     <FormMessage />
+                </FormItem>
+                )}
+            />
           </div>
         </div>
-      </div>
-      <SheetFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
-         <Button variant="outline" onClick={closeModal} disabled={isSaving} className="h-11 w-full sm:w-auto">Cancel</Button>
-        <Button onClick={handleSaveStock} disabled={isSaving} className="h-11 w-full sm:w-auto">
-          {isSaving ? 'Saving...' : 'Save Stock'}
-        </Button>
-      </SheetFooter>
-    </>
+        <div className="p-4 border-t sticky bottom-0 bg-background z-10 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+           <Button type="button" variant="outline" onClick={onClose} disabled={isSaving} className="h-11 w-full sm:w-auto">Cancel</Button>
+          <Button type="submit" disabled={isSaving} className="h-11 w-full sm:w-auto">
+            {isSaving ? 'Saving...' : 'Save Stock'}
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
+}
+
 
 export default function StockPage() {
   const firestore = useFirestore();
@@ -140,10 +230,6 @@ export default function StockPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingStock, setEditingStock] = useState<Stock | null>(null);
-  const [newStockItem, setNewStockItem] = useState<Partial<Stock>>({
-    numberOfReels: 1,
-    totalWeight: 0,
-  });
   
   const canEdit = useMemo(() => {
     if (isLoadingCurrentUser || !currentUser) return false;
@@ -151,47 +237,32 @@ export default function StockPage() {
   }, [currentUser, isLoadingCurrentUser]);
 
   const openModal = (stockItem?: Stock) => {
-    if (stockItem) {
-      setEditingStock(stockItem);
-      setNewStockItem(stockItem);
-    } else {
-      setEditingStock(null);
-      setNewStockItem({ numberOfReels: 1, totalWeight: 0 });
-    }
+    setEditingStock(stockItem || null);
     setIsModalOpen(true);
   }
   
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
     setEditingStock(null);
-    setNewStockItem({ numberOfReels: 1, totalWeight: 0 });
   }, []);
 
-  const handleSelectPaper = (paperTypeId: string) => {
-    const selectedPaper = paperTypes?.find((p) => p.id === paperTypeId);
-    if (selectedPaper) {
-      setNewStockItem({
-        ...newStockItem,
-        paperTypeId: selectedPaper.id,
-        gsm: selectedPaper.gsm,
-        length: selectedPaper.length,
-      });
-    }
-  };
-
-  const handleSaveStock = async () => {
-    if (!firestore || !newStockItem.paperTypeId || !newStockItem.totalWeight || !newStockItem.numberOfReels) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Please fill out all fields.' });
-      return;
-    }
+  const handleSaveStock = async (data: StockFormData) => {
+    if (!firestore) return;
     setIsSaving(true);
     
-    const dataToSave = {
-      paperTypeId: newStockItem.paperTypeId,
-      gsm: newStockItem.gsm!,
-      length: newStockItem.length!,
-      totalWeight: newStockItem.totalWeight,
-      numberOfReels: newStockItem.numberOfReels,
+    const selectedPaper = paperTypes?.find((p) => p.id === data.paperTypeId);
+    if (!selectedPaper) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Invalid paper type selected.' });
+        setIsSaving(false);
+        return;
+    }
+
+    const dataToSave: Omit<Stock, 'id' | 'date'> = {
+      paperTypeId: data.paperTypeId,
+      gsm: selectedPaper.gsm,
+      length: selectedPaper.length,
+      totalWeight: data.totalWeight,
+      numberOfReels: data.numberOfReels,
     };
 
     try {
@@ -231,14 +302,12 @@ export default function StockPage() {
   }
 
   const modalProps = {
-    newStockItem,
-    setNewStockItem,
     paperTypes,
     loadingPaperTypes,
-    handleSelectPaper,
-    handleSaveStock,
-    closeModal,
-    isSaving
+    onSave: handleSaveStock,
+    onClose: closeModal,
+    isSaving,
+    initialData: editingStock
   };
 
   if (isLoadingCurrentUser) {
@@ -299,7 +368,7 @@ export default function StockPage() {
               <DialogTrigger asChild>
                 <Button onClick={() => openModal()} className="h-11"><PlusCircle className="mr-2 h-4 w-4" />Add Stock</Button>
               </DialogTrigger>
-              <DialogContent className="p-0 max-w-lg">
+              <DialogContent className="p-0 max-w-lg max-h-[90vh] flex flex-col">
                 <DialogHeader className="p-6 pb-4">
                   <DialogTitle>{editingStock ? 'Edit' : 'Add New'} Stock</DialogTitle>
                   <DialogDescription>Enter the details of the paper stock.</DialogDescription>
@@ -423,5 +492,3 @@ export default function StockPage() {
     </>
   );
 }
-
-    
