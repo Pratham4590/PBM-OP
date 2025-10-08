@@ -75,7 +75,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-is-mobile';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -352,7 +352,10 @@ export default function ProgramPage() {
   const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName;
   const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName;
   
-  const canEdit = !isLoadingCurrentUser && (currentUser?.role === 'Admin' || currentUser?.role === 'Member');
+  const canEdit = useMemo(() => {
+    if (isLoadingCurrentUser || !currentUser) return false;
+    return currentUser.role === 'Admin' || currentUser.role === 'Member';
+  }, [currentUser, isLoadingCurrentUser]);
 
   const renderProgramList = () => {
     if (loadingPrograms) {

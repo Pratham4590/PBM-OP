@@ -47,7 +47,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PaperType, ItemType, User as AppUser } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
@@ -77,7 +77,10 @@ export default function MasterDataPage() {
   const [newPaperType, setNewPaperType] = useState<Partial<PaperType>>({ paperName: '', gsm: undefined, length: undefined });
   const [newItemType, setNewItemType] = useState<Partial<ItemType>>({ itemName: '', shortCode: '' });
 
-  const canEdit = !isLoadingCurrentUser && currentUser?.role === 'Admin';
+  const canEdit = useMemo(() => {
+    if (isLoadingCurrentUser || !currentUser) return false;
+    return currentUser.role === 'Admin';
+  }, [currentUser, isLoadingCurrentUser]);
   
   // --- Paper Type Handlers ---
   const openPaperModal = (paper?: PaperType) => {

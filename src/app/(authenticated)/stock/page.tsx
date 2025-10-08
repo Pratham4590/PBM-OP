@@ -40,7 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Stock, PaperType, User as AppUser } from '@/lib/types';
 import {
   Card,
@@ -89,7 +89,10 @@ export default function StockPage() {
     totalWeight: 0,
   });
   
-  const canEdit = !isLoadingCurrentUser && (currentUser?.role === 'Admin' || currentUser?.role === 'Member');
+  const canEdit = useMemo(() => {
+    if (isLoadingCurrentUser || !currentUser) return false;
+    return currentUser.role === 'Admin' || currentUser.role === 'Member';
+  }, [currentUser, isLoadingCurrentUser]);
 
   useEffect(() => {
     if (isModalOpen && editingStock) {
