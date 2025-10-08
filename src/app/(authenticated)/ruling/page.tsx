@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -119,9 +120,14 @@ const RulingForm = ({
   }, [selectedProgram]);
 
   const calculation = useMemo(() => {
-    if (!selectedReel || !ruling.cutoff || !ruling.sheetsRuled) return { theoretical: 0, difference: 0 };
+    const defaultValues = { theoreticalSheets: 0, difference: 0 };
+    if (!selectedReel || !ruling.cutoff || !ruling.sheetsRuled) return defaultValues;
+    
     const reamWeight = (selectedReel.length * ruling.cutoff * selectedReel.gsm) / 20000;
-    const theoreticalSheets = reamWeight > 0 ? (ruling.startWeight! * 500) / reamWeight : 0;
+    
+    if (reamWeight <= 0 || !ruling.startWeight) return defaultValues;
+
+    const theoreticalSheets = (ruling.startWeight * 500) / reamWeight;
     const difference = ruling.sheetsRuled - theoreticalSheets;
     return { theoreticalSheets, difference };
   }, [selectedReel, ruling]);
@@ -131,7 +137,7 @@ const RulingForm = ({
       toast({ variant: 'destructive', title: 'Missing Fields', description: 'Please fill out all fields.' });
       return;
     }
-    if (ruling.endWeight > ruling.startWeight!) {
+    if (ruling.startWeight && ruling.endWeight > ruling.startWeight) {
       toast({ variant: 'destructive', title: 'Invalid Weight', description: 'End weight cannot be greater than start weight.' });
       return;
     }
@@ -206,11 +212,11 @@ const RulingForm = ({
               </div>
           </div>
           <div className="p-3 bg-muted/50 rounded-md text-sm grid grid-cols-2 gap-x-4 gap-y-1">
-              <span>Theoretical Sheets:</span> <span className="text-right font-medium">{calculation.theoreticalSheets.toFixed(0)}</span>
+              <span>Theoretical Sheets:</span> <span className="text-right font-medium">{(calculation.theoreticalSheets || 0).toFixed(0)}</span>
               <span>Difference:</span> 
               <span className="text-right font-medium">
                   <Badge variant={calculation.difference >= 0 ? 'default' : 'destructive'} className={calculation.difference >= 0 ? 'bg-green-600' : ''}>
-                    {calculation.difference.toFixed(0)}
+                    {(calculation.difference || 0).toFixed(0)}
                   </Badge>
               </span>
           </div>
