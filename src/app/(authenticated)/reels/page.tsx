@@ -11,6 +11,7 @@ import {
   DialogDescription,
   DialogTitle,
   DialogFooter,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Sheet,
