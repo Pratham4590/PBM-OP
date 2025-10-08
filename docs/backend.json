@@ -265,6 +265,11 @@
         "cutoff": {
           "type": "number",
           "description": "The cutoff used in the ruling (required if not using a Program)."
+        },
+        "status": {
+          "type": "string",
+          "description": "The final status of the reel after ruling.",
+          "enum": ["Partially Used", "Finished"]
         }
       },
       "required": [
@@ -275,7 +280,8 @@
         "paperTypeId",
         "itemTypeId",
         "reelWeight",
-        "sheetsRuled"
+        "sheetsRuled",
+        "status"
       ]
     },
     "Report": {

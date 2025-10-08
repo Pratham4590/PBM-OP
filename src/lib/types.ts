@@ -76,13 +76,15 @@ export type RulingEntry = {
 };
 
 export type ReportData = {
+    id: string;
     serialNo: string;
     reelNo: string;
     reelWeight: number;
     sheetsRuled: number;
     theoreticalSheets: number;
     difference: number;
-    itemRuled: string;
+    itemTypeId: string;
+    paperTypeId: string;
 };
 
 export type PlaceholderImage = {

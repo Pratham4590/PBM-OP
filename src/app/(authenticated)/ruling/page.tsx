@@ -17,7 +17,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -243,7 +242,7 @@ export default function RulingPage() {
                     <SelectContent>
                       {paperTypes?.map((paper) => (
                         <SelectItem key={paper.id} value={paper.id}>
-                          {paper.name} ({paper.gsm}gsm)
+                          {paper.paperName} ({paper.gsm}gsm)
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -296,7 +295,7 @@ export default function RulingPage() {
                             </SelectTrigger>
                             <SelectContent>
                                 {itemTypes?.map((item) => (
-                                    <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
+                                    <SelectItem key={item.id} value={item.id}>{item.itemName}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -368,7 +367,7 @@ export default function RulingPage() {
                             <p><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
                             <p><strong>Serial No:</strong> {newRuling.serialNo}</p>
                             <p><strong>Reel No:</strong> {newRuling.reelNo}</p>
-                            <p><strong>Paper:</strong> {paperTypes?.find(p => p.id === newRuling.paperTypeId)?.name}</p>
+                            <p><strong>Paper:</strong> {paperTypes?.find(p => p.id === newRuling.paperTypeId)?.paperName}</p>
                             <p><strong>Reel Weight:</strong> {newRuling.reelWeight} kg</p>                        
                         </CardContent>
                     </Card>
