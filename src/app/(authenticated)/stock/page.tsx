@@ -70,11 +70,11 @@ export default function StockPage() {
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
   
   const stockQuery = useMemoFirebase(() => {
-    if (!firestore || isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
+    if (!currentUser || currentUser.role === 'Operator') {
       return null;
     }
     return collection(firestore, 'stock');
-  }, [firestore, currentUser, isLoadingCurrentUser]);
+  }, [firestore, currentUser]);
   
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
 
