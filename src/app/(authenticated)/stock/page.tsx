@@ -54,7 +54,7 @@ export default function StockPage() {
   const isOperator = currentUser?.role === 'Operator';
 
   const stockQuery = useMemoFirebase(() => {
-    if (isLoadingCurrentUser || isOperator || !firestore) {
+    if (isLoadingCurrentUser || !firestore || isOperator) {
       return null;
     }
     return collection(firestore, 'stock');

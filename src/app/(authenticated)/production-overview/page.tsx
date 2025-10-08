@@ -51,10 +51,7 @@ export default function ProductionOverviewPage() {
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
 
   const stockQuery = useMemoFirebase(() => {
-    if (isLoadingCurrentUser || !firestore) {
-        return null;
-    }
-    if (isOperator) {
+    if (isLoadingCurrentUser || !firestore || isOperator) {
         return null;
     }
     return collection(firestore, 'stock');

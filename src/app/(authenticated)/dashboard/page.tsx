@@ -58,11 +58,8 @@ export default function DashboardPage() {
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   
   const stockQuery = useMemoFirebase(() => {
-    if (isLoadingCurrentUser || !firestore) {
+    if (isLoadingCurrentUser || !firestore || isOperator) {
       return null;
-    }
-    if (isOperator) {
-        return null;
     }
     return collection(firestore, 'stock');
   }, [firestore, isOperator, isLoadingCurrentUser]);
