@@ -51,6 +51,7 @@ export type Program = {
   // Auto-calculated fields
   reamWeight: number;
   totalSheetsRequired: number;
+  counting: number;
 };
 
 export type Ruling = {
@@ -90,3 +91,5 @@ export type PlaceholderImage = {
   imageUrl: string;
   imageHint: string;
 };
+
+    

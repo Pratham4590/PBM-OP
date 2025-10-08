@@ -219,7 +219,7 @@ export default function ProgramPage() {
                   <p><strong>Ream Weight:</strong> {program.reamWeight.toFixed(2)} kg</p>
                   <p><strong>Cutoff:</strong> {program.cutoff} cm</p>
                   <p><strong>UPS:</strong> {program.ups}</p>
-                  <p><strong>Counting:</strong> {program.counting.toFixed(2)}</p>
+                  <p><strong>Counting:</strong> {typeof program.counting === 'number' ? program.counting.toFixed(2) : 'N/A'}</p>
                 </div>
               </AccordionContent>
             </AccordionItem>
@@ -458,3 +458,5 @@ export default function ProgramPage() {
     </>
   );
 }
+
+    
