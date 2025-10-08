@@ -37,6 +37,7 @@ import type { User as AppUserType } from '@/lib/types';
 export const allNavItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['Admin', 'Member', 'Operator'] },
   { href: '/master-data', icon: Database, label: 'Master Data', roles: ['Admin', 'Member'] },
+  { href: '/stock', icon: Warehouse, label: 'Stock', roles: ['Admin', 'Member'] },
   { href: '/reels', icon: Package, label: 'Reels', roles: ['Admin', 'Member'] },
   { href: '/program', icon: FileText, label: 'Program', roles: ['Admin', 'Member', 'Operator'] },
   { href: '/ruling', icon: GitBranch, label: 'Ruling', roles: ['Admin', 'Member', 'Operator'] },

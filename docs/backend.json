@@ -100,6 +100,21 @@
         "createdBy": { "type": "string", "description": "The UID of the user who created the ruling." }
       },
       "required": ["date", "reelId", "reelNo", "paperTypeId", "startWeight", "endWeight", "sheetsRuled", "itemTypeId", "cutoff", "theoreticalSheets", "difference", "createdBy"]
+    },
+    "Stock": {
+      "title": "Stock",
+      "type": "object",
+      "description": "Represents aggregated stock for a specific paper type.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the stock item, typically the same as paperTypeId." },
+        "date": { "type": "string", "description": "The date the stock was last updated.", "format": "date-time" },
+        "paperTypeId": { "type": "string", "description": "Reference to the PaperType." },
+        "length": { "type": "number", "description": "The length of the paper in cm." },
+        "gsm": { "type": "number", "description": "The grammage of the paper." },
+        "totalWeight": { "type": "number", "description": "The total weight of all reels of this type." },
+        "numberOfReels": { "type": "number", "description": "The total number of reels of this type." }
+      },
+      "required": ["paperTypeId", "length", "gsm", "totalWeight", "numberOfReels", "date"]
     }
   },
   "auth": {
@@ -129,8 +144,10 @@
     "/rulings/{rulingId}": {
       "schema": { "$ref": "#/entities/Ruling" },
       "description": "Ruling entries for each reel."
+    },
+    "/stock/{stockId}": {
+      "schema": { "$ref": "#/entities/Stock" },
+      "description": "Aggregated stock levels for each paper type."
     }
   }
 }
-
-    
