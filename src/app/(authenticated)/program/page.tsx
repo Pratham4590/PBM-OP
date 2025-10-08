@@ -75,7 +75,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { useIsMobile } from '@/hooks/use-is-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -303,6 +303,14 @@ export default function ProgramPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
+  
+  const [canEdit, setCanEdit] = useState(false);
+
+  useEffect(() => {
+    if (!isLoadingCurrentUser && currentUser) {
+      setCanEdit(currentUser.role === 'Admin' || currentUser.role === 'Member');
+    }
+  }, [currentUser, isLoadingCurrentUser]);
 
   useEffect(() => {
     if (isModalOpen) {
@@ -352,11 +360,6 @@ export default function ProgramPage() {
   const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName;
   const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName;
   
-  const canEdit = useMemo(() => {
-    if (isLoadingCurrentUser || !currentUser) return false;
-    return currentUser.role === 'Admin' || currentUser.role === 'Member';
-  }, [currentUser, isLoadingCurrentUser]);
-
   const renderProgramList = () => {
     if (loadingPrograms) {
       return <div className="p-4 text-center text-muted-foreground">Loading programs...</div>;
