@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, MoreVertical, Edit, Trash2 } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -18,26 +18,46 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
+  DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { PaperType, ItemType, User as AppUser } from '@/lib/types';
-import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+
 
 export default function MasterDataPage() {
   const firestore = useFirestore();
   const { user } = useUser();
+  const { toast } = useToast();
   
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
@@ -48,31 +68,98 @@ export default function MasterDataPage() {
   const { data: paperTypes, isLoading: loadingPaper } = useCollection<PaperType>(paperTypesQuery);
   const { data: itemTypes, isLoading: loadingItems } = useCollection<ItemType>(itemTypesQuery);
 
-  const [newPaperType, setNewPaperType] = useState<Omit<PaperType, 'id'>>({ paperName: '', gsm: 0, length: 0 });
-  const [newItemType, setNewItemType] = useState<Omit<ItemType, 'id'>>({ itemName: '', shortCode: '' });
-
   const [isPaperModalOpen, setIsPaperModalOpen] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  
+  const [editingPaperType, setEditingPaperType] = useState<PaperType | null>(null);
+  const [editingItemType, setEditingItemType] = useState<ItemType | null>(null);
 
-  const handleAddPaperType = () => {
-    if (newPaperType.paperName && newPaperType.gsm && newPaperType.length && firestore) {
-      const paperTypesCollection = collection(firestore, 'paperTypes');
-      addDocumentNonBlocking(paperTypesCollection, newPaperType);
-      setNewPaperType({ paperName: '', gsm: 0, length: 0 });
-      setIsPaperModalOpen(false);
-    }
-  };
+  const [newPaperType, setNewPaperType] = useState<Partial<PaperType>>({ paperName: '', gsm: undefined, length: undefined });
+  const [newItemType, setNewItemType] = useState<Partial<ItemType>>({ itemName: '', shortCode: '' });
 
-  const handleAddItemType = () => {
-    if (newItemType.itemName && newItemType.shortCode && firestore) {
-      const itemTypesCollection = collection(firestore, 'itemTypes');
-      addDocumentNonBlocking(itemTypesCollection, newItemType);
-      setNewItemType({ itemName: '', shortCode: '' });
-      setIsItemModalOpen(false);
+  const canEdit = !isLoadingCurrentUser && currentUser?.role === 'Admin';
+  
+  // --- Paper Type Handlers ---
+  const openPaperModal = (paper?: PaperType) => {
+    if (paper) {
+      setEditingPaperType(paper);
+      setNewPaperType(paper);
+    } else {
+      setEditingPaperType(null);
+      setNewPaperType({ paperName: '', gsm: undefined, length: undefined });
     }
+    setIsPaperModalOpen(true);
+  }
+
+  const handleSavePaperType = () => {
+    if (!firestore || !newPaperType.paperName || !newPaperType.gsm || !newPaperType.length) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Please fill out all fields.' });
+      return;
+    }
+    const dataToSave = {
+        paperName: newPaperType.paperName,
+        gsm: newPaperType.gsm,
+        length: newPaperType.length,
+    }
+
+    if (editingPaperType) {
+      const docRef = doc(firestore, 'paperTypes', editingPaperType.id);
+      updateDocumentNonBlocking(docRef, dataToSave);
+      toast({ title: 'Paper Type Updated' });
+    } else {
+      const collectionRef = collection(firestore, 'paperTypes');
+      addDocumentNonBlocking(collectionRef, dataToSave);
+      toast({ title: 'Paper Type Added' });
+    }
+    setIsPaperModalOpen(false);
   };
   
-  const canEdit = !isLoadingCurrentUser && currentUser?.role === 'Admin';
+  const handleDeletePaperType = (id: string) => {
+    if (!firestore) return;
+    deleteDocumentNonBlockingById(firestore, 'paperTypes', id);
+    toast({ title: 'Paper Type Deleted' });
+  }
+
+  // --- Item Type Handlers ---
+  const openItemModal = (item?: ItemType) => {
+    if (item) {
+      setEditingItemType(item);
+      setNewItemType(item);
+    } else {
+      setEditingItemType(null);
+      setNewItemType({ itemName: '', shortCode: '' });
+    }
+    setIsItemModalOpen(true);
+  }
+
+  const handleSaveItemType = () => {
+    if (!firestore || !newItemType.itemName || !newItemType.shortCode) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Please fill out all fields.' });
+      return;
+    }
+     const dataToSave = {
+        itemName: newItemType.itemName,
+        shortCode: newItemType.shortCode,
+    }
+
+    if (editingItemType) {
+      const docRef = doc(firestore, 'itemTypes', editingItemType.id);
+      updateDocumentNonBlocking(docRef, dataToSave);
+      toast({ title: 'Item Type Updated' });
+    } else {
+      const collectionRef = collection(firestore, 'itemTypes');
+      addDocumentNonBlocking(collectionRef, dataToSave);
+      toast({ title: 'Item Type Added' });
+    }
+    setIsItemModalOpen(false);
+  };
+  
+  const handleDeleteItemType = (id: string) => {
+    if (!firestore) return;
+    deleteDocumentNonBlockingById(firestore, 'itemTypes', id);
+    toast({ title: 'Item Type Deleted' });
+  }
+
 
   return (
     <>
@@ -82,116 +169,64 @@ export default function MasterDataPage() {
       >
         {canEdit && (
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+             {/* Add Paper Type Dialog */}
             <Dialog open={isPaperModalOpen} onOpenChange={setIsPaperModalOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto">
+                <Button className="w-full sm:w-auto" onClick={() => openPaperModal()}>
                   <PlusCircle className="mr-2 h-4 w-4" />
                   Add Paper Type
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90svh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Add New Paper Type</DialogTitle>
+                  <DialogTitle>{editingPaperType ? 'Edit' : 'Add New'} Paper Type</DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="paper-name">
-                      Paper Name
-                    </Label>
-                    <Input
-                      id="paper-name"
-                      value={newPaperType.paperName}
-                      onChange={(e) =>
-                        setNewPaperType({ ...newPaperType, paperName: e.target.value })
-                      }
-                      placeholder="e.g., JK Maplitho"
-                    />
+                    <Label htmlFor="paper-name">Paper Name</Label>
+                    <Input id="paper-name" value={newPaperType.paperName || ''} onChange={(e) => setNewPaperType({ ...newPaperType, paperName: e.target.value })} placeholder="e.g., JK Maplitho" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="paper-gsm">
-                      GSM (Grams per Square Meter)
-                    </Label>
-                    <Input
-                      id="paper-gsm"
-                      type="number"
-                      value={newPaperType.gsm || ''}
-                      onChange={(e) =>
-                        setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })
-                      }
-                      placeholder="e.g., 58"
-                    />
+                    <Label htmlFor="paper-gsm">GSM (Grams per Square Meter)</Label>
+                    <Input id="paper-gsm" type="number" value={newPaperType.gsm || ''} onChange={(e) => setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })} placeholder="e.g., 58" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="paper-length">
-                      Length (cm)
-                    </Label>
-                    <Input
-                      id="paper-length"
-                      type="number"
-                      value={newPaperType.length || ''}
-                      onChange={(e) =>
-                        setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })
-                      }
-                      placeholder="e.g., 60"
-                    />
+                    <Label htmlFor="paper-length">Length (cm)</Label>
+                    <Input id="paper-length" type="number" value={newPaperType.length || ''} onChange={(e) => setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })} placeholder="e.g., 60" />
                   </div>
                 </div>
                 <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
-                  </DialogClose>
-                  <Button onClick={handleAddPaperType}>Add Paper Type</Button>
+                  <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                  <Button onClick={handleSavePaperType}>Save Paper Type</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
 
+             {/* Add Item Type Dialog */}
             <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto">
+                <Button className="w-full sm:w-auto" onClick={() => openItemModal()}>
                   <PlusCircle className="mr-2 h-4 w-4" />
                   Add Item Type
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90svh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Add New Item Type</DialogTitle>
+                  <DialogTitle>{editingItemType ? 'Edit' : 'Add New'} Item Type</DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="item-name">
-                      Item Name
-                    </Label>
-                    <Input
-                      id="item-name"
-                      value={newItemType.itemName}
-                      onChange={(e) =>
-                        setNewItemType({ ...newItemType, itemName: e.target.value })
-                      }
-                      placeholder="e.g., Ruled Notebook"
-                    />
+                    <Label htmlFor="item-name">Item Name</Label>
+                    <Input id="item-name" value={newItemType.itemName || ''} onChange={(e) => setNewItemType({ ...newItemType, itemName: e.target.value })} placeholder="e.g., Ruled Notebook" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="item-shortCode">
-                      Short Code
-                    </Label>
-                    <Input
-                      id="item-shortCode"
-                      value={newItemType.shortCode}
-                      onChange={(e) =>
-                        setNewItemType({
-                          ...newItemType,
-                          shortCode: e.target.value,
-                        })
-                      }
-                      placeholder="e.g., RN01"
-                    />
+                    <Label htmlFor="item-shortCode">Short Code</Label>
+                    <Input id="item-shortCode" value={newItemType.shortCode || ''} onChange={(e) => setNewItemType({ ...newItemType, shortCode: e.target.value })} placeholder="e.g., RN01" />
                   </div>
                 </div>
                 <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
-                  </DialogClose>
-                  <Button onClick={handleAddItemType}>Add Item Type</Button>
+                  <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                  <Button onClick={handleSaveItemType}>Save Item Type</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -213,24 +248,50 @@ export default function MasterDataPage() {
                   <TableRow>
                     <TableHead>Paper Name</TableHead>
                     <TableHead>GSM</TableHead>
-                    <TableHead className="text-right">Length (cm)</TableHead>
+                    <TableHead>Length (cm)</TableHead>
+                    {canEdit && <TableHead className="w-[50px] text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loadingPaper ? (
-                    <TableRow><TableCell colSpan={3} className="text-center h-24">Loading...</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={canEdit ? 4 : 3} className="text-center h-24">Loading...</TableCell></TableRow>
                   ) : paperTypes && paperTypes.length > 0 ? (
                     paperTypes.map((paper) => (
                       <TableRow key={paper.id}>
                         <TableCell className="font-medium whitespace-nowrap">{paper.paperName}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{paper.gsm}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">{paper.length}</TableCell>
+                        <TableCell><Badge variant="outline">{paper.gsm}</Badge></TableCell>
+                        <TableCell>{paper.length}</TableCell>
+                        {canEdit && (
+                          <TableCell className="text-right">
+                             <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent>
+                                <DropdownMenuItem onClick={() => openPaperModal(paper)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>This will permanently delete the paper type: <strong>{paper.paperName}</strong>.</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeletePaperType(paper.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={3} className="text-center h-24">No paper types found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={canEdit ? 4 : 3} className="text-center h-24">No paper types found.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -250,23 +311,49 @@ export default function MasterDataPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Item Name</TableHead>
-                    <TableHead className="text-right">Short Code</TableHead>
+                    <TableHead>Short Code</TableHead>
+                     {canEdit && <TableHead className="w-[50px] text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loadingItems ? (
-                    <TableRow><TableCell colSpan={2} className="text-center h-24">Loading...</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={canEdit ? 3 : 2} className="text-center h-24">Loading...</TableCell></TableRow>
                   ) : itemTypes && itemTypes.length > 0 ? (
                     itemTypes.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium whitespace-nowrap">{item.itemName}</TableCell>
-                        <TableCell className="text-right">
-                          {item.shortCode}
-                        </TableCell>
+                        <TableCell>{item.shortCode}</TableCell>
+                         {canEdit && (
+                          <TableCell className="text-right">
+                             <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent>
+                                <DropdownMenuItem onClick={() => openItemModal(item)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
+                                 <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>This will permanently delete the item type: <strong>{item.itemName}</strong>.</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteItemType(item.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={2} className="text-center h-24">No item types found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={canEdit ? 3 : 2} className="text-center h-24">No item types found.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

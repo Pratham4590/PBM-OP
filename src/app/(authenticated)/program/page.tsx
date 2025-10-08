@@ -3,7 +3,7 @@
 
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, MoreVertical, Edit, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,17 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   Sheet,
   SheetContent,
@@ -40,6 +51,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Program, PaperType, ItemType, User as AppUser } from '@/lib/types';
 import {
@@ -50,7 +67,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, addDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, addDocumentNonBlocking, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, doc, addDoc } from 'firebase/firestore';
 import {
   Accordion,
@@ -69,35 +86,42 @@ const ProgramForm = ({
   loadingItemTypes,
   onSave,
   onClose,
-  isSaving
+  isSaving,
+  initialData,
 }: {
   paperTypes: PaperType[] | null,
   itemTypes: ItemType[] | null,
   loadingPaperTypes: boolean,
   loadingItemTypes: boolean,
-  onSave: (program: Omit<Program, 'id' | 'date'>) => void,
+  onSave: (program: Partial<Program>) => void,
   onClose: () => void,
-  isSaving: boolean
+  isSaving: boolean,
+  initialData?: Partial<Program> | null,
 }) => {
-  const [newProgram, setNewProgram] = useState<Partial<Program>>({
-    brand: '',
-    bundlesRequired: 0,
-    cutoff: 0,
-    notebookPages: 0,
-    piecesPerBundle: 0,
-    ups: 0,
-    coverIndex: 0,
-  });
+  const [program, setProgram] = useState<Partial<Program>>({});
+  const { toast } = useToast();
+
+  useEffect(() => {
+    setProgram(initialData || {
+      brand: '',
+      bundlesRequired: 0,
+      cutoff: 0,
+      notebookPages: 0,
+      piecesPerBundle: 0,
+      ups: 0,
+      coverIndex: 0,
+    });
+  }, [initialData]);
 
   const handleInputChange = (field: keyof Program, value: string | number) => {
-    setNewProgram((prev) => ({ ...prev, [field]: value }));
+    setProgram((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSelectChange = (field: keyof Program, value: string) => {
     if (field === 'paperTypeId') {
       const selectedPaper = paperTypes?.find((p) => p.id === value);
       if (selectedPaper) {
-        setNewProgram((prev) => ({
+        setProgram((prev) => ({
           ...prev,
           paperTypeId: value,
           gsm: selectedPaper.gsm,
@@ -105,12 +129,10 @@ const ProgramForm = ({
         }));
       }
     } else {
-      setNewProgram((prev) => ({ ...prev, [field]: value }));
+      setProgram((prev) => ({ ...prev, [field]: value }));
     }
   };
   
-  const { toast } = useToast();
-
   const calculatedValues = useMemo(() => {
     const {
       notebookPages = 0,
@@ -121,7 +143,7 @@ const ProgramForm = ({
       length = 0,
       cutoff = 0,
       gsm = 0,
-    } = newProgram;
+    } = program;
 
     const netPages = notebookPages > 0 ? notebookPages - coverIndex : 0;
     const sheetsPerNotebook = netPages > 0 && ups > 0 ? netPages / ups : 0;
@@ -130,13 +152,13 @@ const ProgramForm = ({
     const reamWeight = length > 0 && cutoff > 0 && gsm > 0 ? (length * cutoff * gsm * 500) / 10000 : 0;
     
     return { reamWeight, totalSheetsRequired: Math.ceil(totalSheetsRequired), counting: sheetsPerNotebook, sheetsPerBundle };
-  }, [newProgram]);
+  }, [program]);
 
 
   const handleCreateProgram = () => {
     const requiredFields: (keyof Program)[] = ['brand', 'paperTypeId', 'itemTypeId', 'cutoff', 'notebookPages', 'ups', 'piecesPerBundle', 'bundlesRequired'];
     const isFormValid = requiredFields.every(field => {
-      const value = newProgram[field as keyof typeof newProgram];
+      const value = program[field as keyof typeof program];
       return value !== undefined && value !== '' && (typeof value !== 'number' || value > 0);
     });
 
@@ -149,24 +171,14 @@ const ProgramForm = ({
         return;
     }
 
-    const programToAdd = {
-      brand: newProgram.brand!,
-      paperTypeId: newProgram.paperTypeId!,
-      itemTypeId: newProgram.itemTypeId!,
-      gsm: newProgram.gsm!,
-      length: newProgram.length!,
-      cutoff: newProgram.cutoff!,
-      notebookPages: newProgram.notebookPages!,
-      coverIndex: newProgram.coverIndex!,
-      ups: newProgram.ups!,
-      piecesPerBundle: newProgram.piecesPerBundle!,
-      bundlesRequired: newProgram.bundlesRequired!,
+    const programToSave: Partial<Program> = {
+      ...program,
       reamWeight: calculatedValues.reamWeight,
       totalSheetsRequired: calculatedValues.totalSheetsRequired,
       counting: calculatedValues.counting,
     };
     
-    onSave(programToAdd);
+    onSave(programToSave);
   }
 
   return (
@@ -175,11 +187,11 @@ const ProgramForm = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="brand">Brand Name</Label>
-              <Input id="brand" value={newProgram.brand || ''} onChange={(e) => handleInputChange('brand', e.target.value)} />
+              <Input id="brand" value={program.brand || ''} onChange={(e) => handleInputChange('brand', e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="paperTypeId">Paper Type</Label>
-              <Select onValueChange={(value) => handleSelectChange('paperTypeId', value)} disabled={loadingPaperTypes} value={newProgram.paperTypeId}>
+              <Select onValueChange={(value) => handleSelectChange('paperTypeId', value)} disabled={loadingPaperTypes} value={program.paperTypeId}>
                 <SelectTrigger><SelectValue placeholder="Select paper" /></SelectTrigger>
                 <SelectContent>
                   {paperTypes?.map((paper) => (<SelectItem key={paper.id} value={paper.id}>{paper.paperName}</SelectItem>))}
@@ -188,7 +200,7 @@ const ProgramForm = ({
             </div>
             <div className="space-y-2">
               <Label htmlFor="itemTypeId">Item Type</Label>
-                <Select onValueChange={(value) => handleSelectChange('itemTypeId', value)} disabled={loadingItemTypes} value={newProgram.itemTypeId}>
+                <Select onValueChange={(value) => handleSelectChange('itemTypeId', value)} disabled={loadingItemTypes} value={program.itemTypeId}>
                   <SelectTrigger><SelectValue placeholder="Select item type" /></SelectTrigger>
                   <SelectContent>
                     {itemTypes?.map((item) => (<SelectItem key={item.id} value={item.id}>{item.itemName}</SelectItem>))}
@@ -197,36 +209,36 @@ const ProgramForm = ({
             </div>
             <div className="space-y-2">
               <Label htmlFor="cutoff">Cutoff (cm)</Label>
-              <Input id="cutoff" type="number" value={newProgram.cutoff || ''} onChange={(e) => handleInputChange('cutoff', parseFloat(e.target.value) || 0)} />
+              <Input id="cutoff" type="number" value={program.cutoff || ''} onChange={(e) => handleInputChange('cutoff', parseFloat(e.target.value) || 0)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="notebookPages">Notebook Pages</Label>
-              <Input id="notebookPages" type="number" value={newProgram.notebookPages || ''} onChange={(e) => handleInputChange('notebookPages', parseInt(e.target.value) || 0)} />
+              <Input id="notebookPages" type="number" value={program.notebookPages || ''} onChange={(e) => handleInputChange('notebookPages', parseInt(e.target.value) || 0)} />
             </div>
               <div className="space-y-2">
               <Label htmlFor="coverIndex">Cover &amp; Index Pages</Label>
-              <Input id="coverIndex" type="number" value={newProgram.coverIndex || ''} onChange={(e) => handleInputChange('coverIndex', parseInt(e.target.value) || 0)} />
+              <Input id="coverIndex" type="number" value={program.coverIndex || ''} onChange={(e) => handleInputChange('coverIndex', parseInt(e.target.value) || 0)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="piecesPerBundle">Pieces per Bundle</Label>
-              <Input id="piecesPerBundle" type="number" value={newProgram.piecesPerBundle || ''} onChange={(e) => handleInputChange('piecesPerBundle', parseInt(e.target.value) || 0)} />
+              <Input id="piecesPerBundle" type="number" value={program.piecesPerBundle || ''} onChange={(e) => handleInputChange('piecesPerBundle', parseInt(e.target.value) || 0)} />
             </div>
               <div className="space-y-2">
               <Label htmlFor="bundlesRequired">Bundles Required</Label>
-              <Input id="bundlesRequired" type="number" value={newProgram.bundlesRequired || ''} onChange={(e) => handleInputChange('bundlesRequired', parseInt(e.target.value) || 0)} />
+              <Input id="bundlesRequired" type="number" value={program.bundlesRequired || ''} onChange={(e) => handleInputChange('bundlesRequired', parseInt(e.target.value) || 0)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="ups">UPS</Label>
-              <Input id="ups" type="number" value={newProgram.ups || ''} onChange={(e) => handleInputChange('ups', parseInt(e.target.value) || 0)} />
+              <Input id="ups" type="number" value={program.ups || ''} onChange={(e) => handleInputChange('ups', parseInt(e.target.value) || 0)} />
             </div>
               <div className="space-y-2 sm:col-span-2 grid grid-cols-2 gap-4">
                 <div>
                 <Label htmlFor="gsm-readonly">GSM</Label>
-                <Input id="gsm-readonly" value={newProgram.gsm || ''} readOnly disabled />
+                <Input id="gsm-readonly" value={program.gsm || ''} readOnly disabled />
                 </div>
                 <div>
                 <Label htmlFor="length-readonly">Size (cm)</Label>
-                <Input id="length-readonly" value={newProgram.length || ''} readOnly disabled />
+                <Input id="length-readonly" value={program.length || ''} readOnly disabled />
                 </div>
               </div>
         </div>
@@ -263,7 +275,7 @@ const ProgramForm = ({
       <div className="p-4 border-t sticky bottom-0 bg-background z-10 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2 w-full">
         <Button variant="outline" disabled={isSaving} onClick={onClose} className="w-full sm:w-auto">Cancel</Button>
         <Button onClick={handleCreateProgram} disabled={isSaving} className="w-full sm:w-auto">
-          {isSaving ? 'Saving...' : 'Create Program'}
+          {isSaving ? 'Saving...' : 'Save Program'}
         </Button>
       </div>
     </>
@@ -290,6 +302,7 @@ export default function ProgramPage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editingProgram, setEditingProgram] = useState<Program | null>(null);
 
   useEffect(() => {
     if (isModalOpen) {
@@ -300,35 +313,41 @@ export default function ProgramPage() {
     return () => document.body.classList.remove('overflow-hidden');
   }, [isModalOpen]);
 
-  const handleCreateProgram = async (programData: Omit<Program, 'id' | 'date'>) => {
+  const openModal = (program?: Program) => {
+    setEditingProgram(program || null);
+    setIsModalOpen(true);
+  }
+
+  const handleSaveProgram = async (programData: Partial<Program>) => {
     if (!firestore) return;
     setIsSaving(true);
     
-    const programToAdd = {
-      ...programData,
-      date: serverTimestamp(),
-    };
-    
-    try {
-      const programsCollection = collection(firestore, 'programs');
-      await addDoc(programsCollection, programToAdd);
-      
-      toast({
-        title: 'Program Created',
-        description: `${programData.brand} has been successfully created.`,
-      });
-      setIsModalOpen(false);
-    } catch(error) {
-       console.error("Failed to create program:", error);
-       toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to create the program. Please try again.',
-      });
-    } finally {
-      setIsSaving(false);
+    if (editingProgram) {
+        // Update existing
+        const docRef = doc(firestore, 'programs', editingProgram.id);
+        updateDocumentNonBlocking(docRef, programData);
+        toast({ title: 'Program Updated' });
+    } else {
+        // Create new
+        const programToAdd = {
+          ...programData,
+          date: serverTimestamp(),
+        };
+        const collectionRef = collection(firestore, 'programs');
+        await addDoc(collectionRef, programToAdd);
+        toast({ title: 'Program Created' });
     }
+
+    setIsSaving(false);
+    setIsModalOpen(false);
+    setEditingProgram(null);
   };
+  
+  const handleDeleteProgram = (id: string) => {
+    if (!firestore) return;
+    deleteDocumentNonBlockingById(firestore, 'programs', id);
+    toast({ title: 'Program Deleted' });
+  }
 
   const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName;
   const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName;
@@ -348,12 +367,37 @@ export default function ProgramPage() {
         <Accordion type="single" collapsible className="w-full">
           {programs.map(program => (
             <AccordionItem value={program.id} key={program.id}>
-              <AccordionTrigger>
-                <div className="flex flex-col text-left">
-                  <span className="font-semibold">{program.brand}</span>
-                  <span className="text-sm text-muted-foreground">{getItemTypeName(program.itemTypeId)}</span>
-                </div>
-              </AccordionTrigger>
+              <div className="flex items-center w-full">
+                <AccordionTrigger className="flex-1">
+                  <div className="flex flex-col text-left">
+                    <span className="font-semibold">{program.brand}</span>
+                    <span className="text-sm text-muted-foreground">{getItemTypeName(program.itemTypeId)}</span>
+                  </div>
+                </AccordionTrigger>
+                {canEdit && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="ml-2" onClick={(e) => e.stopPropagation()}><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => openModal(program)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>This will permanently delete the program: <strong>{program.brand}</strong>.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteProgram(program.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
+              </div>
               <AccordionContent>
                 <div className="space-y-2 text-sm p-2">
                   <p><strong>Paper:</strong> {getPaperTypeName(program.paperTypeId)} ({program.gsm}gsm, {program.length}cm)</p>
@@ -379,27 +423,43 @@ export default function ProgramPage() {
                 <TableHead>Paper</TableHead>
                 <TableHead>Item</TableHead>
                 <TableHead>Sheets Req.</TableHead>
-                <TableHead className="text-right">Ream Wt. (kg)</TableHead>
+                <TableHead>Ream Wt. (kg)</TableHead>
+                {canEdit && <TableHead className="w-[50px] text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {programs.map((program) => (
                 <TableRow key={program.id}>
-                  <TableCell className="font-medium whitespace-nowrap">
-                    {program.brand}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {getPaperTypeName(program.paperTypeId)}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {getItemTypeName(program.itemTypeId)}
-                  </TableCell>
-                  <TableCell>
-                    {program.totalSheetsRequired?.toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {program.reamWeight?.toFixed(2)}
-                  </TableCell>
+                  <TableCell className="font-medium whitespace-nowrap">{program.brand}</TableCell>
+                  <TableCell className="whitespace-nowrap">{getPaperTypeName(program.paperTypeId)}</TableCell>
+                  <TableCell className="whitespace-nowrap">{getItemTypeName(program.itemTypeId)}</TableCell>
+                  <TableCell>{program.totalSheetsRequired?.toLocaleString()}</TableCell>
+                  <TableCell>{program.reamWeight?.toFixed(2)}</TableCell>
+                  {canEdit && (
+                      <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuItem onClick={() => openModal(program)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>This will permanently delete the program: <strong>{program.brand}</strong>.</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteProgram(program.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                      </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -409,7 +469,7 @@ export default function ProgramPage() {
   };
   
   const renderTrigger = () => (
-     <Button onClick={() => setIsModalOpen(true)}>
+     <Button onClick={() => openModal()}>
         <PlusCircle className="mr-2 h-4 w-4" />
         Create Program
     </Button>
@@ -420,9 +480,10 @@ export default function ProgramPage() {
     itemTypes,
     loadingPaperTypes,
     loadingItemTypes,
-    onSave: handleCreateProgram,
+    onSave: handleSaveProgram,
     onClose: () => setIsModalOpen(false),
     isSaving,
+    initialData: editingProgram,
   };
 
   return (
@@ -437,9 +498,9 @@ export default function ProgramPage() {
               <SheetTrigger asChild>{renderTrigger()}</SheetTrigger>
               <SheetContent side="bottom" className="p-0 flex flex-col h-[90vh]">
                  <SheetHeader className="p-4 border-b">
-                    <SheetTitle>Create New Production Program</SheetTitle>
+                    <SheetTitle>{editingProgram ? 'Edit' : 'Create New'} Production Program</SheetTitle>
                     <SheetDescription>
-                      Fill in the details to create a new program. Calculated values update automatically.
+                      Fill in the details. Calculated values update automatically.
                     </SheetDescription>
                   </SheetHeader>
                   <ProgramForm {...formProps} />
@@ -450,9 +511,9 @@ export default function ProgramPage() {
               <DialogTrigger asChild>{renderTrigger()}</DialogTrigger>
               <DialogContent className="p-0 flex flex-col sm:max-w-3xl h-full sm:h-auto sm:max-h-[90vh]">
                 <DialogHeader className="p-4 border-b">
-                  <DialogTitle>Create New Production Program</DialogTitle>
+                  <DialogTitle>{editingProgram ? 'Edit' : 'Create New'} Production Program</DialogTitle>
                   <DialogDescription>
-                    Fill in the details to create a new program. Calculated values will update automatically.
+                    Fill in the details. Calculated values will update automatically.
                   </DialogDescription>
                 </DialogHeader>
                 <ProgramForm {...formProps} />

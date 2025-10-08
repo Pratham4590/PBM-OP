@@ -14,7 +14,6 @@ export type User = {
 export type PaperType = {
   id: string;
   paperName: string;
-  name?: string;
   gsm: number;
   length: number; // in cm
 };
@@ -22,18 +21,17 @@ export type PaperType = {
 export type ItemType = {
   id: string;
   itemName:string;
-  name?: string;
   shortCode: string;
 };
 
 export type Stock = {
   id: string;
-  date: Date | Timestamp;
-  paperTypeId: string;
-  length: number;
-  gsm: number;
-  totalWeight: number; // in kg
-  numberOfReels: number;
+  date?: Date | Timestamp;
+  paperTypeId?: string;
+  length?: number;
+  gsm?: number;
+  totalWeight?: number; // in kg
+  numberOfReels?: number;
 };
 
 export type Program = {
