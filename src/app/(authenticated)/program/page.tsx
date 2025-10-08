@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -39,7 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, addDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, doc, addDoc } from 'firebase/firestore';
 import {
   Accordion,
@@ -136,7 +137,6 @@ export default function ProgramPage() {
   const handleCreateProgram = async () => {
     if (!firestore) return;
     
-    // Basic validation
     const requiredFields: (keyof Program)[] = ['brand', 'paperTypeId', 'itemTypeId', 'cutoff', 'notebookPages', 'ups', 'piecesPerBundle', 'bundlesRequired'];
     const isFormValid = requiredFields.every(field => {
       const value = newProgram[field as keyof typeof newProgram];
@@ -154,7 +154,7 @@ export default function ProgramPage() {
 
     setIsSaving(true);
     
-    const programToAdd: Omit<Program, 'id' | 'date'> = {
+    const programToAdd = {
       brand: newProgram.brand!,
       paperTypeId: newProgram.paperTypeId!,
       itemTypeId: newProgram.itemTypeId!,
@@ -307,6 +307,7 @@ export default function ProgramPage() {
                 will update automatically.
               </DialogDescription>
             </DialogHeader>
+            
             <div className="flex-1 overflow-y-auto p-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -449,13 +450,13 @@ export default function ProgramPage() {
               </div>
             </div>
 
-            <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 flex flex-row-reverse sm:flex-row sm:justify-end gap-2 w-full">
-              <Button onClick={handleCreateProgram} disabled={isSaving} className="w-full sm:w-auto">
-                {isSaving ? 'Saving...' : 'Create Program'}
-              </Button>
+            <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2 w-full">
               <DialogClose asChild>
                 <Button variant="outline" disabled={isSaving} className="w-full sm:w-auto">Cancel</Button>
               </DialogClose>
+              <Button onClick={handleCreateProgram} disabled={isSaving} className="w-full sm:w-auto">
+                {isSaving ? 'Saving...' : 'Create Program'}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
