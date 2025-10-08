@@ -62,6 +62,60 @@ import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Skeleton } from '@/components/ui/skeleton';
 
+const StockModalContent = ({
+    newStockItem,
+    setNewStockItem,
+    paperTypes,
+    loadingPaperTypes,
+    handleSelectPaper,
+    handleSaveStock,
+    closeModal,
+    isSaving,
+}: {
+    newStockItem: Partial<Stock>;
+    setNewStockItem: React.Dispatch<React.SetStateAction<Partial<Stock>>>;
+    paperTypes: PaperType[] | null;
+    loadingPaperTypes: boolean;
+    handleSelectPaper: (paperTypeId: string) => void;
+    handleSaveStock: () => void;
+    closeModal: () => void;
+    isSaving: boolean;
+}) => (
+    <>
+      <div className="p-4 space-y-4 overflow-y-auto max-h-[80vh]">
+        <div className="space-y-2">
+          <Label htmlFor="paper-type">Paper Type</Label>
+          <Select value={newStockItem.paperTypeId} onValueChange={handleSelectPaper} disabled={loadingPaperTypes}>
+            <SelectTrigger className="h-11"><SelectValue placeholder="Select a paper type" /></SelectTrigger>
+            <SelectContent>
+              {paperTypes?.map((paper) => (<SelectItem key={paper.id} value={paper.id}>{paper.paperName}</SelectItem>))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2"><Label htmlFor="gsm">GSM</Label><Input id="gsm" value={newStockItem.gsm || ''} readOnly disabled className="h-11" /></div>
+          <div className="space-y-2"><Label htmlFor="length">Length (cm)</Label><Input id="length" value={newStockItem.length || ''} readOnly disabled className="h-11" /></div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="total-weight">Total Weight (kg)</Label>
+            <Input id="total-weight" type="number" value={newStockItem.totalWeight || ''} onChange={(e) => setNewStockItem({ ...newStockItem, totalWeight: parseFloat(e.target.value) || 0 })} className="h-11" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="reels">Number of Reels</Label>
+            <Input id="reels" type="number" value={newStockItem.numberOfReels || ''} onChange={(e) => setNewStockItem({ ...newStockItem, numberOfReels: parseInt(e.target.value) || 0 })} className="h-11" />
+          </div>
+        </div>
+      </div>
+      <SheetFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
+         <Button variant="outline" onClick={closeModal} disabled={isSaving} className="h-11 w-full sm:w-auto">Cancel</Button>
+        <Button onClick={handleSaveStock} disabled={isSaving} className="h-11 w-full sm:w-auto">
+          {isSaving ? 'Saving...' : 'Save Stock'}
+        </Button>
+      </SheetFooter>
+    </>
+  );
+
 export default function StockPage() {
   const firestore = useFirestore();
   const { user } = useUser();
@@ -176,41 +230,16 @@ export default function StockPage() {
     return 'N/A';
   }
 
-  const ModalContent = () => (
-    <>
-      <div className="p-4 space-y-4 overflow-y-auto max-h-[80vh]">
-        <div className="space-y-2">
-          <Label htmlFor="paper-type">Paper Type</Label>
-          <Select value={newStockItem.paperTypeId} onValueChange={handleSelectPaper} disabled={loadingPaperTypes}>
-            <SelectTrigger className="h-11"><SelectValue placeholder="Select a paper type" /></SelectTrigger>
-            <SelectContent>
-              {paperTypes?.map((paper) => (<SelectItem key={paper.id} value={paper.id}>{paper.paperName}</SelectItem>))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2"><Label htmlFor="gsm">GSM</Label><Input id="gsm" value={newStockItem.gsm || ''} readOnly disabled className="h-11" /></div>
-          <div className="space-y-2"><Label htmlFor="length">Length (cm)</Label><Input id="length" value={newStockItem.length || ''} readOnly disabled className="h-11" /></div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="total-weight">Total Weight (kg)</Label>
-            <Input id="total-weight" type="number" value={newStockItem.totalWeight || ''} onChange={(e) => setNewStockItem({ ...newStockItem, totalWeight: parseFloat(e.target.value) || 0 })} className="h-11" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="reels">Number of Reels</Label>
-            <Input id="reels" type="number" value={newStockItem.numberOfReels || ''} onChange={(e) => setNewStockItem({ ...newStockItem, numberOfReels: parseInt(e.target.value) || 0 })} className="h-11" />
-          </div>
-        </div>
-      </div>
-      <SheetFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
-         <Button variant="outline" onClick={closeModal} disabled={isSaving} className="h-11 w-full sm:w-auto">Cancel</Button>
-        <Button onClick={handleSaveStock} disabled={isSaving} className="h-11 w-full sm:w-auto">
-          {isSaving ? 'Saving...' : 'Save Stock'}
-        </Button>
-      </SheetFooter>
-    </>
-  );
+  const modalProps = {
+    newStockItem,
+    setNewStockItem,
+    paperTypes,
+    loadingPaperTypes,
+    handleSelectPaper,
+    handleSaveStock,
+    closeModal,
+    isSaving
+  };
 
   if (isLoadingCurrentUser) {
     return (
@@ -262,7 +291,7 @@ export default function StockPage() {
                 <SheetHeader className="p-4 border-b">
                   <SheetTitle>{editingStock ? 'Edit' : 'Add New'} Stock</SheetTitle>
                 </SheetHeader>
-                <ModalContent />
+                <StockModalContent {...modalProps} />
               </SheetContent>
             </Sheet>
           ) : (
@@ -275,7 +304,7 @@ export default function StockPage() {
                   <DialogTitle>{editingStock ? 'Edit' : 'Add New'} Stock</DialogTitle>
                   <DialogDescription>Enter the details of the paper stock.</DialogDescription>
                 </DialogHeader>
-                <ModalContent />
+                <StockModalContent {...modalProps} />
               </DialogContent>
             </Dialog>
           )
@@ -394,3 +423,5 @@ export default function StockPage() {
     </>
   );
 }
+
+    
