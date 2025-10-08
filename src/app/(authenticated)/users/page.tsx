@@ -24,10 +24,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { User as AppUser, UserRole } from '@/lib/types';
-import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, useUser, useDoc } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { collection, doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect, useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function UsersPage() {
@@ -54,15 +54,23 @@ export default function UsersPage() {
 
   const { data: users, isLoading: isLoadingAllUsers } = useCollection<AppUser>(allUsersQuery);
 
-  const handleRoleChange = (userId: string, newRole: UserRole) => {
+  const handleRoleChange = async (userId: string, newRole: UserRole) => {
     if (!firestore || currentUserData?.role !== 'Admin') return;
 
     const userDocToUpdate = doc(firestore, 'users', userId);
-    updateDocumentNonBlocking(userDocToUpdate, { role: newRole });
-    toast({
-        title: 'Role Updated',
-        description: `User role has been successfully changed to ${newRole}.`,
-    });
+    try {
+        await updateDoc(userDocToUpdate, { role: newRole });
+        toast({
+            title: 'Role Updated',
+            description: `User role has been successfully changed to ${newRole}.`,
+        });
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Update Failed',
+            description: error.message || 'Could not update user role.'
+        });
+    }
   };
   
   const isLoading = isAuthLoading || isLoadingCurrentUserDoc;

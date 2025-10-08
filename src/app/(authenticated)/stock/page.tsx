@@ -58,6 +58,7 @@ import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, u
 import { collection, serverTimestamp, Timestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function StockPage() {
   const firestore = useFirestore();
@@ -93,7 +94,7 @@ export default function StockPage() {
   
   const canEdit = useMemo(() => {
     if (isLoadingCurrentUser || !currentUser) return false;
-    return currentUser.role === 'Admin' || currentUser.role === 'Member';
+    return currentUser.role === 'Admin';
   }, [currentUser, isLoadingCurrentUser]);
 
   const openModal = (stockItem?: Stock) => {
@@ -279,7 +280,10 @@ export default function StockPage() {
         <CardContent>
           <div className="grid gap-4 sm:hidden">
             {loadingStock ? (
-              <p className="text-center text-muted-foreground">Loading stock...</p>
+              <div className="space-y-4">
+                <Skeleton className="h-32 w-full" />
+                <Skeleton className="h-32 w-full" />
+              </div>
             ) : stock && stock.length > 0 ? (
               stock.map((item) => (
                 <Card key={item.id}>

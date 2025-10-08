@@ -10,7 +10,6 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Sheet,
@@ -72,8 +71,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp, Timestamp, doc, runTransaction } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
+import { collection, serverTimestamp, Timestamp, doc, runTransaction, writeBatch } from 'firebase/firestore';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -212,34 +211,61 @@ export default function RulingPage() {
       return;
     };
     
-    // Find the stock document to update
-    const stockToUpdate = stock?.find(s => s.paperTypeId === newRuling.paperTypeId);
+    try {
+        if (editingRuling) {
+            // Update existing ruling - stock deduction logic not implemented for edits to keep it simple for now
+            const rulingDocRef = doc(firestore, 'reels', editingRuling.id);
+            await updateDoc(rulingDocRef, newRuling as any);
+            toast({ title: 'Ruling Updated', description: `Reel ${editingRuling.reelNo} has been updated.` });
+        } else {
+             // Use a transaction to ensure atomic read/write for stock deduction
+            await runTransaction(firestore, async (transaction) => {
+                const stockToUpdate = stock?.find(s => s.paperTypeId === newRuling.paperTypeId);
 
-    if (editingRuling) {
-        // Update existing ruling - stock deduction logic not implemented for edits to keep it simple
-        const rulingDocRef = doc(firestore, 'reels', editingRuling.id);
-        updateDocumentNonBlocking(rulingDocRef, newRuling);
-        toast({ title: 'Ruling Updated', description: `Reel ${editingRuling.reelNo} has been updated.` });
+                if (!stockToUpdate) {
+                    throw new Error("Source stock not found for this paper type.");
+                }
 
-    } else {
-        // Add new ruling and deduct from stock
-        const rulingToAdd = {
-          date: serverTimestamp(),
-          ...newRuling,
-        };
-        const rulingsCollection = collection(firestore, 'reels');
-        addDocumentNonBlocking(rulingsCollection, rulingToAdd);
-        
-        if (stockToUpdate) {
-            const stockDocRef = doc(firestore, 'stock', stockToUpdate.id);
-            const newReelCount = stockToUpdate.numberOfReels - 1;
-            updateDocumentNonBlocking(stockDocRef, { numberOfReels: newReelCount });
+                if (stockToUpdate.numberOfReels < 1) {
+                    throw new Error(`Insufficient stock for ${getPaperTypeName(stockToUpdate.paperTypeId)}. Only ${stockToUpdate.numberOfReels} reels left.`);
+                }
+
+                const stockDocRef = doc(firestore, 'stock', stockToUpdate.id);
+                
+                // Get the latest stock data within the transaction
+                const latestStockDoc = await transaction.get(stockDocRef);
+                const latestStockData = latestStockDoc.data() as Stock;
+
+                if (latestStockData.numberOfReels < 1) {
+                    throw new Error(`Insufficient stock for ${getPaperTypeName(latestStockData.paperTypeId)}. Only ${latestStockData.numberOfReels} reels left.`);
+                }
+                
+                // Prepare the new ruling document
+                const newRulingDocRef = doc(collection(firestore, 'reels'));
+                const rulingToAdd = {
+                    date: serverTimestamp(),
+                    ...newRuling,
+                };
+                transaction.set(newRulingDocRef, rulingToAdd);
+
+                // Update the stock
+                const newReelCount = latestStockData.numberOfReels - 1;
+                transaction.update(stockDocRef, { numberOfReels: newReelCount });
+            });
+
+            toast({ title: 'Ruling Added & Stock Updated', description: `Reel ${newRuling.reelNo} has been logged and stock decremented.` });
         }
+        
+        resetForm();
 
-        toast({ title: 'Ruling Added', description: `Reel ${newRuling.reelNo} has been added.` });
+    } catch (error: any) {
+        console.error("Ruling save/transaction failed:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Operation Failed',
+            description: error.message || "Could not save the ruling or update stock.",
+        });
     }
-    
-    resetForm();
   }
 
   const handleDeleteRuling = (rulingId: string) => {
@@ -279,6 +305,14 @@ export default function RulingPage() {
   }, [newRuling, selectedPaper]);
 
   const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName || 'N/A';
+  const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
+  
+  const ModalTrigger = () => (
+    <Button onClick={openNewModal} className="h-11">
+      <PlusCircle className="mr-2 h-4 w-4" />
+      Add Reel Ruling
+    </Button>
+  );
 
   const renderModalContent = () => (
     <>
@@ -556,12 +590,9 @@ export default function RulingPage() {
         description="Log reel ruling with or without a program, and manage multiple rulings per reel."
       >
         {isMobile ? (
-          <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <Sheet open={isModalOpen} onOpenChange={(isOpen) => !isOpen && resetForm()}>
             <SheetTrigger asChild>
-              <Button onClick={openNewModal} className="h-11">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Reel Ruling
-              </Button>
+              <ModalTrigger />
             </SheetTrigger>
             <SheetContent side="bottom" className="p-0 flex flex-col h-auto max-h-[90svh]">
               <SheetHeader className="p-4 border-b">
@@ -574,12 +605,9 @@ export default function RulingPage() {
             </SheetContent>
           </Sheet>
         ) : (
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <Dialog open={isModalOpen} onOpenChange={(isOpen) => !isOpen && resetForm()}>
             <DialogTrigger asChild>
-              <Button onClick={openNewModal} className="h-11">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Reel Ruling
-              </Button>
+              <ModalTrigger />
             </DialogTrigger>
             <DialogContent className="p-0 max-w-2xl max-h-[90vh] flex flex-col">
               <DialogHeader className="p-6 pb-0">

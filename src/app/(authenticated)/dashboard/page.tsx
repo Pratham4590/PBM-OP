@@ -61,10 +61,11 @@ export default function DashboardPage() {
     if (!firestore || isLoadingCurrentUser || !currentUser) {
       return null;
     }
+    // IMPORTANT: Only create the query if the user has the correct role
     if (currentUser.role === 'Admin' || currentUser.role === 'Member') {
       return collection(firestore, 'stock');
     }
-    return null;
+    return null; // Return null for users who shouldn't access stock
   }, [firestore, currentUser, isLoadingCurrentUser]);
   
   const { data: rulings, isLoading: loadingRulings } = useCollection<RulingType>(rulingsQuery);
