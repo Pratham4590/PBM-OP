@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -43,7 +44,7 @@ export function BottomNav() {
               key={item.href}
               className={cn(
                 'inline-flex flex-col items-center justify-center px-5 hover:bg-muted group',
-                pathname === item.href
+                pathname.startsWith(item.href)
                   ? 'text-primary'
                   : 'text-muted-foreground'
               )}
@@ -52,35 +53,37 @@ export function BottomNav() {
               <span className="text-xs">{item.label}</span>
             </Link>
           ))}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="inline-flex flex-col items-center justify-center px-5 hover:bg-muted group text-muted-foreground"
-              >
-                <MoreHorizontal className="w-5 h-5 mb-1" />
-                <span className="text-xs">More</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="mb-2 w-56">
-              {moreNavItems.map((item) => (
-                <DropdownMenuItem key={item.href} asChild>
-                  <Link href={item.href} className="flex items-center gap-2">
-                    <item.icon className="w-4 h-4" />
-                    {item.label}
-                  </Link>
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <div className="p-2">
-                <UserNav />
-              </div>
-              <div className="flex items-center justify-between p-2">
-                  <span className='text-sm text-muted-foreground'>Theme</span>
-                  <ThemeToggle />
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+         {moreNavItems.length > 0 && (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    className="inline-flex flex-col items-center justify-center px-5 hover:bg-muted group text-muted-foreground"
+                >
+                    <MoreHorizontal className="w-5 h-5 mb-1" />
+                    <span className="text-xs">More</span>
+                </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="mb-2 w-56">
+                {moreNavItems.map((item) => (
+                    <DropdownMenuItem key={item.href} asChild>
+                    <Link href={item.href} className="flex items-center gap-2">
+                        <item.icon className="w-4 h-4" />
+                        {item.label}
+                    </Link>
+                    </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <div className="p-2">
+                    <UserNav />
+                </div>
+                <div className="flex items-center justify-between p-2">
+                    <span className='text-sm text-muted-foreground'>Theme</span>
+                    <ThemeToggle />
+                </div>
+                </DropdownMenuContent>
+            </DropdownMenu>
+         )}
         </div>
       </div>
       <div className="pb-16"></div> {/* Spacer for bottom nav */}
