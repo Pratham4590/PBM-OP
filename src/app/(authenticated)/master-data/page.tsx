@@ -47,12 +47,74 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useMemo, useState, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { PaperType, ItemType, User as AppUser } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+
+const PaperModalContent = ({
+  newPaperType,
+  setNewPaperType,
+  handleSavePaperType,
+  handleClosePaperModal,
+}: {
+  newPaperType: Partial<PaperType>;
+  setNewPaperType: (paper: Partial<PaperType>) => void;
+  handleSavePaperType: () => void;
+  handleClosePaperModal: () => void;
+}) => (
+    <>
+      <div className="p-4 space-y-4 overflow-y-auto max-h-[80vh]">
+        <div className="space-y-2">
+          <Label htmlFor="paper-name">Paper Name</Label>
+          <Input id="paper-name" value={newPaperType.paperName || ''} onChange={(e) => setNewPaperType({ ...newPaperType, paperName: e.target.value })} placeholder="e.g., JK Maplitho" className="h-11" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="paper-gsm">GSM (Grams per Square Meter)</Label>
+          <Input id="paper-gsm" type="number" value={newPaperType.gsm || ''} onChange={(e) => setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })} placeholder="e.g., 58" className="h-11" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="paper-length">Length (cm)</Label>
+          <Input id="paper-length" type="number" value={newPaperType.length || ''} onChange={(e) => setNewPaperType({ ...newPaper_type, length: parseFloat(e.target.value) || 0 })} placeholder="e.g., 60" className="h-11" />
+        </div>
+      </div>
+      <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
+        <Button variant="outline" onClick={handleClosePaperModal} className="h-11 w-full sm:w-auto">Cancel</Button>
+        <Button onClick={handleSavePaperType} className="h-11 w-full sm:w-auto">Save Paper Type</Button>
+      </DialogFooter>
+    </>
+);
+
+const ItemModalContent = ({
+  newItemType,
+  setNewItemType,
+  handleSaveItemType,
+  handleCloseItemModal,
+}: {
+  newItemType: Partial<ItemType>;
+  setNewItemType: (item: Partial<ItemType>) => void;
+  handleSaveItemType: () => void;
+  handleCloseItemModal: () => void;
+}) => (
+    <>
+      <div className="p-4 space-y-4 overflow-y-auto max-h-[80vh]">
+        <div className="space-y-2">
+          <Label htmlFor="item-name">Item Name</Label>
+          <Input id="item-name" value={newItemType.itemName || ''} onChange={(e) => setNewItemType({ ...newItemType, itemName: e.target.value })} placeholder="e.g., Ruled Notebook" className="h-11" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="item-shortCode">Short Code</Label>
+          <Input id="item-shortCode" value={newItemType.shortCode || ''} onChange={(e) => setNewItemType({ ...newItemType, shortCode: e.target.value })} placeholder="e.g., RN01" className="h-11" />
+        </div>
+      </div>
+      <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
+        <Button variant="outline" onClick={handleCloseItemModal} className="h-11 w-full sm:w-auto">Cancel</Button>
+        <Button onClick={handleSaveItemType} className="h-11 w-full sm:w-auto">Save Item Type</Button>
+      </DialogFooter>
+    </>
+);
 
 
 export default function MasterDataPage() {
@@ -175,49 +237,6 @@ export default function MasterDataPage() {
     toast({ title: 'Item Type Deleted' });
   }
 
-  const PaperModalContent = () => (
-    <>
-      <div className="p-4 space-y-4 overflow-y-auto max-h-[80vh]">
-        <div className="space-y-2">
-          <Label htmlFor="paper-name">Paper Name</Label>
-          <Input id="paper-name" value={newPaperType.paperName || ''} onChange={(e) => setNewPaperType({ ...newPaperType, paperName: e.target.value })} placeholder="e.g., JK Maplitho" className="h-11" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="paper-gsm">GSM (Grams per Square Meter)</Label>
-          <Input id="paper-gsm" type="number" value={newPaperType.gsm || ''} onChange={(e) => setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })} placeholder="e.g., 58" className="h-11" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="paper-length">Length (cm)</Label>
-          <Input id="paper-length" type="number" value={newPaperType.length || ''} onChange={(e) => setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })} placeholder="e.g., 60" className="h-11" />
-        </div>
-      </div>
-      <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
-        <Button variant="outline" onClick={handleClosePaperModal} className="h-11 w-full sm:w-auto">Cancel</Button>
-        <Button onClick={handleSavePaperType} className="h-11 w-full sm:w-auto">Save Paper Type</Button>
-      </DialogFooter>
-    </>
-  );
-
-  const ItemModalContent = () => (
-    <>
-      <div className="p-4 space-y-4 overflow-y-auto max-h-[80vh]">
-        <div className="space-y-2">
-          <Label htmlFor="item-name">Item Name</Label>
-          <Input id="item-name" value={newItemType.itemName || ''} onChange={(e) => setNewItemType({ ...newItemType, itemName: e.target.value })} placeholder="e.g., Ruled Notebook" className="h-11" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="item-shortCode">Short Code</Label>
-          <Input id="item-shortCode" value={newItemType.shortCode || ''} onChange={(e) => setNewItemType({ ...newItemType, shortCode: e.target.value })} placeholder="e.g., RN01" className="h-11" />
-        </div>
-      </div>
-      <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
-        <Button variant="outline" onClick={handleCloseItemModal} className="h-11 w-full sm:w-auto">Cancel</Button>
-        <Button onClick={handleSaveItemType} className="h-11 w-full sm:w-auto">Save Item Type</Button>
-      </DialogFooter>
-    </>
-  );
-
-
   return (
     <>
       <PageHeader
@@ -238,7 +257,12 @@ export default function MasterDataPage() {
                     <SheetHeader className="p-4 border-b">
                       <SheetTitle>{editingPaperType ? 'Edit' : 'Add New'} Paper Type</SheetTitle>
                     </SheetHeader>
-                    <PaperModalContent />
+                    <PaperModalContent 
+                      newPaperType={newPaperType}
+                      setNewPaperType={setNewPaperType}
+                      handleSavePaperType={handleSavePaperType}
+                      handleClosePaperModal={handleClosePaperModal}
+                    />
                   </SheetContent>
                 </Sheet>
                 <Sheet open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
@@ -251,7 +275,12 @@ export default function MasterDataPage() {
                     <SheetHeader className="p-4 border-b">
                       <SheetTitle>{editingItemType ? 'Edit' : 'Add New'} Item Type</SheetTitle>
                     </SheetHeader>
-                    <ItemModalContent />
+                    <ItemModalContent 
+                       newItemType={newItemType}
+                       setNewItemType={setNewItemType}
+                       handleSaveItemType={handleSaveItemType}
+                       handleCloseItemModal={handleCloseItemModal}
+                    />
                   </SheetContent>
                 </Sheet>
               </>
@@ -267,7 +296,12 @@ export default function MasterDataPage() {
                     <DialogHeader className="p-4 border-b">
                       <DialogTitle>{editingPaperType ? 'Edit' : 'Add New'} Paper Type</DialogTitle>
                     </DialogHeader>
-                    <PaperModalContent />
+                     <PaperModalContent 
+                      newPaperType={newPaperType}
+                      setNewPaperType={setNewPaperType}
+                      handleSavePaperType={handleSavePaperType}
+                      handleClosePaperModal={handleClosePaperModal}
+                    />
                   </DialogContent>
                 </Dialog>
                 <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
@@ -280,7 +314,12 @@ export default function MasterDataPage() {
                     <DialogHeader className="p-4 border-b">
                       <DialogTitle>{editingItemType ? 'Edit' : 'Add New'} Item Type</DialogTitle>
                     </DialogHeader>
-                    <ItemModalContent />
+                    <ItemModalContent 
+                       newItemType={newItemType}
+                       setNewItemType={setNewItemType}
+                       handleSaveItemType={handleSaveItemType}
+                       handleCloseItemModal={handleCloseItemModal}
+                    />
                   </DialogContent>
                 </Dialog>
               </>
