@@ -11,6 +11,7 @@ import {
   DialogDescription,
   DialogTitle,
   DialogFooter,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Sheet,
@@ -63,12 +64,82 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+
+const ReelForm = ({
+  paperTypes,
+  onSave,
+  onClose,
+  isSaving,
+  editingReel
+}: {
+  paperTypes: PaperType[] | null,
+  onSave: (reel: Partial<Reel>) => void,
+  onClose: () => void,
+  isSaving: boolean,
+  editingReel: Partial<Reel> | null
+}) => {
+  const [reelData, setReelData] = useState<Partial<Reel>>(editingReel || {});
+  const selectedPaper = useMemo(() => paperTypes?.find(p => p.id === reelData.paperTypeId), [reelData.paperTypeId, paperTypes]);
+  const { toast } = useToast();
+
+  const handleSave = () => {
+    if (!reelData.paperTypeId || !reelData.reelNo || !reelData.weight) {
+      toast({ variant: "destructive", title: "Error", description: "Please fill all required fields."});
+      return;
+    }
+    const dataToSave: Partial<Reel> = {
+      ...reelData,
+      gsm: selectedPaper!.gsm,
+      length: selectedPaper!.length,
+      status: reelData.weight > 0 ? 'Available' : 'Finished',
+    };
+    onSave(dataToSave);
+  };
+  
+  return (
+    <>
+      <div className="p-4 space-y-4 overflow-y-auto max-h-[80vh]">
+        <div className="space-y-2">
+          <Label htmlFor="paper-type">Paper Type</Label>
+          <Select
+            value={reelData.paperTypeId}
+            onValueChange={(value) => setReelData(prev => ({...prev, paperTypeId: value}))}
+          >
+            <SelectTrigger><SelectValue placeholder="Select paper" /></SelectTrigger>
+            <SelectContent>
+              {paperTypes?.map(p => <SelectItem key={p.id} value={p.id}>{p.paperName} ({p.gsm}gsm)</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="reelNo">Reel Number</Label>
+            <Input id="reelNo" value={reelData.reelNo || ''} onChange={(e) => setReelData(prev => ({...prev, reelNo: e.target.value}))} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="weight">Weight (kg)</Label>
+            <Input id="weight" type="number" value={reelData.weight || ''} onChange={(e) => setReelData(prev => ({...prev, weight: parseFloat(e.target.value) || 0}))} />
+          </div>
+        </div>
+        {selectedPaper && (
+          <div className="p-2 bg-muted/50 rounded-md text-sm">
+            GSM: {selectedPaper.gsm}, Length: {selectedPaper.length}cm
+          </div>
+        )}
+      </div>
+       <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
+        <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+        <Button onClick={handleSave} disabled={isSaving}>{isSaving ? "Saving..." : "Save Reel"}</Button>
+      </DialogFooter>
+    </>
+  )
+}
 
 export default function ReelsPage() {
   const firestore = useFirestore();
@@ -76,6 +147,10 @@ export default function ReelsPage() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editingReel, setEditingReel] = useState<Partial<Reel> | null>(null);
+
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
   
@@ -91,6 +166,39 @@ export default function ReelsPage() {
 
   const canEdit = useMemo(() => currentUser?.role === 'Admin' || currentUser?.role === 'Member', [currentUser]);
 
+  const openModal = (reel?: Reel) => {
+    setEditingReel(reel || null);
+    setIsModalOpen(true);
+  }
+
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+    setEditingReel(null);
+  }, []);
+
+  const handleSaveReel = (reelData: Partial<Reel>) => {
+    if (!firestore || !user || !canEdit) return;
+    setIsSaving(true);
+    
+    if (editingReel && editingReel.id) {
+       const docRef = doc(firestore, 'reels', editingReel.id);
+       updateDocumentNonBlocking(docRef, reelData);
+       toast({ title: 'Reel Updated' });
+    } else {
+       const dataWithMeta = {
+         ...reelData,
+         createdBy: user.uid,
+         createdAt: serverTimestamp()
+       }
+       const collectionRef = collection(firestore, 'reels');
+       addDocumentNonBlocking(collectionRef, dataWithMeta);
+       toast({ title: 'Reel Added' });
+    }
+    
+    setIsSaving(false);
+    closeModal();
+  };
+
   const handleDeleteReel = (id: string) => {
     if (!firestore || !canEdit) return;
     const docRef = doc(firestore, 'reels', id);
@@ -104,7 +212,7 @@ export default function ReelsPage() {
         const statusMatch = filterStatus === 'all' || reel.status === filterStatus;
         const reelNoMatch = filterReelNo === '' || reel.reelNo.toLowerCase().includes(filterReelNo.toLowerCase());
         return paperMatch && statusMatch && reelNoMatch;
-    }).sort((a, b) => {
+    }).sort((a,b) => {
         if (!b.createdAt || !b.createdAt.toMillis) return -1;
         if (!a.createdAt || !a.createdAt.toMillis) return 1;
         return b.createdAt.toMillis() - a.createdAt.toMillis()
@@ -158,12 +266,49 @@ export default function ReelsPage() {
     </div>
   );
 
+  const formProps = {
+    paperTypes,
+    onSave: handleSaveReel,
+    onClose: closeModal,
+    isSaving,
+    editingReel,
+  }
+
+  const renderTrigger = () => (
+    <Button onClick={() => openModal()} className="w-full sm:w-auto">
+        <PlusCircle className="mr-2 h-4 w-4" /> Add Reel
+    </Button>
+  );
+
   return (
     <>
       <PageHeader
         title="Reel Management"
         description="Track individual paper reels from stock."
       >
+        {canEdit && (
+            isMobile ? (
+                 <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
+                    <SheetTrigger asChild>{renderTrigger()}</SheetTrigger>
+                    <SheetContent side="bottom" className="p-0 flex flex-col h-auto max-h-[90svh]">
+                        <SheetHeader className="p-4 border-b">
+                            <SheetTitle>{editingReel ? 'Edit' : 'Add New'} Reel</SheetTitle>
+                        </SheetHeader>
+                        <ReelForm {...formProps} />
+                    </SheetContent>
+                </Sheet>
+            ) : (
+                <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                    <DialogTrigger asChild>{renderTrigger()}</DialogTrigger>
+                    <DialogContent className="p-0 max-w-lg">
+                        <DialogHeader className="p-4 border-b">
+                            <DialogTitle>{editingReel ? 'Edit' : 'Add New'} Reel</DialogTitle>
+                        </DialogHeader>
+                        <ReelForm {...formProps} />
+                    </DialogContent>
+                </Dialog>
+            )
+        )}
       </PageHeader>
 
       <Card>
@@ -210,6 +355,7 @@ export default function ReelsPage() {
                            <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent>
+                                <DropdownMenuItem onClick={() => openModal(reel)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
                                  <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>

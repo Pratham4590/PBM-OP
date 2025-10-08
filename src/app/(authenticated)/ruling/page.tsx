@@ -47,7 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Ruling,
   Reel,
@@ -87,6 +87,7 @@ const RulingForm = ({
   availableReels,
   programs,
   itemTypes,
+  paperTypes,
   onSave,
   onClose,
   isSaving
@@ -94,6 +95,7 @@ const RulingForm = ({
   availableReels: Reel[] | null,
   programs: Program[] | null,
   itemTypes: ItemType[] | null,
+  paperTypes: PaperType[] | null,
   onSave: (ruling: Partial<Ruling>) => void,
   onClose: () => void,
   isSaving: boolean
@@ -125,8 +127,12 @@ const RulingForm = ({
   }, [selectedReel, ruling]);
 
   const handleSave = () => {
-    if (!ruling.reelId || !ruling.itemTypeId || !ruling.cutoff || !ruling.sheetsRuled || !ruling.endWeight) {
+    if (!ruling.reelId || !ruling.itemTypeId || !ruling.cutoff || !ruling.sheetsRuled || ruling.endWeight === undefined) {
       toast({ variant: 'destructive', title: 'Missing Fields', description: 'Please fill out all fields.' });
+      return;
+    }
+    if (ruling.endWeight > ruling.startWeight!) {
+      toast({ variant: 'destructive', title: 'Invalid Weight', description: 'End weight cannot be greater than start weight.' });
       return;
     }
     onSave({
@@ -135,6 +141,8 @@ const RulingForm = ({
       difference: calculation.difference,
     });
   };
+
+  const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
 
   return (
     <>
@@ -145,14 +153,14 @@ const RulingForm = ({
               <SelectTrigger className="h-11"><SelectValue placeholder="Select a reel" /></SelectTrigger>
               <SelectContent>
                 {availableReels?.map(reel => (
-                  <SelectItem key={reel.id} value={reel.id}>{reel.reelNo} ({getPaperTypeName(reel.paperTypeId, itemTypes, programs, paperTypes)})</SelectItem>
+                  <SelectItem key={reel.id} value={reel.id}>{reel.reelNo} ({getPaperTypeName(reel.paperTypeId)})</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
            {selectedReel && (
              <div className="p-3 bg-muted/50 rounded-md text-sm grid grid-cols-2 gap-x-4 gap-y-1">
-                <span>Paper:</span> <span className="text-right font-medium">{getPaperTypeName(selectedReel.paperTypeId, itemTypes, programs, paperTypes)}</span>
+                <span>Paper:</span> <span className="text-right font-medium">{getPaperTypeName(selectedReel.paperTypeId)}</span>
                 <span>Weight:</span> <span className="text-right font-medium">{selectedReel.weight.toFixed(2)} kg</span>
                 <span>Length:</span> <span className="text-right font-medium">{selectedReel.length} cm</span>
                 <span>GSM:</span> <span className="text-right font-medium">{selectedReel.gsm}</span>
@@ -165,7 +173,7 @@ const RulingForm = ({
                 <SelectContent>
                   <SelectItem value="none">No Program</SelectItem>
                   {programs?.map(prog => (
-                    <SelectItem key={prog.id} value={prog.id}>{prog.brand} - {getItemTypeName(prog.itemTypeId, itemTypes, programs, paperTypes)}</SelectItem>
+                    <SelectItem key={prog.id} value={prog.id}>{prog.brand} - {itemTypes?.find(i => i.id === prog.itemTypeId)?.itemName}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -214,9 +222,6 @@ const RulingForm = ({
     </>
   );
 }
-
-const getPaperTypeName = (paperTypeId?: string, itemTypes?: any, programs?: any, paperTypesCollection?: PaperType[] | null) => paperTypesCollection?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
-const getItemTypeName = (itemTypeId?: string, itemTypes?: ItemType[] | null, programs?: any, paperTypes?: any) => itemTypes?.find(i => i.id === itemTypeId)?.itemName || 'N/A';
 
 export default function RulingPage() {
   const firestore = useFirestore();
@@ -284,6 +289,8 @@ export default function RulingPage() {
     toast({ variant: 'destructive', title: 'Ruling Deleted' });
   }
   
+  const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
+  const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName || 'N/A';
   const getProgramInfo = (programId?: string) => programs?.find(p => p.id === programId);
   
   const ModalTrigger = () => (
@@ -297,6 +304,7 @@ export default function RulingPage() {
     availableReels,
     programs,
     itemTypes,
+    paperTypes,
     onSave: handleSaveRuling,
     onClose: resetForm,
     isSaving,
@@ -401,7 +409,7 @@ export default function RulingPage() {
                                  </TableHeader>
                                  <TableBody>
                                         <TableRow>
-                                            <TableCell className="whitespace-nowrap">{getItemTypeName(ruling.itemTypeId, itemTypes)}</TableCell>
+                                            <TableCell className="whitespace-nowrap">{getItemTypeName(ruling.itemTypeId)}</TableCell>
                                             <TableCell>{ruling.sheetsRuled.toLocaleString()}</TableCell>
                                             <TableCell className="whitespace-nowrap">{getProgramInfo(ruling.programId)?.brand || 'N/A'}</TableCell>
                                             <TableCell className="text-right">
