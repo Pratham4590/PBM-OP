@@ -47,7 +47,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { PaperType, ItemType, User as AppUser } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
@@ -96,9 +96,10 @@ export default function MasterDataPage() {
     setIsPaperModalOpen(true);
   }
   
-  const handleClosePaperModal = () => {
+  const handleClosePaperModal = useCallback(() => {
     setIsPaperModalOpen(false);
-  }
+    setEditingPaperType(null);
+  }, []);
 
   const handleSavePaperType = () => {
     if (!firestore || !newPaperType.paperName || !newPaperType.gsm || !newPaperType.length) {
@@ -141,9 +142,10 @@ export default function MasterDataPage() {
     setIsItemModalOpen(true);
   }
   
-  const handleCloseItemModal = () => {
+  const handleCloseItemModal = useCallback(() => {
     setIsItemModalOpen(false);
-  }
+    setEditingItemType(null);
+  }, []);
 
   const handleSaveItemType = () => {
     if (!firestore || !newItemType.itemName || !newItemType.shortCode) {
@@ -324,7 +326,7 @@ export default function MasterDataPage() {
                                 <DropdownMenuItem onClick={() => openPaperModal(paper)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
@@ -386,7 +388,7 @@ export default function MasterDataPage() {
                                 <DropdownMenuItem onClick={() => openItemModal(item)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
                                  <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>

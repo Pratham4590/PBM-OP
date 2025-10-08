@@ -81,28 +81,42 @@ export default function ReportsPage() {
 
   const handleExport = () => {
     const doc = new jsPDF();
+    const head = [["Reel No.", "Paper", "Item", "Reel Wt.", "Ruled", "Theory", "Diff"]];
+    const body = filteredData.map(row => {
+      const difference = Math.round(row.difference);
+      return [
+        row.reelNo,
+        getPaperTypeName(row.paperTypeId),
+        getItemTypeName(row.itemTypeId),
+        row.reelWeight.toLocaleString(),
+        row.sheetsRuled.toLocaleString(),
+        Math.round(row.theoreticalSheets).toLocaleString(),
+        difference.toLocaleString()
+      ];
+    });
 
     doc.setFontSize(20);
     doc.text("Production Report", 15, 20);
     doc.setFontSize(12);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 15, 30);
-    doc.text(`Filters: ${getPaperTypeName(paperFilter)}, ${getItemTypeName(itemFilter)}`, 15, 25);
-
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 15, 25);
+    
     autoTable(doc, {
-        head: [["Reel No.", "Paper", "Item", "Reel Wt.", "Ruled", "Theory", "Diff"]],
-        body: filteredData.map(row => [
-            row.reelNo,
-            getPaperTypeName(row.paperTypeId),
-            getItemTypeName(row.itemTypeId),
-            row.reelWeight.toLocaleString(),
-            row.sheetsRuled.toLocaleString(),
-            Math.round(row.theoreticalSheets).toLocaleString(),
-            Math.round(row.difference).toLocaleString()
-        ]),
+        head: head,
+        body: body,
         startY: 35,
-        headStyles: { fillColor: [38, 115, 101] }, // Corresponds to primary color
+        headStyles: { fillColor: [21, 128, 61] }, // Deep Green
+        didDrawCell: (data) => {
+            if (data.column.index === 6 && data.cell.section === 'body') {
+                const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
+                if (value < 0) {
+                    doc.setTextColor(220, 38, 38); // Red for negative
+                }
+            }
+        },
+        willDrawCell: (data) => {
+            doc.setTextColor(0,0,0); // Reset text color for other cells
+        },
         didDrawPage: (data) => {
-            // Footer
             const str = `Page ${doc.internal.getNumberOfPages()}`;
             doc.setFontSize(10);
             const pageSize = doc.internal.pageSize;
@@ -178,7 +192,7 @@ export default function ReportsPage() {
                 ) : filteredData.length > 0 ? (
                   filteredData.map((row, index) => (
                     <TableRow key={`${row.serialNo}-${row.id}-${index}`}>
-                      <TableCell className="font-medium whitespace-nowrap">{row.reelNo}</TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">{row.reelNo}</TableCell>                      
                       <TableCell className="whitespace-nowrap">{getPaperTypeName(row.paperTypeId)}</TableCell>
                       <TableCell className="whitespace-nowrap">{getItemTypeName(row.itemTypeId)}</TableCell>
                       <TableCell>{row.reelWeight.toLocaleString()} kg</TableCell>

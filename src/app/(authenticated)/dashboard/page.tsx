@@ -60,7 +60,7 @@ export default function DashboardPage() {
     if (isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
         return null;
     }
-    return collection(firestore, 'stock');
+    return firestore ? collection(firestore, 'stock') : null;
   }, [firestore, currentUser, isLoadingCurrentUser]);
   
   const { data: rulings, isLoading: loadingRulings } = useCollection<RulingType>(rulingsQuery);
@@ -250,7 +250,9 @@ export default function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recentRulings.length > 0 ? recentRulings.map((ruling, index) => (
+                  {loadingRulings ? (
+                    <TableRow><TableCell colSpan={3} className="text-center h-24">Loading...</TableCell></TableRow>
+                  ) : recentRulings.length > 0 ? recentRulings.map((ruling, index) => (
                     <TableRow key={index}>
                       <TableCell>
                         <div className="font-medium">{ruling.reelNo}</div>

@@ -55,6 +55,7 @@ import {
   ItemType,
   Program,
   User as AppUser,
+  Stock,
 } from '@/lib/types';
 import {
   Table,
@@ -72,7 +73,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp, Timestamp, doc } from 'firebase/firestore';
+import { collection, serverTimestamp, Timestamp, doc, runTransaction } from 'firebase/firestore';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -96,11 +97,13 @@ export default function RulingPage() {
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
+  const stockQuery = useMemoFirebase(() => firestore ? collection(firestore, 'stock') : null, [firestore]);
 
   const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
   const { data: paperTypes } = useCollection<PaperType>(paperTypesQuery);
   const { data: itemTypes } = useCollection<ItemType>(itemTypesQuery);
   const { data: programs } = useCollection<Program>(programsQuery);
+  const { data: stock } = useCollection<Stock>(stockQuery);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRuling, setEditingRuling] = useState<Ruling | null>(null);
@@ -108,7 +111,7 @@ export default function RulingPage() {
   const [newRuling, setNewRuling] = useState<Partial<Ruling>>({ entries: [] });
   const [newEntry, setNewEntry] = useState<Partial<RulingEntry>>({});
 
-  const canEdit = useMemo(() => {
+  const canDelete = useMemo(() => {
     if (isLoadingCurrentUser || !currentUser) return false;
     return currentUser.role === 'Admin' || currentUser.role === 'Member';
   }, [currentUser, isLoadingCurrentUser]);
@@ -156,7 +159,7 @@ export default function RulingPage() {
        }
 
       const entryToAdd: RulingEntry = {
-        id: `${(newRuling.entries?.length || 0) + 1}`,
+        id: `${Date.now()}`,
         ...newEntry,
         sheetsRuled: newEntry.sheetsRuled,
         cutoff,
@@ -203,26 +206,36 @@ export default function RulingPage() {
     }
   };
 
-  const handleSaveRuling = () => {
+  const handleSaveRuling = async () => {
     if (!firestore || !newRuling.status) {
       toast({ variant: 'destructive', title: 'Error', description: 'Please select a final reel status.' });
       return;
     };
+    
+    // Find the stock document to update
+    const stockToUpdate = stock?.find(s => s.paperTypeId === newRuling.paperTypeId);
 
     if (editingRuling) {
-        // Update existing ruling
+        // Update existing ruling - stock deduction logic not implemented for edits to keep it simple
         const rulingDocRef = doc(firestore, 'reels', editingRuling.id);
         updateDocumentNonBlocking(rulingDocRef, newRuling);
         toast({ title: 'Ruling Updated', description: `Reel ${editingRuling.reelNo} has been updated.` });
 
     } else {
-        // Add new ruling
+        // Add new ruling and deduct from stock
         const rulingToAdd = {
           date: serverTimestamp(),
           ...newRuling,
         };
         const rulingsCollection = collection(firestore, 'reels');
         addDocumentNonBlocking(rulingsCollection, rulingToAdd);
+        
+        if (stockToUpdate) {
+            const stockDocRef = doc(firestore, 'stock', stockToUpdate.id);
+            const newReelCount = stockToUpdate.numberOfReels - 1;
+            updateDocumentNonBlocking(stockDocRef, { numberOfReels: newReelCount });
+        }
+
         toast({ title: 'Ruling Added', description: `Reel ${newRuling.reelNo} has been added.` });
     }
     
@@ -602,7 +615,7 @@ export default function RulingPage() {
                                 <Badge variant={ruling.status === 'Finished' ? 'default' : 'secondary'} className={`ml-2 whitespace-nowrap ${ruling.status === 'Finished' ? 'bg-green-600' : ''}`}>{ruling.status}</Badge>
                             </div>
                          </AccordionTrigger>
-                        {canEdit && (
+                        {canDelete && (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="ml-2">
@@ -616,7 +629,7 @@ export default function RulingPage() {
                                 </DropdownMenuItem>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                                         <Trash2 className="mr-2 h-4 w-4" />
                                         <span>Delete</span>
                                     </DropdownMenuItem>

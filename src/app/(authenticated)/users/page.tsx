@@ -23,49 +23,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { User, UserRole } from '@/lib/types';
+import { User as AppUser, UserRole } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, useUser, useDoc } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function UsersPage() {
   const firestore = useFirestore();
   const { user: currentUserAuth, isUserLoading: isAuthLoading } = useUser();
   const { toast } = useToast();
-  
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isCheckingPermissions, setIsCheckingPermissions] = useState(true);
 
   const currentUserDocRef = useMemoFirebase(
     () => (firestore && currentUserAuth ? doc(firestore, 'users', currentUserAuth.uid) : null),
     [firestore, currentUserAuth]
   );
   
-  const { data: currentUserData, isLoading: isLoadingCurrentUserDoc } = useDoc<User>(currentUserDocRef);
-
-  useEffect(() => {
-    if (!isAuthLoading && !isLoadingCurrentUserDoc) {
-      setIsAdmin(currentUserData?.role === 'Admin');
-      setIsCheckingPermissions(false);
-    }
-  }, [isAuthLoading, isLoadingCurrentUserDoc, currentUserData]);
+  const { data: currentUserData, isLoading: isLoadingCurrentUserDoc } = useDoc<AppUser>(currentUserDocRef);
   
   const allUsersQuery = useMemoFirebase(
     () => {
-      if (isCheckingPermissions || !isAdmin) {
+      if (!currentUserData || currentUserData.role !== 'Admin') {
         return null;
       }
-      return collection(firestore!, 'users');
+      return firestore ? collection(firestore, 'users') : null;
     },
-    [firestore, isCheckingPermissions, isAdmin]
+    [firestore, currentUserData]
   );
 
-  const { data: users, isLoading: isLoadingAllUsers } = useCollection<User>(allUsersQuery);
+  const { data: users, isLoading: isLoadingAllUsers } = useCollection<AppUser>(allUsersQuery);
 
   const handleRoleChange = (userId: string, newRole: UserRole) => {
-    if (!firestore || !isAdmin) return;
+    if (!firestore || currentUserData?.role !== 'Admin') return;
 
     const userDocToUpdate = doc(firestore, 'users', userId);
     updateDocumentNonBlocking(userDocToUpdate, { role: newRole });
@@ -75,7 +65,9 @@ export default function UsersPage() {
     });
   };
   
-  if (isCheckingPermissions) {
+  const isLoading = isAuthLoading || isLoadingCurrentUserDoc;
+
+  if (isLoading) {
      return (
        <>
         <PageHeader
@@ -99,7 +91,7 @@ export default function UsersPage() {
      )
   }
 
-  if (!isAdmin) {
+  if (currentUserData?.role !== 'Admin') {
     return (
       <>
         <PageHeader

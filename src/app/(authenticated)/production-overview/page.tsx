@@ -52,7 +52,7 @@ export default function ProductionOverviewPage() {
     if (isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
       return null;
     }
-    return collection(firestore, 'stock');
+    return firestore ? collection(firestore, 'stock') : null;
   }, [firestore, currentUser, isLoadingCurrentUser]);
 
   const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
@@ -256,7 +256,9 @@ export default function ProductionOverviewPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {programs?.map(program => {
+                            {loadingPrograms ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center">Loading programs...</TableCell></TableRow>
+                            ) : programs && programs.length > 0 ? programs.map(program => {
                                 const sheetsCompleted = programProgress[program.id as keyof typeof programProgress] || 0;
                                 const totalSheetsRequired = program.totalSheetsRequired || 1;
                                 const progress = (sheetsCompleted / totalSheetsRequired) * 100;
@@ -275,8 +277,7 @@ export default function ProductionOverviewPage() {
                                         </TableCell>
                                     </TableRow>
                                 )
-                            })}
-                            {(!programs || programs.length === 0) && (
+                            }) : (
                                 <TableRow>
                                     <TableCell colSpan={5} className="text-center h-24">No active programs found.</TableCell>
                                 </TableRow>

@@ -325,7 +325,7 @@ export default function ProgramPage() {
     try {
       if (editingProgram) {
           const docRef = doc(firestore, 'programs', editingProgram.id);
-          updateDocumentNonBlocking(docRef, programData);
+          await updateDoc(docRef, programData);
           toast({ title: 'Program Updated' });
       } else {
           const programToAdd = {
@@ -337,8 +337,8 @@ export default function ProgramPage() {
           toast({ title: 'Program Created' });
       }
       closeModal();
-    } catch(e) {
-      toast({ variant: 'destructive', title: 'Save failed', description: 'Could not save program.'});
+    } catch(e: any) {
+      toast({ variant: 'destructive', title: 'Save failed', description: e.message || 'Could not save program.'});
     } finally {
       setIsSaving(false);
     }
@@ -380,7 +380,7 @@ export default function ProgramPage() {
                         <DropdownMenuItem onClick={() => openModal(program)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
@@ -442,7 +442,7 @@ export default function ProgramPage() {
                                 <DropdownMenuItem onClick={() => openModal(program)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>

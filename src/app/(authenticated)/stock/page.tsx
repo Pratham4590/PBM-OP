@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Stock, PaperType, User as AppUser } from '@/lib/types';
 import {
   Card,
@@ -71,11 +71,11 @@ export default function StockPage() {
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
   
   const stockQuery = useMemoFirebase(() => {
-    if (isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
+    if (!currentUser || currentUser.role === 'Operator') {
       return null;
     }
-    return collection(firestore, 'stock');
-  }, [firestore, currentUser, isLoadingCurrentUser]);
+    return firestore ? collection(firestore, 'stock') : null;
+  }, [firestore, currentUser]);
   
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
 
@@ -109,6 +109,7 @@ export default function StockPage() {
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
     setEditingStock(null);
+    setNewStockItem({ numberOfReels: 1, totalWeight: 0 });
   }, []);
 
   const handleSelectPaper = (paperTypeId: string) => {
@@ -123,34 +124,38 @@ export default function StockPage() {
     }
   };
 
-  const handleSaveStock = () => {
+  const handleSaveStock = async () => {
     if (!firestore || !newStockItem.paperTypeId || !newStockItem.totalWeight || !newStockItem.numberOfReels) {
       toast({ variant: 'destructive', title: 'Error', description: 'Please fill out all fields.' });
       return;
     }
     setIsSaving(true);
     
-    const dataToSave = {
+    const dataToSave: Omit<Stock, 'id' | 'date'> = {
       paperTypeId: newStockItem.paperTypeId,
-      gsm: newStockItem.gsm,
-      length: newStockItem.length,
+      gsm: newStockItem.gsm!,
+      length: newStockItem.length!,
       totalWeight: newStockItem.totalWeight,
       numberOfReels: newStockItem.numberOfReels,
     };
 
-    if (editingStock) {
-      const docRef = doc(firestore, 'stock', editingStock.id);
-      updateDocumentNonBlocking(docRef, dataToSave);
-      toast({ title: 'Stock Updated' });
-    } else {
-      const stockToAdd = { ...dataToSave, date: serverTimestamp() };
-      const stockCollection = collection(firestore, 'stock');
-      addDocumentNonBlocking(stockCollection, stockToAdd);
-      toast({ title: 'Stock Added' });
+    try {
+      if (editingStock) {
+        const docRef = doc(firestore, 'stock', editingStock.id);
+        await updateDocumentNonBlocking(docRef, dataToSave);
+        toast({ title: 'Stock Updated' });
+      } else {
+        const stockToAdd = { ...dataToSave, date: serverTimestamp() };
+        const stockCollection = collection(firestore, 'stock');
+        await addDocumentNonBlocking(stockCollection, stockToAdd);
+        toast({ title: 'Stock Added' });
+      }
+      closeModal();
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Error', description: e.message || "Could not save stock." });
+    } finally {
+      setIsSaving(false);
     }
-    
-    setIsSaving(false);
-    closeModal();
   };
   
   const handleDeleteStock = (id: string) => {
@@ -197,12 +202,12 @@ export default function StockPage() {
           </div>
         </div>
       </div>
-      <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
+      <SheetFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
          <Button variant="outline" onClick={closeModal} disabled={isSaving} className="h-11 w-full sm:w-auto">Cancel</Button>
         <Button onClick={handleSaveStock} disabled={isSaving} className="h-11 w-full sm:w-auto">
           {isSaving ? 'Saving...' : 'Save Stock'}
         </Button>
-      </DialogFooter>
+      </SheetFooter>
     </>
   );
 
@@ -255,7 +260,7 @@ export default function StockPage() {
                 <Button onClick={() => openModal()} className="h-11"><PlusCircle className="mr-2 h-4 w-4" />Add Stock</Button>
               </DialogTrigger>
               <DialogContent className="p-0 max-w-lg">
-                <DialogHeader className="p-4 border-b">
+                <DialogHeader className="p-6 pb-4">
                   <DialogTitle>{editingStock ? 'Edit' : 'Add New'} Stock</DialogTitle>
                   <DialogDescription>Enter the details of the paper stock.</DialogDescription>
                 </DialogHeader>
@@ -291,7 +296,7 @@ export default function StockPage() {
                               <DropdownMenuItem onClick={() => openModal(item)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
                               <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
                                   </AlertDialogTrigger>
                                   <AlertDialogContent>
                                       <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete this stock entry.</AlertDialogDescription></AlertDialogHeader>
@@ -351,7 +356,7 @@ export default function StockPage() {
                                 <DropdownMenuItem onClick={() => openModal(item)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
                                  <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete this stock entry.</AlertDialogDescription></AlertDialogHeader>
