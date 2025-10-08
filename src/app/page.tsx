@@ -8,7 +8,7 @@ import { AppLogo } from '@/components/icons';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore, useUser, addDocumentNonBlocking } from '@/firebase';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import {
   createUserWithEmailAndPassword,
@@ -69,11 +69,10 @@ function LoginPageContent() {
             id: firebaseUser.uid,
             email: firebaseUser.email || '',
             displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User',
-            role: 'Operator',
+            role: 'Operator', // Default role for new users
             createdAt: serverTimestamp() as Timestamp,
             themePreference: 'system',
         };
-        // Use a non-blocking write here to avoid potential UI hangs on sign-up
         await setDoc(userDocRef, userData);
     }
   };
