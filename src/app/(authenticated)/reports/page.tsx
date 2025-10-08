@@ -3,7 +3,7 @@
 
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';
-import { FileDown } from 'lucide-react';
+import { FileDown, MoreVertical, Trash2 } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -26,28 +26,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { useState, useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, Timestamp } from 'firebase/firestore';
-import { Ruling as RulingType, PaperType, ItemType, RulingEntry } from '@/lib/types';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, Timestamp, doc, writeBatch } from 'firebase/firestore';
+import { Ruling as RulingType, PaperType, ItemType, Reel, User as AppUser } from '@/lib/types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
-type FlattenedRuling = {
-    id: string;
-    date: Date | Timestamp;
-    reelId: string;
-    reelNo: string;
-    paperTypeId: string;
-    startWeight: number;
-    createdBy: string;
-} & RulingEntry;
-
+import { useToast } from '@/hooks/use-toast';
 
 export default function ReportsPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
+  const { toast } = useToast();
 
+  const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
+  const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
+  
   const rulingsQuery = useMemoFirebase(() => firestore && collection(firestore, 'rulings'), [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore && collection(firestore, 'paperTypes'), [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore && collection(firestore, 'itemTypes'), [firestore]);
@@ -59,56 +71,89 @@ export default function ReportsPage() {
   const [paperFilter, setPaperFilter] = useState('all');
   const [itemFilter, setItemFilter] = useState('all');
   
-  const flattenedData = useMemo(() => {
-    if (!rulings) return [];
-    return rulings.flatMap(ruling => 
-        ruling.rulingEntries.map(entry => ({
-            ...ruling,
-            ...entry,
-            id: `${ruling.id}-${entry.itemTypeId}`, // create unique id for flattened row
-            rulingEntries: undefined, // remove nested array
-        }))
-    );
-  }, [rulings]);
-  
+  const canEdit = useMemo(() => currentUser?.role === 'Admin', [currentUser]);
+
   const filteredData = useMemo(() => {
-    if (!flattenedData) return [];
-    return flattenedData.filter(row => {
+    if (!rulings) return [];
+    return rulings.filter(row => {
       const paperMatch = paperFilter === 'all' || row.paperTypeId === paperFilter;
-      const itemMatch = itemFilter === 'all' || row.itemTypeId === itemFilter;
+      const itemMatch = itemFilter === 'all' || row.rulingEntries.some(e => e.itemTypeId === itemFilter);
       return paperMatch && itemMatch;
     });
-  }, [flattenedData, paperFilter, itemFilter]);
+  }, [rulings, paperFilter, itemFilter]);
 
   const getPaperTypeName = (paperTypeId: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
   const getItemTypeName = (itemTypeId: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName || 'N/A';
 
+  const handleDeleteRuling = async (ruling: RulingType) => {
+    if (!firestore || !canEdit) {
+        toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to delete rulings.' });
+        return;
+    }
+
+    try {
+        const batch = writeBatch(firestore);
+
+        // 1. Delete the ruling document
+        const rulingDocRef = doc(firestore, 'rulings', ruling.id);
+        batch.delete(rulingDocRef);
+
+        // 2. Revert stock changes on the reel
+        const reelDocRef = doc(firestore, 'reels', ruling.reelId);
+        
+        // We need the current state of the reel to update it
+        const reelDoc = await doc(reelDocRef).get();
+        if (reelDoc.exists()) {
+            const reelData = reelDoc.data() as Reel;
+            const newAvailableSheets = (reelData.availableSheets || 0) + ruling.totalSheetsRuled;
+            
+            const reelUpdate: Partial<Reel> = {
+                availableSheets: newAvailableSheets,
+                // If the reel was finished as a result of this ruling, make it 'In Use' again
+                status: reelData.status === 'Finished' ? 'In Use' : reelData.status,
+            };
+            batch.update(reelDocRef, reelUpdate);
+        }
+
+        await batch.commit();
+        toast({ title: 'Ruling Deleted', description: `The ruling for reel ${ruling.reelNo} has been deleted and stock has been reverted.`});
+    } catch(e: any) {
+        toast({ variant: 'destructive', title: 'Delete failed', description: e.message });
+    }
+  }
+
   const handleExport = () => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const tableHead = [["Reel No.", "Paper", "Item", "Cutoff", "Ruled", "Theory", "Diff"]];
-    const tableBody = filteredData.map(row => {
-      const difference = Math.round(row.difference);
-      return [
-        row.reelNo,
-        getPaperTypeName(row.paperTypeId),
-        getItemTypeName(row.itemTypeId),
-        row.cutoff.toString(),
-        row.sheetsRuled.toLocaleString(),
-        Math.round(row.theoreticalSheets).toLocaleString(),
-        difference.toLocaleString()
-      ];
+    
+    let tableBody: any[] = [];
+    filteredData.forEach(ruling => {
+      ruling.rulingEntries.forEach(entry => {
+        if(itemFilter !== 'all' && entry.itemTypeId !== itemFilter) return;
+
+        const difference = Math.round(entry.difference);
+        tableBody.push([
+          ruling.reelNo,
+          getPaperTypeName(ruling.paperTypeId),
+          getItemTypeName(entry.itemTypeId),
+          entry.cutoff.toString(),
+          entry.sheetsRuled.toLocaleString(),
+          Math.round(entry.theoreticalSheets).toLocaleString(),
+          difference.toLocaleString()
+        ]);
+      });
     });
 
-    const totalSheetsRuled = filteredData.reduce((sum, row) => sum + row.sheetsRuled, 0);
-    const totalTheoreticalSheets = filteredData.reduce((sum, row) => sum + row.theoreticalSheets, 0);
+    const totalSheetsRuled = tableBody.reduce((sum, row) => sum + parseFloat(row[4].replace(/,/g, '')), 0);
+    const totalTheoreticalSheets = tableBody.reduce((sum, row) => sum + parseFloat(row[5].replace(/,/g, '')), 0);
     const totalDifference = totalSheetsRuled - totalTheoreticalSheets;
-
+    
     const totalsBody = [
         ['', '', '', 'TOTALS', totalSheetsRuled.toLocaleString(), Math.round(totalTheoreticalSheets).toLocaleString(), Math.round(totalDifference).toLocaleString()]
     ];
 
+
     autoTable(doc, {
-        head: tableHead,
+        head: [["Reel No.", "Paper", "Item", "Cutoff", "Ruled", "Theory", "Diff"]],
         body: tableBody,
         startY: 25,
         margin: { top: 25, right: 10, bottom: 15, left: 10 },
@@ -135,29 +180,30 @@ export default function ReportsPage() {
             doc.setFontSize(12);
             doc.text(`Date: ${new Date().toLocaleDateString()}`, data.settings.margin.left, 20);
             const pageCount = doc.internal.getNumberOfPages();
-            doc.setFontSize(10);
             doc.text(`Page ${doc.internal.pages.length - 1} of ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
         },
     });
 
     const lastTable = (doc as any).lastAutoTable;
-    autoTable(doc, {
-        body: totalsBody,
-        startY: lastTable.finalY + 5,
-        margin: { left: 10, right: 10 },
-        theme: 'grid',
-        bodyStyles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] },
-        didParseCell: (data) => {
-             if (data.column.index <= 2) {
-                data.cell.styles.halign = 'left';
-            }
-        }
-    });
+    if (tableBody.length > 0) {
+      autoTable(doc, {
+          body: totalsBody,
+          startY: lastTable.finalY + 5,
+          margin: { left: 10, right: 10 },
+          theme: 'grid',
+          bodyStyles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] },
+          didParseCell: (data) => {
+              if (data.column.index <= 2) {
+                  data.cell.styles.halign = 'left';
+              }
+          }
+      });
+    }
 
     doc.save("production_report.pdf");
   };
   
-  const isLoading = loadingRulings || loadingPaperTypes || loadingItemTypes;
+  const isLoading = loadingRulings || loadingPaperTypes || loadingItemTypes || isLoadingCurrentUser;
 
   return (
     <>
@@ -209,35 +255,64 @@ export default function ReportsPage() {
                   <TableHead className="text-right">Sheets Ruled</TableHead>
                   <TableHead className="text-right">Theoretical</TableHead>
                   <TableHead className="text-right">Difference</TableHead>
+                  {canEdit && <TableHead className="w-[50px] text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
+                    <TableCell colSpan={canEdit ? 8 : 7} className="h-24 text-center">
                       Loading reports...
                     </TableCell>
                   </TableRow>
                 ) : filteredData.length > 0 ? (
-                  filteredData.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-medium whitespace-nowrap">{row.reelNo}</TableCell>                      
-                      <TableCell className="whitespace-nowrap">{getPaperTypeName(row.paperTypeId)}</TableCell>
-                      <TableCell className="whitespace-nowrap">{getItemTypeName(row.itemTypeId)}</TableCell>
-                       <TableCell>{row.cutoff} cm</TableCell>
-                      <TableCell className="text-right">{row.sheetsRuled.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{Math.round(row.theoreticalSheets).toLocaleString()}</TableCell>
-                      <TableCell className="text-right">
-                         <Badge variant={row.difference >= 0 ? 'default' : 'destructive'} className={row.difference >= 0 ? 'bg-green-600 dark:bg-green-800' : ''}>
-                          {Math.round(row.difference).toLocaleString()}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
+                  filteredData.map((ruling) => (
+                     ruling.rulingEntries.filter(entry => itemFilter === 'all' || entry.itemTypeId === itemFilter).map((entry, index) => (
+                      <TableRow key={`${ruling.id}-${index}`}>
+                        <TableCell className="font-medium whitespace-nowrap">{ruling.reelNo}</TableCell>                      
+                        <TableCell className="whitespace-nowrap">{getPaperTypeName(ruling.paperTypeId)}</TableCell>
+                        <TableCell className="whitespace-nowrap">{getItemTypeName(entry.itemTypeId)}</TableCell>
+                        <TableCell>{entry.cutoff} cm</TableCell>
+                        <TableCell className="text-right">{entry.sheetsRuled.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{Math.round(entry.theoreticalSheets).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={entry.difference >= 0 ? 'default' : 'destructive'} className={entry.difference >= 0 ? 'bg-green-600 dark:bg-green-800' : ''}>
+                            {Math.round(entry.difference).toLocaleString()}
+                          </Badge>
+                        </TableCell>
+                         {canEdit && (
+                          <TableCell className="text-right">
+                             <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4"/>Delete Ruling</DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>This will permanently delete the ruling for reel <strong>{ruling.reelNo}</strong> and revert the stock changes.</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteRuling(ruling)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                     ))
                   ))
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={canEdit ? 8 : 7}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No results found for the selected filters.
@@ -252,3 +327,5 @@ export default function ReportsPage() {
     </>
   );
 }
+
+    
