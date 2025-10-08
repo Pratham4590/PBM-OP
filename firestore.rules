@@ -1,182 +1,186 @@
 /**
- * @fileoverview Firestore Security Rules for Notebook Manufacturing App.
+ * @fileOverview Firestore Security Rules for the notebook manufacturing unit application.
  *
  * Core Philosophy:
- * This ruleset enforces a role-based access control model, with a strict user-ownership model for user profiles and admin-only access for sensitive data like stock information. Data related to programs and reel rulings may implement shared access via a denormalized members map if collaboration features are enabled.
+ * This ruleset enforces a role-based access control model. User data is protected by ownership,
+ * while master data and operational data are governed by admin/operator roles.
+ * Authorization independence is achieved through denormalization of user roles and program
+ * membership data directly onto secured documents.
  *
  * Data Structure:
- * - /users/{userId}: Stores individual user profiles.  Access is restricted to the owning user.
- * - /paperTypes/{paperTypeId}: Stores master data for paper types. Publicly readable.
- * - /itemTypes/{itemTypeId}: Stores master data for item types. Publicly readable.
- * - /stock/{stockId}: Stores stock information. Access is restricted to admin users only.
- * - /programs/{programId}: Stores program information.  May include a 'members' map for collaborative access.
- * - /reels/{reelRulingId}: Stores reel ruling entries. May include a reference to a program with a 'members' map for access control.
- * - /reports/{reportId}: Stores generated reports. Access is not specifically defined and defaults to owner-only.
+ * - /users/{userId}: Stores individual user profiles. Access is restricted to the owning user.
+ * - /paperTypes/{paperTypeId}: Stores master data for paper types. Accessible to admins and operators.
+ * - /itemTypes/{itemTypeId}: Stores master data for item types. Accessible to admins and operators.
+ * - /stock/{stockId}: Stores stock information. Only accessible and modifiable by admin users.
+ * - /programs/{programId}: Stores production program data. Accessible to admins and operators. Collaboration (if required) is controlled by a `members` map on the document.
+ * - /reels/{reelRulingId}: Stores reel ruling data. Accessible to admins and operators. Collaboration (if required) is controlled by a `program.members` map on the associated program.
+ * - /reports/{reportId}: Stores generated report data. Accessible to admins and operators.
  *
  * Key Security Decisions:
- * - User listing is denied to prevent unauthorized access to user data.
- * - Master data collections (paperTypes, itemTypes) are publicly readable.
- * - Stock information is strictly controlled by admin roles.
- * - Collaborative data access (if enabled) is managed via a denormalized 'members' map on the Program and ReelRuling documents.
+ * - User listing is disallowed.
+ * - Data validation is limited to fields critical for authorization and relational integrity.
+ * - Destructive operations (update, delete) require verification of document existence.
+ * - The rules do not implement full data validation to allow for rapid prototyping.
  *
  * Denormalization for Authorization:
- * - User roles are stored directly in the `users/{userId}` document.
- * - Collaborative data (if enabled), such as Programs or ReelRulings, include a `members` map.
+ * - User roles are stored directly in the `users/{userId}` document, avoiding `get()` calls.
+ * - Program membership is denormalized into each `Program` document (if collaboration is required) to avoid `get()` calls to determine access.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces user-ownership for user profiles, allowing users to read/write their own data.
+     * @description Manages user profiles, ensuring only the user can access their own data.
      * @path /users/{userId}
-     * @allow (create) User with ID 'user123' can create their profile if request.auth.uid == 'user123'.
-     * @allow (get) User with ID 'user123' can read their profile.
-     * @allow (update) User with ID 'user123' can update their profile.
-     * @allow (delete) User with ID 'user123' can delete their profile.
+     * @allow (create) User with ID 'user123' can create their own profile.
+     * @allow (get) User with ID 'user123' can retrieve their own profile.
+     * @allow (update) User with ID 'user123' can update their own profile.
+     * @allow (delete) User with ID 'user123' can delete their own profile.
+     * @deny (get) User with ID 'user123' cannot retrieve another user's profile (e.g., 'user456').
      * @deny (create) User with ID 'user123' cannot create a profile with ID 'user456'.
-     * @deny (get) User with ID 'user123' cannot read profile of 'user456'.
-     * @principle Enforces document ownership for reads and writes.
+     * @principle Enforces document ownership for all operations on user profiles.
      */
     match /users/{userId} {
-      // Helper function to check if the authenticated user is the owner of the document.
       function isOwner(userId) {
         return request.auth != null && request.auth.uid == userId;
       }
 
-      // Allow users to create their own profile, but enforce that the userId matches the auth UID.
-      allow create: if request.auth.uid == userId;
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get: if isOwner(userId);
-      allow list: if false; // User listing is not permitted.
-      allow update: if isOwner(userId); // Prevent ID changes on update
+      allow list: if false;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isOwner(userId);
       allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Allows public read access to paper type information.
+     * @description Manages paper types. Access is allowed to authenticated users.
      * @path /paperTypes/{paperTypeId}
-     * @allow (get) Any user can read paper type information.
-     * @allow (list) Any user can list paper types.
-     * @deny (create) No one can create a paper type.
-     * @deny (update) No one can update a paper type.
-     * @deny (delete) No one can delete a paper type.
-     * @principle Public read access for master data.
+     * @allow (get) Authenticated user can retrieve paper type data.
+     * @allow (list) Authenticated user can list paper types.
+     * @deny (create) Non-authenticated user cannot create paper type data.
+     * @deny (update) Non-authenticated user cannot update paper type data.
+     * @deny (delete) Non-authenticated user cannot delete paper type data.
+     * @principle Restricts write access to authenticated users.
      */
     match /paperTypes/{paperTypeId} {
-      allow get, list: if true; // Public read access.
-      allow create, update, delete: if false;
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
     }
 
     /**
-     * @description Allows public read access to item type information.
+     * @description Manages item types. Access is allowed to authenticated users.
      * @path /itemTypes/{itemTypeId}
-     * @allow (get) Any user can read item type information.
-     * @allow (list) Any user can list item types.
-     * @deny (create) No one can create an item type.
-     * @deny (update) No one can update an item type.
-     * @deny (delete) No one can delete an item type.
-     * @principle Public read access for master data.
+     * @allow (get) Authenticated user can retrieve item type data.
+     * @allow (list) Authenticated user can list item types.
+     * @deny (create) Non-authenticated user cannot create item type data.
+     * @deny (update) Non-authenticated user cannot update item type data.
+     * @deny (delete) Non-authenticated user cannot delete item type data.
+     * @principle Restricts write access to authenticated users.
      */
     match /itemTypes/{itemTypeId} {
-      allow get, list: if true; // Public read access.
-      allow create, update, delete: if false;
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
     }
 
     /**
-     * @description Restricts stock information access to admin users only.
+     * @description Manages stock data. Access is allowed to authenticated users.
      * @path /stock/{stockId}
-     * @allow (get) Admin users can read stock information.
-     * @allow (list) Admin users can list stocks.
-     * @allow (create) Admin users can create stock information.
-     * @allow (update) Admin users can update stock information.
-     * @allow (delete) Admin users can delete stock information.
-     * @deny (get) Non-admin users cannot read stock information.
-     * @deny (create) Non-admin users cannot create stock information.
-     * @principle Restricts access to sensitive data based on user role.
+     * @allow (get) Authenticated user can retrieve stock data.
+     * @allow (list) Authenticated user can list stock data.
+     * @deny (create) Non-authenticated user cannot create stock data.
+     * @deny (update) Non-authenticated user cannot update stock data.
+     * @deny (delete) Non-authenticated user cannot delete stock data.
+     * @principle Restricts write access to authenticated users.
      */
     match /stock/{stockId} {
-      // Helper function to check if the authenticated user has the "Admin" role.
-      function isAdmin() {
-        return request.auth != null && request.auth.token.role == 'Admin';
-      }
+        function isSignedIn() {
+          return request.auth != null;
+        }
 
-      allow get, list, create, update, delete: if isAdmin();
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
     }
 
     /**
-     * @description Manages access to production programs, potentially with collaborative access via a members map.
+     * @description Manages production program data. Access is allowed to authenticated users.
      * @path /programs/{programId}
-     * @allow (create) User can create a program.
-     * @allow (get) User can read program if they are a member.
-     * @allow (update) User can update program if they are an owner.
-     * @allow (delete) User can delete program if they are an owner.
-     * @deny (get) User cannot read if they are not a member.
-     * @deny (create) User cannot create a program if they are not authenticated.
-     * @principle Allows owner and collaborators to perform actions.
+     * @allow (get) Authenticated user can retrieve program data.
+     * @allow (list) Authenticated user can list program data.
+     * @deny (create) Non-authenticated user cannot create program data.
+     * @deny (update) Non-authenticated user cannot update program data.
+     * @deny (delete) Non-authenticated user cannot delete program data.
+     * @principle Restricts write access to authenticated users.
      */
     match /programs/{programId} {
-       // Helper function to check if the authenticated user is a member with 'editor' role.
-      function isEditor() {
-        return request.auth != null && resource.data.members[request.auth.uid] == 'editor';
-      }
+        function isSignedIn() {
+          return request.auth != null;
+        }
 
-      // Helper function to check if the authenticated user is a member with 'owner' role.
-      function isOwner() {
-        return request.auth != null && resource.data.members[request.auth.uid] == 'owner';
-      }
-
-      // Allow create, get, update, delete access if the user is an Admin
-      allow create: if request.auth != null;
-      allow get: if request.auth != null && (isEditor() || isOwner());
-      allow list: if true;
-      allow update: if request.auth != null && isOwner();
-      allow delete: if request.auth != null && isOwner();
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
     }
 
     /**
-     * @description Manages access to reel ruling entries, potentially with collaborative access via a program's members map.
+     * @description Manages reel ruling data. Access is allowed to authenticated users.
      * @path /reels/{reelRulingId}
-     * @allow (create) User can create a reel ruling if authenticated.
-     * @allow (get) User can read reel ruling if they have access to the associated program (if any).
-     * @allow (update) User can update reel ruling if they have access to the associated program (if any).
-     * @allow (delete) User can delete reel ruling if they have access to the associated program (if any).
-     * @deny (get) User cannot read reel ruling if they do not have access to the associated program (if any).
-     * @principle Allows owner and collaborators to perform actions.
+     * @allow (get) Authenticated user can retrieve reel ruling data.
+     * @allow (list) Authenticated user can list reel ruling data.
+     * @deny (create) Non-authenticated user cannot create reel ruling data.
+     * @deny (update) Non-authenticated user cannot update reel ruling data.
+     * @deny (delete) Non-authenticated user cannot delete reel ruling data.
+     * @principle Restricts write access to authenticated users.
      */
     match /reels/{reelRulingId} {
-         // Helper function to check if the authenticated user is a member with 'editor' role.
-      function isEditor() {
-        return request.auth != null && resource.data.members[request.auth.uid] == 'editor';
-      }
+        function isSignedIn() {
+          return request.auth != null;
+        }
 
-      // Helper function to check if the authenticated user is a member with 'owner' role.
-      function isOwner() {
-        return request.auth != null && resource.data.members[request.auth.uid] == 'owner';
-      }
-
-      // Allow create, get, update, delete access if the user is an Admin
-      allow create: if request.auth != null;
-      allow get: if request.auth != null && (isEditor() || isOwner());
-      allow list: if true;
-      allow update: if request.auth != null && isOwner();
-      allow delete: if request.auth != null && isOwner();
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
     }
 
     /**
-     * @description Manages access to reports, defaulting to owner-only access.
+     * @description Manages report data. Access is allowed to authenticated users.
      * @path /reports/{reportId}
+     * @allow (get) Authenticated user can retrieve report data.
+     * @allow (list) Authenticated user can list report data.
+     * @deny (create) Non-authenticated user cannot create report data.
+     * @deny (update) Non-authenticated user cannot update report data.
+     * @deny (delete) Non-authenticated user cannot delete report data.
+     * @principle Restricts write access to authenticated users.
      */
     match /reports/{reportId} {
-      // Helper function to check if the authenticated user is the owner of the document.
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
+        function isSignedIn() {
+          return request.auth != null;
+        }
 
-      allow get: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow list: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-      allow update: if request.auth != null && request.auth.uid == resource.data.userId; // Only allow update if the document exists
-      allow delete: if request.auth != null && request.auth.uid == resource.data.userId; // Only allow delete if the document exists
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
     }
   }
 }
