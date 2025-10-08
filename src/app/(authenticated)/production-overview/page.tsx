@@ -49,10 +49,13 @@ export default function ProductionOverviewPage() {
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
 
   const stockQuery = useMemoFirebase(() => {
-    if (isLoadingCurrentUser || !currentUser || (currentUser.role !== 'Admin' && currentUser.role !== 'Member')) {
+    if (!firestore || isLoadingCurrentUser || !currentUser) {
       return null;
     }
-    return firestore ? collection(firestore, 'stock') : null;
+    if (currentUser.role === 'Admin' || currentUser.role === 'Member') {
+      return collection(firestore, 'stock');
+    }
+    return null;
   }, [firestore, currentUser, isLoadingCurrentUser]);
 
   const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
@@ -159,8 +162,10 @@ export default function ProductionOverviewPage() {
                 <CardTitle className="text-sm font-medium">Total Stock Weight</CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{stockSummary.totalWeight.toLocaleString()} kg</div>
-                <p className="text-xs text-muted-foreground">Across {stockSummary.paperTypes.length} paper types</p>
+                <div className="text-2xl font-bold">{loadingStock ? '...' : `${stockSummary.totalWeight.toLocaleString()} kg`}</div>
+                <p className="text-xs text-muted-foreground">
+                    {loadingStock ? 'Loading...' : `Across ${stockSummary.paperTypes.length} paper types`}
+                </p>
             </CardContent>
             </Card>
         )}
@@ -203,17 +208,21 @@ export default function ProductionOverviewPage() {
                 <CardDescription>A breakdown of paper types in stock.</CardDescription>
             </CardHeader>
             <CardContent>
+                 {loadingStock ? (
+                    <div className="flex items-center justify-center h-[250px] text-muted-foreground">Loading chart...</div>
+                ) : (
                 <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                    <Pie data={stockDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                    {stockDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }} />
-                    <Legend wrapperStyle={{fontSize: "0.875rem"}}/>
-                </PieChart>
+                    <PieChart>
+                        <Pie data={stockDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                        {stockDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }} />
+                        <Legend wrapperStyle={{fontSize: "0.875rem"}}/>
+                    </PieChart>
                 </ResponsiveContainer>
+                )}
             </CardContent>
             </Card>
         )}

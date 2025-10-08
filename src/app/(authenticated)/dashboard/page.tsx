@@ -35,6 +35,7 @@ import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@
 import { collection, Timestamp, doc } from 'firebase/firestore';
 import { ItemType, Ruling as RulingType, Stock, User as AppUser } from '@/lib/types';
 import { useMemo } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const chartData = [
     { date: "Jan", "Ruled": 4000, "Planned": 3800 },
@@ -57,10 +58,13 @@ export default function DashboardPage() {
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   
   const stockQuery = useMemoFirebase(() => {
-    if (isLoadingCurrentUser || !currentUser || (currentUser.role !== 'Admin' && currentUser.role !== 'Member')) {
+    if (!firestore || isLoadingCurrentUser || !currentUser) {
       return null;
     }
-    return firestore ? collection(firestore, 'stock') : null;
+    if (currentUser.role === 'Admin' || currentUser.role === 'Member') {
+      return collection(firestore, 'stock');
+    }
+    return null;
   }, [firestore, currentUser, isLoadingCurrentUser]);
   
   const { data: rulings, isLoading: loadingRulings } = useCollection<RulingType>(rulingsQuery);
@@ -68,11 +72,11 @@ export default function DashboardPage() {
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
 
   const stockSummary = useMemo(() => {
-    if (loadingStock || !stock) return { totalWeight: 0, totalReels: 0 };
+    if (!stock) return { totalWeight: 0, totalReels: 0 };
     const totalWeight = stock.reduce((acc, item) => acc + (item.totalWeight ?? 0), 0);
     const totalReels = stock.reduce((acc, item) => acc + (item.numberOfReels ?? 0), 0);
     return { totalWeight, totalReels };
-  }, [stock, loadingStock]);
+  }, [stock]);
 
   const productionSummary = useMemo(() => {
     if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: '0.0' };
@@ -116,6 +120,68 @@ export default function DashboardPage() {
 
   const isOperator = currentUser?.role === 'Operator';
 
+  const renderStockCards = () => {
+    if (isOperator) return null;
+
+    if (loadingStock) {
+      return (
+        <>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Stock Weight</CardTitle>
+              <Boxes className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-1/2" />
+              <Skeleton className="h-4 w-3/4 mt-2" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Reels</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+               <Skeleton className="h-8 w-1/2" />
+              <Skeleton className="h-4 w-3/4 mt-2" />
+            </CardContent>
+          </Card>
+        </>
+      )
+    }
+
+    return (
+      <>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total Stock Weight
+            </CardTitle>
+            <Boxes className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stockSummary.totalWeight.toLocaleString()} kg</div>
+            <p className="text-xs text-muted-foreground">
+              Across all paper types
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Reels</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+          <div className="text-2xl font-bold">{stockSummary.totalReels}</div>
+            <p className="text-xs text-muted-foreground">
+              In stock
+            </p>
+          </CardContent>
+        </Card>
+      </>
+    )
+  }
+
   return (
     <>
       <PageHeader
@@ -123,36 +189,7 @@ export default function DashboardPage() {
         description="Welcome back! Here's your production summary."
       />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {!isOperator && (
-          <>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Stock Weight
-                </CardTitle>
-                <Boxes className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stockSummary.totalWeight.toLocaleString()} kg</div>
-                <p className="text-xs text-muted-foreground">
-                  Across all paper types
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Reels</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-              <div className="text-2xl font-bold">{stockSummary.totalReels}</div>
-                <p className="text-xs text-muted-foreground">
-                  In stock
-                </p>
-              </CardContent>
-            </Card>
-          </>
-        )}
+        {renderStockCards()}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Sheets Ruled (Today)</CardTitle>
