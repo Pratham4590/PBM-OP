@@ -267,7 +267,7 @@ export default function RulingPage() {
       
       const reelDocRef = doc(firestore, 'reels', rulingData.reelId);
       const newWeight = rulingData.endWeight!;
-      const newStatus: Reel['status'] = newWeight > 0 ? 'Partially Used' : 'Finished';
+      const newStatus: Reel['status'] = newWeight > 0 ? 'In Use' : 'Finished';
       batch.update(reelDocRef, { weight: newWeight, status: newStatus });
 
       await batch.commit();

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -52,7 +53,6 @@ import {
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -74,9 +74,6 @@ const StockForm = ({
   const [reelData, setReelData] = useState<Partial<Reel>>({});
   const [reelCount, setReelCount] = useState(1);
   const { toast } = useToast();
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
   
   useEffect(() => {
     if (editingReel) {
@@ -96,37 +93,6 @@ const StockForm = ({
   }, [selectedPaper]);
 
 
-  useEffect(() => {
-    if (isCameraOpen) {
-        const getCameraPermission = async () => {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({video: true});
-            setHasCameraPermission(true);
-
-            if (videoRef.current) {
-              videoRef.current.srcObject = stream;
-            }
-          } catch (error) {
-            console.error('Error accessing camera:', error);
-            setHasCameraPermission(false);
-            toast({
-              variant: 'destructive',
-              title: 'Camera Access Denied',
-              description: 'Please enable camera permissions in your browser settings.',
-            });
-          }
-        };
-        getCameraPermission();
-    } else {
-        if (videoRef.current && videoRef.current.srcObject) {
-            const stream = videoRef.current.srcObject as MediaStream;
-            stream.getTracks().forEach(track => track.stop());
-            videoRef.current.srcObject = null;
-        }
-    }
-  }, [isCameraOpen, toast]);
-
-
   const handleSave = () => {
     if (!reelData.paperTypeId || reelData.weight === undefined || reelData.weight <= 0) {
       toast({ variant: "destructive", title: "Error", description: "Paper Type and a valid Weight are required."});
@@ -144,35 +110,7 @@ const StockForm = ({
   return (
     <>
       <div className="p-4 space-y-4 overflow-y-auto">
-        <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
-            <DialogTrigger asChild>
-                <Button variant="outline" className="w-full h-11">
-                    <Camera className="mr-2 h-4 w-4" /> Use Camera to Scan Reel
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Scan Reel</DialogTitle>
-                    <DialogDescription>Point the camera at the reel information.</DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-col items-center justify-center p-4">
-                   <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay muted />
-                   {hasCameraPermission === false && (
-                        <Alert variant="destructive" className="mt-4">
-                            <AlertTitle>Camera Access Denied</AlertTitle>
-                            <AlertDescription>
-                                Please allow camera access in your browser to use this feature.
-                            </AlertDescription>
-                        </Alert>
-                   )}
-                </div>
-                 <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCameraOpen(false)}>Cancel</Button>
-                    <Button>Capture</Button>
-                 </DialogFooter>
-            </DialogContent>
-        </Dialog>
-
+        
         <div className="space-y-2">
           <Label htmlFor="paper-type">Paper Type</Label>
           <Select
@@ -301,50 +239,49 @@ export default function StockPage() {
     toast({ title: 'Reel Deleted' });
   };
   
-  const filteredReels = useMemo(() => {
-    if (!reels) return [];
-    const lowercasedFilter = searchFilter.toLowerCase();
-    return reels.filter(reel => {
-        if (!searchFilter) return true;
-        const paperType = paperTypes?.find(p => p.id === reel.paperTypeId);
-        const paperNameMatch = paperType?.paperName.toLowerCase().includes(lowercasedFilter);
-        const reelNoMatch = reel.reelNo.toLowerCase().includes(lowercasedFilter);
-        return paperNameMatch || reelNoMatch;
-    }).sort((a,b) => {
-        if (!b.createdAt || !a.createdAt) return 0;
-        if (!b.createdAt.toMillis || !a.createdAt.toMillis) return 0;
-        return b.createdAt.toMillis() - a.createdAt.toMillis();
-    });
-  }, [reels, searchFilter, paperTypes]);
+  const aggregatedStock = useMemo(() => {
+    if (!reels || !paperTypes) return [];
+    
+    const stockMap = new Map<string, { paper: PaperType, totalWeight: number, reelCount: number, status: Reel['status'][] }>();
 
-  const getPaperTypeName = (paperTypeId: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
+    reels.forEach(reel => {
+        let entry = stockMap.get(reel.paperTypeId);
+        if (!entry) {
+            const paper = paperTypes.find(p => p.id === reel.paperTypeId);
+            if (!paper) return;
+            entry = { paper, totalWeight: 0, reelCount: 0, status: [] };
+        }
+        
+        entry.totalWeight += reel.weight;
+        entry.reelCount += 1;
+        if (!entry.status.includes(reel.status)) {
+            entry.status.push(reel.status);
+        }
+
+        stockMap.set(reel.paperTypeId, entry);
+    });
+
+    const lowercasedFilter = searchFilter.toLowerCase();
+    
+    return Array.from(stockMap.values()).filter(item => {
+        if (!searchFilter) return true;
+        return item.paper.paperName.toLowerCase().includes(lowercasedFilter);
+    }).sort((a,b) => a.paper.paperName.localeCompare(b.paper.paperName));
+
+  }, [reels, paperTypes, searchFilter]);
   
-  const statusVariant = (status: Reel['status']): "default" | "secondary" | "outline" => {
-    switch (status) {
-        case 'Available': return 'default';
-        case 'Partially Used': return 'secondary';
-        case 'Finished': return 'outline';
-    }
-  };
-   const statusColor = (status: Reel['status']): string => {
-    switch (status) {
-        case 'Available': return 'bg-green-600 dark:bg-green-800';
-        case 'Partially Used': return 'bg-amber-500 dark:bg-amber-700';
-        case 'Finished': return 'border-dashed';
-    }
-  };
 
   const isLoading = loadingReels || loadingPaperTypes;
   
   return (
     <div className="flex flex-col h-[calc(100vh-5rem)] sm:h-screen">
       <header className="sticky top-0 bg-background/95 backdrop-blur z-10 p-4 border-b">
-         <h1 className="text-2xl font-bold text-center mb-4">📦 Stock Management</h1>
+         <h1 className="text-2xl font-bold text-center mb-4">📦 Stock</h1>
          <div className="relative">
             <Input 
                 value={searchFilter} 
                 onChange={(e) => setSearchFilter(e.target.value)} 
-                placeholder="Search paper, reel no..." 
+                placeholder="Search by paper name..." 
                 className="h-11 w-full"
             />
          </div>
@@ -357,70 +294,43 @@ export default function StockPage() {
                     <Card key={i} className="flex flex-col">
                         <CardHeader>
                             <Skeleton className="h-6 w-3/4" />
-                            <Skeleton className="h-4 w-1/2" />
                         </CardHeader>
                         <CardContent className="space-y-2">
                              <Skeleton className="h-4 w-full" />
                              <Skeleton className="h-4 w-full" />
                         </CardContent>
                         <CardFooter>
-                            <Skeleton className="h-8 w-20" />
+                           <Skeleton className="h-8 w-full" />
                         </CardFooter>
                     </Card>
                 ))
-            ) : filteredReels.length > 0 ? (
-                filteredReels.map((reel) => (
-                    <Card key={reel.id} className="flex flex-col">
+            ) : aggregatedStock.length > 0 ? (
+                aggregatedStock.map((item) => (
+                    <Card key={item.paper.id} className="flex flex-col">
                         <CardHeader>
-                            <CardTitle className="truncate">{getPaperTypeName(reel.paperTypeId)}</CardTitle>
-                            <CardDescription>Reel No: {reel.reelNo}</CardDescription>
+                            <CardTitle className="truncate">{item.paper.paperName}</CardTitle>
+                            <CardDescription>{item.paper.gsm}gsm, {item.paper.length}cm</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-2 flex-grow">
                              <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Weight:</span>
-                                <span className="font-medium">{reel.weight.toFixed(2)} kg</span>
+                                <span className="text-muted-foreground">Total Weight:</span>
+                                <span className="font-medium">{item.totalWeight.toFixed(2)} kg</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">GSM:</span>
-                                <span className="font-medium">{reel.gsm}</span>
-                            </div>
-                             <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Size:</span>
-                                <span className="font-medium">{reel.length} cm</span>
+                                <span className="text-muted-foreground">Reels:</span>
+                                <span className="font-medium">{item.reelCount}</span>
                             </div>
                         </CardContent>
-                        <CardFooter className="flex justify-between items-center">
-                            <Badge variant={statusVariant(reel.status)} className={statusColor(reel.status)}>{reel.status}</Badge>
-                            {canEdit && (
-                                <div className="flex items-center gap-1">
-                                    <Button variant="ghost" size="icon" onClick={() => openSheet(reel)}>
-                                        <Edit className="h-4 w-4"/>
-                                    </Button>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                                <Trash2 className="h-4 w-4"/>
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                <AlertDialogDescription>This will permanently delete reel <strong>{reel.reelNo}</strong>.</AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteReel(reel.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </div>
-                            )}
+                        <CardFooter className="flex flex-wrap gap-1">
+                           {item.status.map(s => (
+                             <Badge key={s} variant={s === 'Available' ? 'default' : s === 'In Use' ? 'secondary' : 'outline'} className={s === 'Available' ? 'bg-green-600' : s === 'In Use' ? 'bg-amber-500' : ''}>{s}</Badge>
+                           ))}
                         </CardFooter>
                     </Card>
                 ))
             ) : (
                 <div className="md:col-span-2 lg:col-span-3 xl:col-span-4 text-center py-16">
-                    <p className="text-muted-foreground">No stock found. { searchFilter ? "Try a different search." : "Add some stock to get started."}</p>
+                    <p className="text-muted-foreground">No stock found. { searchFilter ? "Try a different search." : "Add some reels to get started."}</p>
                 </div>
             )}
         </div>
@@ -429,7 +339,7 @@ export default function StockPage() {
        {canEdit && (
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
           <SheetTrigger asChild>
-             <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-20" size="icon">
+             <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-20" size="icon" onClick={() => openSheet()}>
                 <Plus className="h-6 w-6" />
                 <span className="sr-only">Add Stock</span>
              </Button>
@@ -451,3 +361,4 @@ export default function StockPage() {
     </div>
   );
 }
+

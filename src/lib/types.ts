@@ -41,9 +41,11 @@ export type Reel = {
   length: number;
   gsm: number;
   weight: number;
-  status: 'Available' | 'Partially Used' | 'Finished';
+  status: 'Available' | 'In Use' | 'Finished';
   createdAt: Timestamp;
   createdBy: string;
+  notes?: string;
+  imageUrl?: string;
 };
 
 export type Program = {
