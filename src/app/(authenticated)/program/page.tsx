@@ -299,7 +299,7 @@ export default function ProgramPage() {
               Create Program
             </Button>
           </DialogTrigger>
-          <DialogContent className="p-0 flex flex-col max-w-4xl h-full sm:h-auto sm:max-h-[90vh]">
+          <DialogContent className="p-0 flex flex-col sm:max-w-3xl h-full sm:h-auto sm:max-h-[90vh]">
             <DialogHeader className="p-4 border-b sticky top-0 bg-background z-10">
               <DialogTitle>Create New Production Program</DialogTitle>
               <DialogDescription>
@@ -308,9 +308,8 @@ export default function ProgramPage() {
               </DialogDescription>
             </DialogHeader>
             
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2 sm:col-span-2">
                     <Label htmlFor="brand">Brand Name</Label>
                     <Input
@@ -419,35 +418,43 @@ export default function ProgramPage() {
                       <Input id="length-readonly" value={newProgram.length || ''} readOnly disabled />
                      </div>
                    </div>
-                </div>
-                <div className="space-y-4 rounded-md bg-muted p-4 h-fit md:sticky md:top-4">
-                  <h3 className="font-semibold text-lg">Calculations</h3>
-                   <div className="space-y-2">
-                    <Label>Sheets per Notebook (Counting)</Label>
-                    <Input value={calculatedValues.counting.toFixed(2)} readOnly disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Sheets per Bundle</Label>
-                    <Input value={calculatedValues.sheetsPerBundle.toFixed(2)} readOnly disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Total Sheets Required</Label>
-                    <Input
-                      value={calculatedValues.totalSheetsRequired.toLocaleString()}
-                      readOnly
-                      disabled
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Ream Weight (kg)</Label>
-                    <Input
-                      value={calculatedValues.reamWeight.toFixed(2)}
-                      readOnly
-                      disabled
-                    />
-                  </div>
-                </div>
               </div>
+
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="item-1">
+                  <AccordionTrigger className="text-base">View Calculations</AccordionTrigger>
+                  <AccordionContent>
+                      <div className="space-y-4 rounded-md bg-muted p-4">
+                        <h3 className="font-semibold text-lg">Calculations</h3>
+                        <div className="space-y-2">
+                          <Label>Sheets per Notebook (Counting)</Label>
+                          <Input value={calculatedValues.counting.toFixed(2)} readOnly disabled />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Sheets per Bundle</Label>
+                          <Input value={calculatedValues.sheetsPerBundle.toFixed(2)} readOnly disabled />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Total Sheets Required</Label>
+                          <Input
+                            value={calculatedValues.totalSheetsRequired.toLocaleString()}
+                            readOnly
+                            disabled
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Ream Weight (kg)</Label>
+                          <Input
+                            value={calculatedValues.reamWeight.toFixed(2)}
+                            readOnly
+                            disabled
+                          />
+                        </div>
+                      </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+
             </div>
 
             <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2 w-full">
@@ -478,3 +485,5 @@ export default function ProgramPage() {
     </>
   );
 }
+
+    
