@@ -8,6 +8,8 @@ import {
   CollectionReference,
   DocumentReference,
   SetOptions,
+  doc,
+  Firestore,
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import {FirestorePermissionError} from '@/firebase/errors';
@@ -86,4 +88,13 @@ export function deleteDocumentNonBlocking(docRef: DocumentReference) {
         })
       )
     });
+}
+
+/**
+ * Initiates a deleteDoc operation for a document by its ID.
+ * Does NOT await the write operation internally.
+ */
+export function deleteDocumentNonBlockingById(firestore: Firestore, collectionPath: string, id: string) {
+    const docRef = doc(firestore, collectionPath, id);
+    deleteDocumentNonBlocking(docRef);
 }

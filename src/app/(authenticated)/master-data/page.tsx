@@ -49,7 +49,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState, useMemo, useCallback } from 'react';
 import { PaperType, ItemType, User as AppUser } from '@/lib/types';
-import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -188,7 +188,8 @@ export default function MasterDataPage() {
   
   const handleDeletePaperType = (id: string) => {
     if (!firestore) return;
-    deleteDocumentNonBlockingById(firestore, 'paperTypes', id);
+    const docRef = doc(firestore, 'paperTypes', id);
+    deleteDocumentNonBlocking(docRef);
     toast({ title: 'Paper Type Deleted' });
   }
 
@@ -233,7 +234,8 @@ export default function MasterDataPage() {
   
   const handleDeleteItemType = (id: string) => {
     if (!firestore) return;
-    deleteDocumentNonBlockingById(firestore, 'itemTypes', id);
+    const docRef = doc(firestore, 'itemTypes', id);
+    deleteDocumentNonBlocking(docRef);
     toast({ title: 'Item Type Deleted' });
   }
 
@@ -458,5 +460,3 @@ export default function MasterDataPage() {
     </>
   );
 }
-
-    

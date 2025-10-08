@@ -71,7 +71,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlockingById } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, Timestamp, doc, writeBatch } from 'firebase/firestore';
 import {
   DropdownMenu,
@@ -279,7 +279,8 @@ export default function RulingPage() {
 
   const handleDeleteRuling = (rulingId: string) => {
     if (!firestore || !canDelete) return;
-    deleteDocumentNonBlockingById(firestore, 'rulings', rulingId);
+    const docRef = doc(firestore, 'rulings', rulingId);
+    deleteDocumentNonBlocking(docRef);
     toast({ variant: 'destructive', title: 'Ruling Deleted' });
   }
   

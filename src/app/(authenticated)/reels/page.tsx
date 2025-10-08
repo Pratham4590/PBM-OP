@@ -63,7 +63,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -240,7 +240,8 @@ export default function ReelsPage() {
   
   const handleDeleteReel = (id: string) => {
     if (!firestore || !canEdit) return;
-    deleteDocumentNonBlockingById(firestore, 'reels', id);
+    const docRef = doc(firestore, 'reels', id);
+    deleteDocumentNonBlocking(docRef);
     toast({ title: 'Reel Deleted' });
   };
   

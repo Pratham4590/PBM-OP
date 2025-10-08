@@ -63,7 +63,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, addDocumentNonBlocking, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, doc, addDoc, updateDoc } from 'firebase/firestore';
 import {
   Accordion,
@@ -370,7 +370,8 @@ export default function ProgramPage() {
   
   const handleDeleteProgram = (id: string) => {
     if (!firestore) return;
-    deleteDocumentNonBlockingById(firestore, 'programs', id);
+    const docRef = doc(firestore, 'programs', id);
+    deleteDocumentNonBlocking(docRef);
     toast({ title: 'Program Deleted' });
   }
 
