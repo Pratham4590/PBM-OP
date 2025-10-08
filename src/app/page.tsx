@@ -66,12 +66,12 @@ function LoginPageContent() {
 
     // Only create a new document if one doesn't already exist
     if (!userDoc.exists()) {
-        const userData = {
+        const userData: User = {
             id: firebaseUser.uid,
-            email: firebaseUser.email,
+            email: firebaseUser.email || '',
             displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User',
-            role: 'Operator',
-            createdAt: serverTimestamp(),
+            role: 'Operator', // Default role for new sign-ups
+            createdAt: serverTimestamp() as Timestamp,
             themePreference: 'system',
         };
         await setDoc(userDocRef, userData);
@@ -230,7 +230,7 @@ function LoginPageContent() {
                 ? 'Login'
                 : 'Create an account'}
             </Button>
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading} type="button">
               {isLoading ? '...' : 'Login with Google'}
             </Button>
           </form>
