@@ -237,8 +237,8 @@ export default function RulingPage() {
                 const latestStockDoc = await transaction.get(stockDocRef);
                 const latestStockData = latestStockDoc.data() as Stock;
 
-                if (latestStockData.numberOfReels < 1) {
-                    throw new Error(`Insufficient stock for ${getPaperTypeName(latestStockData.paperTypeId)}. Only ${latestStockData.numberOfReels} reels left.`);
+                if (latestStockData.numberOfReels < 1 || latestStockData.totalWeight < (newRuling.reelWeight || 0)) {
+                    throw new Error(`Insufficient stock for ${getPaperTypeName(latestStockData.paperTypeId)}. Check reels and weight.`);
                 }
                 
                 // Prepare the new ruling document
@@ -251,7 +251,11 @@ export default function RulingPage() {
 
                 // Update the stock
                 const newReelCount = latestStockData.numberOfReels - 1;
-                transaction.update(stockDocRef, { numberOfReels: newReelCount });
+                const newTotalWeight = latestStockData.totalWeight - (newRuling.reelWeight || 0);
+                transaction.update(stockDocRef, { 
+                    numberOfReels: newReelCount,
+                    totalWeight: newTotalWeight
+                });
             });
 
             toast({ title: 'Ruling Added & Stock Updated', description: `Reel ${newRuling.reelNo} has been logged and stock decremented.` });
@@ -722,3 +726,5 @@ export default function RulingPage() {
     </>
   );
 }
+
+    
