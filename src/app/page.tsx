@@ -60,10 +60,6 @@ function LoginPageContent() {
     e.preventDefault();
     if (!auth) return;
     setIsLoading(true);
-    initiateEmailSignIn(auth, email, password);
-    // The auth state listener will handle success/error and redirect.
-    // For simplicity, we can show a toast on error, but the listener is the source of truth.
-    // We'll add a temporary listener here for instant feedback, but a global listener is better.
     signInWithEmailAndPassword(auth, email, password)
         .catch((error: any) => {
             toast({
@@ -78,7 +74,7 @@ function LoginPageContent() {
         .finally(() => setIsLoading(false));
   };
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
       toast({
@@ -91,8 +87,8 @@ function LoginPageContent() {
     if (!auth || !firestore) return;
     setIsLoading(true);
 
-    createUserWithEmailAndPassword(auth, email, password)
-      .then(userCredential => {
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         const userDocRef = doc(firestore, 'users', user.uid);
         
@@ -105,28 +101,20 @@ function LoginPageContent() {
             themePreference: 'system',
         };
         
-        // Use non-blocking write
-        setDocumentNonBlocking(userDocRef, userData, {});
-
-        toast({
-          title: 'Sign Up Successful',
-          description: 'Your account has been created. Please log in.',
-        });
-        setIsLoginView(true);
-        setEmail('');
-        setPassword('');
-        setConfirmPassword('');
-      })
-      .catch((error: any) => {
+        await setDoc(userDocRef, userData);
+        
+        // No need to show a toast, user will be redirected to dashboard
+        // The onAuthStateChanged listener in layout will handle the redirect.
+        
+    } catch (error: any) {
         toast({
           variant: 'destructive',
           title: 'Sign Up Failed',
           description: error.message || 'Could not create account.',
         });
-      })
-      .finally(() => {
+    } finally {
         setIsLoading(false);
-      });
+    }
   };
   
   if (isUserLoading || user) {
@@ -180,7 +168,7 @@ function LoginPageContent() {
                     className="ml-auto inline-block text-sm underline"
                     onClick={(e) => {
                       e.preventDefault();
-                      alert('Feature not implemented yet.');
+                      toast({ title: "Feature Coming Soon", description: "Password reset is not yet implemented."});
                     }}
                   >
                     Forgot your password?
@@ -213,10 +201,10 @@ function LoginPageContent() {
               {isLoading
                 ? isLoginView
                   ? 'Logging in...'
-                  : 'Signing up...'
+                  : 'Creating Account...'
                 : isLoginView
                 ? 'Login'
-                : 'Sign Up'}
+                : 'Create an account'}
             </Button>
             <Button variant="outline" className="w-full" disabled>
               Login with Google
