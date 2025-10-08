@@ -65,15 +65,16 @@ function LoginPageContent() {
     const userDoc = await getDoc(userDocRef);
 
     if (!userDoc.exists()) {
+        const isAdmin = firebaseUser.email === 'admin@example.com';
         const userData: User = {
             id: firebaseUser.uid,
             email: firebaseUser.email || '',
             displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User',
-            role: 'Operator', // Default role for new users
+            role: isAdmin ? 'Admin' : 'Operator', // Assign 'Admin' role to specific email
             createdAt: serverTimestamp() as Timestamp,
             themePreference: 'system',
         };
-        // Use setDoc to create the document. This will be allowed by the new security rules.
+        // Use setDoc to create the document.
         await setDoc(userDocRef, userData);
     }
   };

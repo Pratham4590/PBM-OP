@@ -182,7 +182,7 @@ const ProgramForm = ({
               <Select onValueChange={(value) => handleSelectChange('paperTypeId', value)} disabled={loadingPaperTypes} value={newProgram.paperTypeId}>
                 <SelectTrigger><SelectValue placeholder="Select paper" /></SelectTrigger>
                 <SelectContent>
-                  {paperTypes?.map((paper) => (<SelectItem key={paper.id} value={paper.id}>{paper.name}</SelectItem>))}
+                  {paperTypes?.map((paper) => (<SelectItem key={paper.id} value={paper.id}>{paper.paperName}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
@@ -191,7 +191,7 @@ const ProgramForm = ({
                 <Select onValueChange={(value) => handleSelectChange('itemTypeId', value)} disabled={loadingItemTypes} value={newProgram.itemTypeId}>
                   <SelectTrigger><SelectValue placeholder="Select item type" /></SelectTrigger>
                   <SelectContent>
-                    {itemTypes?.map((item) => (<SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>))}
+                    {itemTypes?.map((item) => (<SelectItem key={item.id} value={item.id}>{item.itemName}</SelectItem>))}
                   </SelectContent>
                 </Select>
             </div>
@@ -330,8 +330,8 @@ export default function ProgramPage() {
     }
   };
 
-  const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.name;
-  const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.name;
+  const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName;
+  const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName;
   
   const canEdit = !isLoadingCurrentUser && (currentUser?.role === 'Admin' || currentUser?.role === 'Member');
 

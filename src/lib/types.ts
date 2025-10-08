@@ -14,6 +14,7 @@ export type User = {
 export type PaperType = {
   id: string;
   paperName: string;
+  name?: string;
   gsm: number;
   length: number; // in cm
 };
@@ -21,6 +22,7 @@ export type PaperType = {
 export type ItemType = {
   id: string;
   itemName:string;
+  name?: string;
   shortCode: string;
 };
 
