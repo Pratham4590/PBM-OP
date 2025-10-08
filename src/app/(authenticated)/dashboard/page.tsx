@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, Timestamp, doc } from 'firebase/firestore';
-import { Ruling, Stock, ItemType, User as AppUser } from '@/lib/types';
+import { ItemType, Ruling, Stock, User as AppUser } from '@/lib/types';
 import { useMemo } from 'react';
 
 const chartData = [
@@ -52,7 +52,7 @@ export default function DashboardPage() {
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
   
-  const isOperator = currentUser?.role === 'Operator';
+  const isOperator = useMemo(() => currentUser?.role === 'Operator', [currentUser]);
 
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
@@ -69,11 +69,11 @@ export default function DashboardPage() {
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
 
   const stockSummary = useMemo(() => {
-    if (loadingStock || isOperator || !stock) return { totalWeight: 0, totalReels: 0 };
+    if (loadingStock || !stock) return { totalWeight: 0, totalReels: 0 };
     const totalWeight = stock.reduce((acc, item) => acc + (item.totalWeight ?? 0), 0);
     const totalReels = stock.reduce((acc, item) => acc + (item.numberOfReels ?? 0), 0);
     return { totalWeight, totalReels };
-  }, [stock, isOperator, loadingStock]);
+  }, [stock, loadingStock]);
 
   const productionSummary = useMemo(() => {
     if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: '0.0' };
@@ -275,3 +275,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    

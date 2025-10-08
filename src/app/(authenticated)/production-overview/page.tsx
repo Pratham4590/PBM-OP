@@ -43,7 +43,7 @@ export default function ProductionOverviewPage() {
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
   
-  const isOperator = currentUser?.role === 'Operator';
+  const isOperator = useMemo(() => currentUser?.role === 'Operator', [currentUser]);
 
   const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
@@ -64,7 +64,7 @@ export default function ProductionOverviewPage() {
   const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
 
    const stockDistribution = useMemo(() => {
-    if (loadingStock || isOperator || !stock || !paperTypes) return [];
+    if (loadingStock || !stock || !paperTypes) return [];
     
     const stockByPaperType: { [key: string]: number } = {};
     stock.forEach(s => {
@@ -78,7 +78,7 @@ export default function ProductionOverviewPage() {
         name: paperTypes.find(pt => pt.id === paperTypeId)?.paperName || 'Unknown',
         value: reelCount,
     }));
-   }, [stock, paperTypes, isOperator, loadingStock, loadingPaperTypes]);
+   }, [stock, paperTypes, loadingStock, loadingPaperTypes]);
    
    const rulingSummary = useMemo(() => {
     if (!rulings || !itemTypes) return [];
@@ -103,10 +103,10 @@ export default function ProductionOverviewPage() {
   }, [rulings, itemTypes]);
 
   const stockSummary = useMemo(() => {
-    if (loadingStock || isOperator || !stock) return { totalWeight: 0, paperTypes: [] };
+    if (loadingStock || !stock) return { totalWeight: 0, paperTypes: [] };
     const totalWeight = stock.reduce((acc, s) => acc + (s.totalWeight ?? 0), 0);
     return { totalWeight, paperTypes: paperTypes || [] };
-  }, [stock, paperTypes, isOperator, loadingStock, loadingPaperTypes]);
+  }, [stock, paperTypes, loadingStock, loadingPaperTypes]);
 
   const productionSummary = useMemo(() => {
     if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: 0 };
@@ -290,3 +290,5 @@ export default function ProductionOverviewPage() {
     </>
   );
 }
+
+    

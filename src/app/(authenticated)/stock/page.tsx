@@ -68,7 +68,7 @@ export default function StockPage() {
   
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
-  const isOperator = currentUser?.role === 'Operator';
+  const isOperator = useMemo(() => currentUser?.role === 'Operator', [currentUser]);
 
   const stockQuery = useMemoFirebase(() => {
     if (isLoadingCurrentUser || !firestore || isOperator) {
@@ -103,7 +103,13 @@ export default function StockPage() {
   }, [isModalOpen, editingStock]);
 
   const openModal = (stockItem?: Stock) => {
-    setEditingStock(stockItem || null);
+    if (stockItem) {
+      setEditingStock(stockItem);
+      setNewStockItem(stockItem);
+    } else {
+      setEditingStock(null);
+      setNewStockItem({ numberOfReels: 1, totalWeight: 0 });
+    }
     setIsModalOpen(true);
   }
 
@@ -154,7 +160,7 @@ export default function StockPage() {
     toast({ title: 'Stock Entry Deleted' });
   };
 
-  const getPaperTypeName = (paperTypeId: string) => {
+  const getPaperTypeName = (paperTypeId?: string) => {
     return paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
   }
 
@@ -276,7 +282,7 @@ export default function StockPage() {
                     <div className="text-sm text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1">
                         <span>GSM:</span><span className="font-medium text-foreground">{item.gsm}</span>
                         <span>Length:</span><span className="font-medium text-foreground">{item.length} cm</span>
-                        <span>Weight:</span><span className="font-medium text-foreground">{item.totalWeight.toLocaleString()} kg</span>
+                        <span>Weight:</span><span className="font-medium text-foreground">{item.totalWeight?.toLocaleString()} kg</span>
                         <span>Reels:</span><span className="font-medium text-foreground">{item.numberOfReels}</span>
                     </div>
                   </CardContent>
@@ -311,7 +317,7 @@ export default function StockPage() {
                       <TableCell className="font-medium whitespace-nowrap">{getPaperTypeName(item.paperTypeId)}</TableCell>
                       <TableCell>{item.gsm}</TableCell>
                       <TableCell>{item.length}</TableCell>
-                      <TableCell>{item.totalWeight.toLocaleString()}</TableCell>
+                      <TableCell>{item.totalWeight?.toLocaleString()}</TableCell>
                       <TableCell>{item.numberOfReels}</TableCell>
                       {canEdit && (
                          <TableCell className="text-right">
@@ -345,3 +351,5 @@ export default function StockPage() {
     </>
   );
 }
+
+    
