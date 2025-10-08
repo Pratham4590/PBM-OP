@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, Timestamp, doc } from 'firebase/firestore';
-import { Ruling, Stock, ItemType, RulingEntry, User as AppUser } from '@/lib/types';
+import { Ruling, Stock, ItemType, User as AppUser } from '@/lib/types';
 import { useMemo } from 'react';
 
 const chartData = [
@@ -55,8 +55,15 @@ export default function DashboardPage() {
   const isOperator = currentUser?.role === 'Operator';
 
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
-  const stockQuery = useMemoFirebase(() => (firestore && !isOperator) ? collection(firestore, 'stock') : null, [firestore, isOperator]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
+  
+  // Conditionally create the stock query only AFTER we know the user is not an operator
+  const stockQuery = useMemoFirebase(() => {
+    if (isLoadingCurrentUser || !firestore || isOperator) {
+      return null;
+    }
+    return collection(firestore, 'stock');
+  }, [firestore, isOperator, isLoadingCurrentUser]);
   
   const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
   const { data: stock, isLoading: loadingStock } = useCollection<Stock>(stockQuery);
@@ -101,7 +108,7 @@ export default function DashboardPage() {
 
   const getItemTypeName = (itemTypeId: string) => itemTypes?.find(it => it.id === itemTypeId)?.name || 'N/A';
 
-  const isLoading = loadingRulings || loadingItemTypes || isLoadingCurrentUser || (!isOperator && loadingStock);
+  const isLoading = isLoadingCurrentUser || loadingRulings || loadingItemTypes || (!isOperator && loadingStock);
   
   if (isLoading) {
     return (

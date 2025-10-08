@@ -47,9 +47,15 @@ export default function ProductionOverviewPage() {
 
   const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
-  const stockQuery = useMemoFirebase(() => (firestore && !isOperator) ? collection(firestore, 'stock') : null, [firestore, isOperator]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
+
+  const stockQuery = useMemoFirebase(() => {
+    if (isLoadingCurrentUser || !firestore || isOperator) {
+        return null;
+    }
+    return collection(firestore, 'stock');
+  }, [firestore, isOperator, isLoadingCurrentUser]);
 
   const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
@@ -132,7 +138,7 @@ export default function ProductionOverviewPage() {
     return progress;
   }, [programs, rulings]);
   
-  const isLoading = loadingPrograms || loadingItemTypes || loadingPaperTypes || loadingRulings || isLoadingCurrentUser || (!isOperator && loadingStock);
+  const isLoading = isLoadingCurrentUser || loadingPrograms || loadingItemTypes || loadingPaperTypes || loadingRulings || (!isOperator && loadingStock);
   
   if (isLoading) {
     return (
