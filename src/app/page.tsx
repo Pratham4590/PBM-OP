@@ -18,7 +18,7 @@ import {
   User as FirebaseUser,
 } from 'firebase/auth';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { doc, setDoc, serverTimestamp, getDoc, Timestamp, collection } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc, Timestamp } from 'firebase/firestore';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useTheme } from 'next-themes';
 import { User } from '@/lib/types';
@@ -73,6 +73,7 @@ function LoginPageContent() {
             createdAt: serverTimestamp() as Timestamp,
             themePreference: 'system',
         };
+        // Use setDoc to create the document. This will be allowed by the new security rules.
         await setDoc(userDocRef, userData);
     }
   };
