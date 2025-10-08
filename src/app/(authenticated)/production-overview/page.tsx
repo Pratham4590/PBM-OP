@@ -51,14 +51,11 @@ export default function ProductionOverviewPage() {
 
   const stockQuery = useMemoFirebase(() => {
     // IMPORTANT: Wait for user data to load and check the role before creating the query.
-    if (!firestore || isLoadingCurrentUser || !currentUser) {
+    if (!firestore || isLoadingCurrentUser || !currentUser || !['Admin', 'Member'].includes(currentUser.role)) {
       return null;
     }
     // Only create the query if the user has the correct role.
-    if (currentUser.role === 'Admin' || currentUser.role === 'Member') {
-      return collection(firestore, 'stock');
-    }
-    return null; // Return null for Operators or if role is not yet determined.
+    return collection(firestore, 'stock');
   }, [firestore, currentUser, isLoadingCurrentUser]);
 
 

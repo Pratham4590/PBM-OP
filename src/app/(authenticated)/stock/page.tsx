@@ -73,14 +73,11 @@ export default function StockPage() {
   
   const stockQuery = useMemoFirebase(() => {
     // IMPORTANT: Wait for user data to load and check the role before creating the query.
-    if (!firestore || isLoadingCurrentUser || !currentUser) {
+    if (!firestore || isLoadingCurrentUser || !currentUser || !['Admin', 'Member'].includes(currentUser.role)) {
       return null;
     }
     // Only create the query if the user has the correct role.
-    if (currentUser.role === 'Admin' || currentUser.role === 'Member') {
-      return collection(firestore, 'stock');
-    }
-    return null; // Return null for Operators or if role is not yet determined.
+    return collection(firestore, 'stock');
   }, [firestore, currentUser, isLoadingCurrentUser]);
   
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
@@ -219,9 +216,20 @@ export default function StockPage() {
 
   if (isLoadingCurrentUser) {
     return (
-        <div className="flex h-full w-full items-center justify-center">
-            <div className="text-lg text-muted-foreground">Loading Stock...</div>
-        </div>
+        <>
+            <PageHeader title="Stock Management" description="Track and manage your paper stock in real-time." />
+            <Card>
+                <CardHeader>
+                    <CardTitle>Loading...</CardTitle>
+                    <CardDescription>Checking permissions...</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="h-48 w-full flex items-center justify-center">
+                        <p className="text-muted-foreground">Please wait</p>
+                    </div>
+                </CardContent>
+            </Card>
+        </>
     )
   }
 
