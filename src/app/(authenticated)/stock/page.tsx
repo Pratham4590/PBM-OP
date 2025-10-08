@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTrigger } from '@/components/ui/sheet';
 import {
