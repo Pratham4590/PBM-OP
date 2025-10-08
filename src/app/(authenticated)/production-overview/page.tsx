@@ -29,7 +29,7 @@ import {
   Bar,
   Legend,
 } from 'recharts';
-import { Program, ItemType, Stock, PaperType, Ruling, User as AppUser } from '@/lib/types';
+import { Program, ItemType, Stock, PaperType, Ruling as RulingType, User as AppUser } from '@/lib/types';
 import { useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, Timestamp, doc } from 'firebase/firestore';
@@ -49,7 +49,7 @@ export default function ProductionOverviewPage() {
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
 
   const stockQuery = useMemoFirebase(() => {
-    if (!firestore || isLoadingCurrentUser || currentUser?.role === 'Operator') {
+    if (!firestore || isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
       return null;
     }
     return collection(firestore, 'stock');
@@ -59,7 +59,7 @@ export default function ProductionOverviewPage() {
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
   const { data: stock, isLoading: loadingStock } = useCollection<Stock>(stockQuery);
   const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
-  const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
+  const { data: rulings, isLoading: loadingRulings } = useCollection<RulingType>(rulingsQuery);
 
    const stockDistribution = useMemo(() => {
     if (loadingStock || !stock || !paperTypes) return [];
@@ -107,7 +107,7 @@ export default function ProductionOverviewPage() {
   }, [stock, paperTypes, loadingStock, loadingPaperTypes]);
 
   const productionSummary = useMemo(() => {
-    if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: 0 };
+    if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: '0.0' };
     const today = new Date().toDateString();
     
     const todayRulings = rulings.filter(r => {
