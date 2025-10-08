@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -45,7 +44,7 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useMemo, useState } from 'react';
@@ -176,7 +175,7 @@ export default function MasterDataPage() {
 
   const PaperModalContent = () => (
     <>
-      <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-4">
+      <div className="p-4 space-y-4 overflow-y-auto max-h-[80vh]">
         <div className="space-y-2">
           <Label htmlFor="paper-name">Paper Name</Label>
           <Input id="paper-name" value={newPaperType.paperName || ''} onChange={(e) => setNewPaperType({ ...newPaperType, paperName: e.target.value })} placeholder="e.g., JK Maplitho" className="h-11" />
@@ -190,7 +189,7 @@ export default function MasterDataPage() {
           <Input id="paper-length" type="number" value={newPaperType.length || ''} onChange={(e) => setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })} placeholder="e.g., 60" className="h-11" />
         </div>
       </div>
-      <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10">
+      <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
         <Button variant="outline" onClick={handleClosePaperModal} className="h-11 w-full sm:w-auto">Cancel</Button>
         <Button onClick={handleSavePaperType} className="h-11 w-full sm:w-auto">Save Paper Type</Button>
       </DialogFooter>
@@ -199,7 +198,7 @@ export default function MasterDataPage() {
 
   const ItemModalContent = () => (
     <>
-      <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-4">
+      <div className="p-4 space-y-4 overflow-y-auto max-h-[80vh]">
         <div className="space-y-2">
           <Label htmlFor="item-name">Item Name</Label>
           <Input id="item-name" value={newItemType.itemName || ''} onChange={(e) => setNewItemType({ ...newItemType, itemName: e.target.value })} placeholder="e.g., Ruled Notebook" className="h-11" />
@@ -209,7 +208,7 @@ export default function MasterDataPage() {
           <Input id="item-shortCode" value={newItemType.shortCode || ''} onChange={(e) => setNewItemType({ ...newItemType, shortCode: e.target.value })} placeholder="e.g., RN01" className="h-11" />
         </div>
       </div>
-      <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10">
+      <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
         <Button variant="outline" onClick={handleCloseItemModal} className="h-11 w-full sm:w-auto">Cancel</Button>
         <Button onClick={handleSaveItemType} className="h-11 w-full sm:w-auto">Save Item Type</Button>
       </DialogFooter>
@@ -229,11 +228,11 @@ export default function MasterDataPage() {
               <>
                 <Sheet open={isPaperModalOpen} onOpenChange={setIsPaperModalOpen}>
                   <SheetTrigger asChild>
-                    <Button className="w-full sm:w-auto" onClick={() => openPaperModal()}>
+                    <Button className="w-full sm:w-auto h-11" onClick={() => openPaperModal()}>
                       <PlusCircle className="mr-2 h-4 w-4" /> Add Paper Type
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="bottom" className="p-0 flex flex-col h-[90svh]">
+                  <SheetContent side="bottom" className="p-0 flex flex-col h-auto max-h-[90svh]">
                     <SheetHeader className="p-4 border-b">
                       <SheetTitle>{editingPaperType ? 'Edit' : 'Add New'} Paper Type</SheetTitle>
                     </SheetHeader>
@@ -242,11 +241,11 @@ export default function MasterDataPage() {
                 </Sheet>
                 <Sheet open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
                   <SheetTrigger asChild>
-                    <Button className="w-full sm:w-auto" onClick={() => openItemModal()}>
+                    <Button className="w-full sm:w-auto h-11" onClick={() => openItemModal()}>
                       <PlusCircle className="mr-2 h-4 w-4" /> Add Item Type
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="bottom" className="p-0 flex flex-col h-[90svh]">
+                  <SheetContent side="bottom" className="p-0 flex flex-col h-auto max-h-[90svh]">
                     <SheetHeader className="p-4 border-b">
                       <SheetTitle>{editingItemType ? 'Edit' : 'Add New'} Item Type</SheetTitle>
                     </SheetHeader>
@@ -258,12 +257,12 @@ export default function MasterDataPage() {
               <>
                 <Dialog open={isPaperModalOpen} onOpenChange={setIsPaperModalOpen}>
                   <DialogTrigger asChild>
-                    <Button className="w-full sm:w-auto" onClick={() => openPaperModal()}>
+                    <Button className="w-full sm:w-auto h-11" onClick={() => openPaperModal()}>
                       <PlusCircle className="mr-2 h-4 w-4" /> Add Paper Type
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-h-[90svh] flex flex-col">
-                    <DialogHeader>
+                  <DialogContent className="p-0 max-w-lg">
+                    <DialogHeader className="p-4 border-b">
                       <DialogTitle>{editingPaperType ? 'Edit' : 'Add New'} Paper Type</DialogTitle>
                     </DialogHeader>
                     <PaperModalContent />
@@ -271,12 +270,12 @@ export default function MasterDataPage() {
                 </Dialog>
                 <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
                   <DialogTrigger asChild>
-                    <Button className="w-full sm:w-auto" onClick={() => openItemModal()}>
+                    <Button className="w-full sm:w-auto h-11" onClick={() => openItemModal()}>
                       <PlusCircle className="mr-2 h-4 w-4" /> Add Item Type
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-h-[90svh] flex flex-col">
-                    <DialogHeader>
+                  <DialogContent className="p-0 max-w-lg">
+                    <DialogHeader className="p-4 border-b">
                       <DialogTitle>{editingItemType ? 'Edit' : 'Add New'} Item Type</DialogTitle>
                     </DialogHeader>
                     <ItemModalContent />
@@ -418,5 +417,3 @@ export default function MasterDataPage() {
     </>
   );
 }
-
-    

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -40,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Stock, PaperType, User as AppUser } from '@/lib/types';
 import {
   Card,
@@ -107,10 +106,10 @@ export default function StockPage() {
     setIsModalOpen(true);
   }
   
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setIsModalOpen(false);
     setEditingStock(null);
-  }
+  }, []);
 
   const handleSelectPaper = (paperTypeId: string) => {
     const selectedPaper = paperTypes?.find((p) => p.id === paperTypeId);
@@ -173,7 +172,7 @@ export default function StockPage() {
 
   const ModalContent = () => (
     <>
-      <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-4">
+      <div className="p-4 space-y-4 overflow-y-auto max-h-[80vh]">
         <div className="space-y-2">
           <Label htmlFor="paper-type">Paper Type</Label>
           <Select value={newStockItem.paperTypeId} onValueChange={handleSelectPaper} disabled={loadingPaperTypes}>
@@ -198,7 +197,7 @@ export default function StockPage() {
           </div>
         </div>
       </div>
-      <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2">
+      <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
          <Button variant="outline" onClick={closeModal} disabled={isSaving} className="h-11 w-full sm:w-auto">Cancel</Button>
         <Button onClick={handleSaveStock} disabled={isSaving} className="h-11 w-full sm:w-auto">
           {isSaving ? 'Saving...' : 'Save Stock'}
@@ -240,9 +239,9 @@ export default function StockPage() {
           isMobile ? (
             <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
               <SheetTrigger asChild>
-                <Button onClick={() => openModal()}><PlusCircle className="mr-2 h-4 w-4" />Add Stock</Button>
+                <Button onClick={() => openModal()} className="h-11"><PlusCircle className="mr-2 h-4 w-4" />Add Stock</Button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="p-0 flex flex-col h-[90svh]">
+              <SheetContent side="bottom" className="p-0 flex flex-col h-auto max-h-[90svh]">
                 <SheetHeader className="p-4 border-b">
                   <SheetTitle>{editingStock ? 'Edit' : 'Add New'} Stock</SheetTitle>
                   <SheetDescription>Enter the details of the paper stock.</SheetDescription>
@@ -253,10 +252,10 @@ export default function StockPage() {
           ) : (
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
               <DialogTrigger asChild>
-                <Button onClick={() => openModal()}><PlusCircle className="mr-2 h-4 w-4" />Add Stock</Button>
+                <Button onClick={() => openModal()} className="h-11"><PlusCircle className="mr-2 h-4 w-4" />Add Stock</Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[90vh] flex flex-col">
-                <DialogHeader>
+              <DialogContent className="p-0 max-w-lg">
+                <DialogHeader className="p-4 border-b">
                   <DialogTitle>{editingStock ? 'Edit' : 'Add New'} Stock</DialogTitle>
                   <DialogDescription>Enter the details of the paper stock.</DialogDescription>
                 </DialogHeader>

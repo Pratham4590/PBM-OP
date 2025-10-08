@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -180,7 +179,7 @@ const ProgramForm = ({
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-6">
+      <div className="p-4 space-y-6 overflow-y-auto max-h-[80vh]">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="brand">Brand Name</Label>
@@ -271,12 +270,12 @@ const ProgramForm = ({
 
       </div>
 
-      <div className="p-4 border-t sticky bottom-0 bg-background z-10 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2 w-full">
+      <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
         <Button variant="outline" disabled={isSaving} onClick={onClose} className="w-full sm:w-auto h-11">Cancel</Button>
         <Button onClick={handleCreateProgram} disabled={isSaving} className="w-full sm:w-auto h-11">
           {isSaving ? 'Saving...' : 'Save Program'}
         </Button>
-      </div>
+      </DialogFooter>
     </>
   );
 }
@@ -314,10 +313,10 @@ export default function ProgramPage() {
     setIsModalOpen(true);
   }
   
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setIsModalOpen(false);
     setEditingProgram(null);
-  }
+  }, []);
 
   const handleSaveProgram = async (programData: Partial<Program>) => {
     if (!firestore) return;
@@ -469,7 +468,7 @@ export default function ProgramPage() {
   };
   
   const renderTrigger = () => (
-     <Button onClick={() => openModal()}>
+     <Button onClick={() => openModal()} className="h-11">
         <PlusCircle className="mr-2 h-4 w-4" />
         Create Program
     </Button>
@@ -496,7 +495,7 @@ export default function ProgramPage() {
           isMobile ? (
              <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
               <SheetTrigger asChild>{renderTrigger()}</SheetTrigger>
-              <SheetContent side="bottom" className="p-0 flex flex-col h-[90svh]">
+              <SheetContent side="bottom" className="p-0 flex flex-col h-auto max-h-[90svh]">
                  <SheetHeader className="p-4 border-b">
                     <SheetTitle>{editingProgram ? 'Edit' : 'Create New'} Production Program</SheetTitle>
                     <SheetDescription>
@@ -509,8 +508,8 @@ export default function ProgramPage() {
           ) : (
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
               <DialogTrigger asChild>{renderTrigger()}</DialogTrigger>
-              <DialogContent className="p-0 flex flex-col sm:max-w-3xl h-full sm:h-auto sm:max-h-[90vh]">
-                <DialogHeader className="p-6 pb-0">
+              <DialogContent className="p-0 sm:max-w-2xl max-h-[90vh] flex flex-col">
+                <DialogHeader className="p-6 pb-4">
                   <DialogTitle>{editingProgram ? 'Edit' : 'Create New'} Production Program</DialogTitle>
                   <DialogDescription>
                     Fill in the details. Calculated values will update automatically.

@@ -139,8 +139,8 @@ export default function UsersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Email</TableHead>
                   <TableHead>Display Name</TableHead>
+                  <TableHead>Email</TableHead>
                   <TableHead className="w-[180px]">Role</TableHead>
                 </TableRow>
               </TableHeader>
@@ -157,8 +157,8 @@ export default function UsersPage() {
                 ) : users && users.length > 0 ? (
                   users.map((user) => (
                     <TableRow key={user.id}>
-                      <TableCell className="font-medium whitespace-nowrap">{user.email}</TableCell>
-                      <TableCell className="whitespace-nowrap">{user.displayName}</TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">{user.displayName}</TableCell>
+                      <TableCell className="whitespace-nowrap">{user.email}</TableCell>
                       <TableCell>
                         <Select
                           value={user.role}

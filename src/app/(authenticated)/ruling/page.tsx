@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -270,10 +269,10 @@ export default function RulingPage() {
 
   const renderModalContent = () => (
     <>
-      <div className="flex-grow overflow-y-auto pr-6 -mr-6">
+      <div className="flex-grow overflow-y-auto p-4 space-y-4 max-h-[80vh]">
       {/* Step 1: Reel Details */}
       {currentStep === 1 && (
-        <div className="space-y-4 py-4">
+        <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="date">Date</Label>
@@ -334,7 +333,7 @@ export default function RulingPage() {
 
       {/* Step 2: Ruling Entries */}
       {currentStep === 2 && (
-        <div className="py-4 space-y-6">
+        <div className="space-y-6">
           <Card className="border-border">
             <CardHeader><CardTitle>Add Ruling Entry</CardTitle></CardHeader>
             <CardContent className="space-y-4">
@@ -440,7 +439,7 @@ export default function RulingPage() {
       
       {/* Step 3: Summary & Finish */}
       {currentStep === 3 && (
-          <div className="py-4 space-y-4">
+          <div className="space-y-4">
               <Card>
                   <CardHeader><CardTitle>Reel Summary</CardTitle></CardHeader>
                   <CardContent className="text-sm space-y-1">
@@ -514,7 +513,7 @@ export default function RulingPage() {
           </div>
       )}
       </div>
-      <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2">
+      <DialogFooter className="mt-auto p-4 border-t sticky bottom-0 bg-background z-10 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2">
         <Button variant="outline" onClick={resetForm} className="h-11 w-full sm:w-auto">
           Cancel
         </Button>
@@ -546,12 +545,12 @@ export default function RulingPage() {
         {isMobile ? (
           <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
             <SheetTrigger asChild>
-              <Button onClick={openNewModal}>
+              <Button onClick={openNewModal} className="h-11">
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add Reel Ruling
               </Button>
             </SheetTrigger>
-            <SheetContent side="bottom" className="p-0 flex flex-col h-[90svh]">
+            <SheetContent side="bottom" className="p-0 flex flex-col h-auto max-h-[90svh]">
               <SheetHeader className="p-4 border-b">
                 <SheetTitle>{editingRuling ? 'Edit' : 'Add'} Reel Ruling</SheetTitle>
                 <SheetDescription>
@@ -564,12 +563,12 @@ export default function RulingPage() {
         ) : (
           <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openNewModal}>
+              <Button onClick={openNewModal} className="h-11">
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add Reel Ruling
               </Button>
             </DialogTrigger>
-            <DialogContent className="p-0 max-w-4xl max-h-[90vh] flex flex-col">
+            <DialogContent className="p-0 max-w-2xl max-h-[90vh] flex flex-col">
               <DialogHeader className="p-6 pb-0">
                 <DialogTitle>{editingRuling ? 'Edit' : 'Add'} Reel Ruling</DialogTitle>
                 <DialogDescription>
