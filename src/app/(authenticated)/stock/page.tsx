@@ -9,10 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
-  DialogTrigger,
 } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,10 +69,13 @@ export default function StockPage() {
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
   
   const stockQuery = useMemoFirebase(() => {
-    if (isLoadingCurrentUser || !currentUser || (currentUser.role !== 'Admin' && currentUser.role !== 'Member')) {
+    if (!firestore || isLoadingCurrentUser || !currentUser) {
       return null;
     }
-    return firestore ? collection(firestore, 'stock') : null;
+    if (currentUser.role === 'Admin' || currentUser.role === 'Member') {
+      return collection(firestore, 'stock');
+    }
+    return null;
   }, [firestore, currentUser, isLoadingCurrentUser]);
   
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
@@ -249,7 +250,6 @@ export default function StockPage() {
               <SheetContent side="bottom" className="p-0 flex flex-col h-auto max-h-[90svh]">
                 <SheetHeader className="p-4 border-b">
                   <SheetTitle>{editingStock ? 'Edit' : 'Add New'} Stock</SheetTitle>
-                  <SheetDescription>Enter the details of the paper stock.</SheetDescription>
                 </SheetHeader>
                 <ModalContent />
               </SheetContent>
