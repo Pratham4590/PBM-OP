@@ -3,41 +3,15 @@
 
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';
-import { PlusCircle, Trash2, MoreVertical, Edit } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetTrigger,
-} from '@/components/ui/sheet';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
+import { PlusCircle, Trash2, ChevronDown, ArrowLeft } from 'lucide-react';
+
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
   CardDescription,
+  CardFooter,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -56,15 +30,8 @@ import {
   ItemType,
   Program,
   User as AppUser,
+  RulingEntry,
 } from '@/lib/types';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import {
   Accordion,
@@ -72,249 +39,322 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp, Timestamp, doc, writeBatch } from 'firebase/firestore';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { collection, serverTimestamp, Timestamp, doc, writeBatch, addDoc } from 'firebase/firestore';
+
 import { useToast } from '@/hooks/use-toast';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useRouter } from 'next/navigation';
+import { Skeleton } from '@/components/ui/skeleton';
 
+const initialRulingEntry: RulingEntry = {
+  itemTypeId: '',
+  sheetsRuled: 0,
+  cutoff: 0,
+  theoreticalSheets: 0,
+  difference: 0,
+  status: 'In Progress',
+};
 
-const RulingForm = ({
-  availableReels,
-  programs,
-  itemTypes,
-  paperTypes,
-  onSave,
-  onClose,
-  isSaving
-}: {
-  availableReels: Reel[] | null,
-  programs: Program[] | null,
-  itemTypes: ItemType[] | null,
-  paperTypes: PaperType[] | null,
-  onSave: (ruling: Partial<Ruling>) => void,
-  onClose: () => void,
-  isSaving: boolean
-}) => {
-  const [ruling, setRuling] = useState<Partial<Ruling>>({});
-  const { toast } = useToast();
-  
-  const selectedReel = useMemo(() => availableReels?.find(r => r.id === ruling.reelId), [ruling.reelId, availableReels]);
-  const selectedProgram = useMemo(() => programs?.find(p => p.id === ruling.programId), [ruling.programId, programs]);
-
-  useEffect(() => {
-    if (selectedReel) {
-      setRuling(prev => ({ ...prev, paperTypeId: selectedReel.paperTypeId, startWeight: selectedReel.weight, reelNo: selectedReel.reelNo }));
-    }
-  }, [selectedReel]);
-  
-  useEffect(() => {
-    if (selectedProgram) {
-      setRuling(prev => ({ ...prev, itemTypeId: selectedProgram.itemTypeId, cutoff: selectedProgram.cutoff }));
-    }
-  }, [selectedProgram]);
-
-  const calculation = useMemo(() => {
-    const defaultValues = { theoreticalSheets: 0, difference: 0 };
-    if (!selectedReel || !ruling.cutoff || !ruling.sheetsRuled) return defaultValues;
-    
-    const reamWeight = (selectedReel.length * ruling.cutoff * selectedReel.gsm) / 20000;
-    
-    if (reamWeight <= 0 || !ruling.startWeight) return defaultValues;
-
-    const theoreticalSheets = (ruling.startWeight * 500) / reamWeight;
-    const difference = ruling.sheetsRuled - theoreticalSheets;
-    return { theoreticalSheets, difference };
-  }, [selectedReel, ruling]);
-
-  const handleSave = () => {
-    if (!ruling.reelId || !ruling.itemTypeId || !ruling.cutoff || !ruling.sheetsRuled || ruling.endWeight === undefined) {
-      toast({ variant: 'destructive', title: 'Missing Fields', description: 'Please fill out all fields.' });
-      return;
-    }
-    if (ruling.startWeight && ruling.endWeight > ruling.startWeight) {
-      toast({ variant: 'destructive', title: 'Invalid Weight', description: 'End weight cannot be greater than start weight.' });
-      return;
-    }
-    onSave({
-      ...ruling,
-      theoreticalSheets: calculation.theoreticalSheets,
-      difference: calculation.difference,
-    });
-  };
-
-  const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
-
-  return (
-    <>
-      <div className="p-4 space-y-4 overflow-y-auto flex-grow max-h-[75vh]">
-          <div className="space-y-2">
-            <Label>Select Reel</Label>
-            <Select onValueChange={(value) => setRuling(prev => ({...prev, reelId: value}))}>
-              <SelectTrigger className="h-11"><SelectValue placeholder="Select a reel" /></SelectTrigger>
-              <SelectContent>
-                {availableReels?.map(reel => (
-                  <SelectItem key={reel.id} value={reel.id}>{reel.reelNo} ({getPaperTypeName(reel.paperTypeId)})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-           {selectedReel && (
-             <div className="p-3 bg-muted/50 rounded-md text-sm grid grid-cols-2 gap-x-4 gap-y-1">
-                <span>Paper:</span> <span className="text-right font-medium">{getPaperTypeName(selectedReel.paperTypeId)}</span>
-                <span>Weight:</span> <span className="text-right font-medium">{selectedReel.weight.toFixed(2)} kg</span>
-                <span>Length:</span> <span className="text-right font-medium">{selectedReel.length} cm</span>
-                <span>GSM:</span> <span className="text-right font-medium">{selectedReel.gsm}</span>
-             </div>
-           )}
-          <div className="space-y-2">
-              <Label>Program (Optional)</Label>
-              <Select onValueChange={(value) => setRuling(prev => ({...prev, programId: value === 'none' ? undefined : value}))}>
-                <SelectTrigger className="h-11"><SelectValue placeholder="Select a program" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Program</SelectItem>
-                  {programs?.map(prog => (
-                    <SelectItem key={prog.id} value={prog.id}>{prog.brand} - {itemTypes?.find(i => i.id === prog.itemTypeId)?.itemName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Item Type</Label>
-                <Select value={ruling.itemTypeId} onValueChange={(value) => setRuling(prev => ({...prev, itemTypeId: value}))} disabled={!!selectedProgram}>
-                  <SelectTrigger className="h-11"><SelectValue placeholder="Select item" /></SelectTrigger>
-                  <SelectContent>
-                    {itemTypes?.map(item => (
-                      <SelectItem key={item.id} value={item.id}>{item.itemName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Cutoff (cm)</Label>
-                <Input type="number" value={ruling.cutoff || ''} onChange={e => setRuling(prev => ({...prev, cutoff: parseFloat(e.target.value)}))} disabled={!!selectedProgram} className="h-11" />
-              </div>
-          </div>
-           <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Sheets Ruled</Label>
-                <Input type="number" value={ruling.sheetsRuled || ''} onChange={e => setRuling(prev => ({...prev, sheetsRuled: parseInt(e.target.value)}))} className="h-11" />
-              </div>
-              <div className="space-y-2">
-                <Label>End Weight (kg)</Label>
-                <Input type="number" value={ruling.endWeight || ''} onChange={e => setRuling(prev => ({...prev, endWeight: parseFloat(e.target.value)}))} className="h-11" />
-              </div>
-          </div>
-          <div className="p-3 bg-muted/50 rounded-md text-sm grid grid-cols-2 gap-x-4 gap-y-1">
-              <span>Theoretical Sheets:</span> <span className="text-right font-medium">{(calculation.theoreticalSheets || 0).toFixed(0)}</span>
-              <span>Difference:</span> 
-              <span className="text-right font-medium">
-                  <Badge variant={calculation.difference >= 0 ? 'default' : 'destructive'} className={calculation.difference >= 0 ? 'bg-green-600' : ''}>
-                    {(calculation.difference || 0).toFixed(0)}
-                  </Badge>
-              </span>
-          </div>
-      </div>
-      <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10">
-        <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
-        <Button onClick={handleSave} disabled={isSaving}>{isSaving ? 'Saving...' : 'Save Ruling'}</Button>
-      </DialogFooter>
-    </>
-  );
-}
 
 export default function RulingPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
-  const isMobile = useIsMobile();
-  
-  const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
-  const { data: currentUser } = useDoc<AppUser>(currentUserDocRef);
+  const router = useRouter();
 
-  const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'rulings') : null, [firestore]);
-  const reelsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
+  const [step, setStep] = useState(1);
+  const [selectedPaperTypeId, setSelectedPaperTypeId] = useState<string | null>(null);
+  const [selectedReel, setSelectedReel] = useState<Reel | null>(null);
+  const [rulingEntries, setRulingEntries] = useState<Partial<RulingEntry>[]>([{}]);
+  const [endWeight, setEndWeight] = useState<number>(0);
+  const [isSaving, setIsSaving] = useState(false);
+
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
+  const reelsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
 
-  const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
-  const { data: reels } = useCollection<Reel>(reelsQuery);
-  const { data: paperTypes } = useCollection<PaperType>(paperTypesQuery);
-  const { data: itemTypes } = useCollection<ItemType>(itemTypesQuery);
-  const { data: programs } = useCollection<Program>(programsQuery);
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const canDelete = useMemo(() => currentUser?.role === 'Admin' || currentUser?.role === 'Member', [currentUser]);
-
-  const availableReels = useMemo(() => reels?.filter(r => r.status !== 'Finished'), [reels]);
-
-  const resetForm = useCallback(() => {
-    setIsModalOpen(false);
-  }, []);
-
-  const handleSaveRuling = async (rulingData: Partial<Ruling>) => {
-    if (!firestore || !user || !rulingData.reelId) return;
-    setIsSaving(true);
+  const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
+  const { data: reels, isLoading: loadingReels } = useCollection<Reel>(reelsQuery);
+  const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
+  const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
+  
+  const availableReels = useMemo(() => {
+    if (!reels || !selectedPaperTypeId) return [];
+    return reels.filter(r => r.paperTypeId === selectedPaperTypeId && r.status !== 'Finished');
+  }, [reels, selectedPaperTypeId]);
+  
+  const handlePaperTypeSelect = (paperTypeId: string) => {
+    setSelectedPaperTypeId(paperTypeId);
+    setStep(2);
+  };
+  
+  const handleReelSelect = (reel: Reel) => {
+    setSelectedReel(reel);
+    setEndWeight(reel.weight);
+    setStep(3);
+  };
+  
+  const handleRulingEntryChange = (index: number, field: keyof RulingEntry, value: any) => {
+    const newEntries = [...rulingEntries];
+    const entry = { ...newEntries[index] };
+    (entry as any)[field] = value;
     
+    if (field === 'programId' && value !== 'none') {
+        const program = programs?.find(p => p.id === value);
+        if(program) {
+            entry.itemTypeId = program.itemTypeId;
+            entry.cutoff = program.cutoff;
+        }
+    }
+    
+    newEntries[index] = entry;
+    setRulingEntries(newEntries);
+  };
+
+  const addRulingEntry = () => {
+    setRulingEntries([...rulingEntries, {}]);
+  };
+
+  const removeRulingEntry = (index: number) => {
+    const newEntries = rulingEntries.filter((_, i) => i !== index);
+    setRulingEntries(newEntries);
+  };
+
+  const calculateRulingValues = (entry: Partial<RulingEntry>, rulingWeight: number) => {
+    if (!selectedReel || !entry.cutoff || !entry.sheetsRuled) {
+      return { theoreticalSheets: 0, difference: 0 };
+    }
+    const { length, gsm } = selectedReel;
+    const reamWeight = (length * entry.cutoff * gsm) / 20000;
+    if (reamWeight <= 0) return { theoreticalSheets: 0, difference: 0 };
+
+    const theoreticalSheets = (rulingWeight * 500) / reamWeight;
+    const difference = entry.sheetsRuled - theoreticalSheets;
+
+    return { theoreticalSheets, difference };
+  };
+
+  const totalSheetsRuled = useMemo(() => {
+    return rulingEntries.reduce((acc, entry) => acc + (entry.sheetsRuled || 0), 0);
+  }, [rulingEntries]);
+
+  const weightUsedPerEntry = useMemo(() => {
+    if (!selectedReel) return 0;
+    const totalWeightUsed = selectedReel.weight - endWeight;
+    if (totalWeightUsed <= 0 || totalSheetsRuled <= 0) return 0;
+
+    return totalWeightUsed / totalSheetsRuled;
+  }, [selectedReel, endWeight, totalSheetsRuled]);
+
+  const handleSave = async () => {
+    if (!firestore || !user || !selectedReel) return;
+
+    if (endWeight > selectedReel.weight) {
+      toast({ variant: 'destructive', title: 'Invalid Weight', description: 'End weight cannot be greater than the reel\'s start weight.' });
+      return;
+    }
+    if (rulingEntries.some(e => !e.itemTypeId || !e.cutoff || !e.sheetsRuled)) {
+      toast({ variant: 'destructive', title: 'Missing Fields', description: 'Please fill out all fields for each ruling entry.' });
+      return;
+    }
+
+    setIsSaving(true);
     try {
       const batch = writeBatch(firestore);
 
+      const finalRulingEntries = rulingEntries.map(entry => {
+        const rulingWeight = (entry.sheetsRuled || 0) * weightUsedPerEntry;
+        const { theoreticalSheets, difference } = calculateRulingValues(entry, rulingWeight);
+        return {
+          ...initialRulingEntry,
+          ...entry,
+          theoreticalSheets,
+          difference,
+        } as RulingEntry;
+      });
+
+      const rulingData: Omit<Ruling, 'id'> = {
+        date: serverTimestamp(),
+        reelId: selectedReel.id,
+        reelNo: selectedReel.reelNo,
+        paperTypeId: selectedReel.paperTypeId,
+        startWeight: selectedReel.weight,
+        endWeight,
+        rulingEntries: finalRulingEntries,
+        totalSheetsRuled,
+        createdBy: user.uid,
+      };
+
       const rulingDocRef = doc(collection(firestore, 'rulings'));
-      batch.set(rulingDocRef, { ...rulingData, createdBy: user.uid, date: serverTimestamp() });
+      batch.set(rulingDocRef, rulingData);
+
+      const reelDocRef = doc(firestore, 'reels', selectedReel.id);
+      const newStatus: Reel['status'] = endWeight > 0 ? 'In Use' : 'Finished';
+      batch.update(reelDocRef, { weight: endWeight, status: newStatus });
       
-      const reelDocRef = doc(firestore, 'reels', rulingData.reelId);
-      const newWeight = rulingData.endWeight!;
-      const newStatus: Reel['status'] = newWeight > 0 ? 'In Use' : 'Finished';
-      batch.update(reelDocRef, { weight: newWeight, status: newStatus });
-
       await batch.commit();
+      
+      toast({ title: "Ruling Saved Successfully", description: `Reel ${selectedReel.reelNo} has been updated.` });
+      router.push('/dashboard');
 
-      toast({ title: 'Ruling Saved', description: `Reel ${rulingData.reelNo} has been updated.` });
-      resetForm();
-    } catch (error: any) {
-      console.error("Ruling save failed:", error);
-      toast({ variant: 'destructive', title: 'Operation Failed', description: error.message || "Could not save the ruling." });
+    } catch (e: any) {
+      console.error(e);
+      toast({ variant: 'destructive', title: 'Save Failed', description: e.message || 'Could not save ruling.' });
     } finally {
       setIsSaving(false);
     }
-  }
+  };
 
-  const handleDeleteRuling = (rulingId: string) => {
-    if (!firestore || !canDelete) return;
-    const docRef = doc(firestore, 'rulings', rulingId);
-    deleteDocumentNonBlocking(docRef);
-    toast({ variant: 'destructive', title: 'Ruling Deleted' });
-  }
-  
-  const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
-  const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName || 'N/A';
-  const getProgramInfo = (programId?: string) => programs?.find(p => p.id === programId);
-  
-  const ModalTrigger = () => (
-    <Button onClick={() => setIsModalOpen(true)} className="h-11">
-      <PlusCircle className="mr-2 h-4 w-4" />
-      Add Ruling
-    </Button>
+  const renderStep1 = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Step 1: Select Paper Type</CardTitle>
+        <CardDescription>Choose the paper that the reel is made of.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loadingPaperTypes ? <Skeleton className="h-10 w-full" /> : (
+            <Select onValueChange={handlePaperTypeSelect}>
+                <SelectTrigger className="h-11"><SelectValue placeholder="Select a paper type..." /></SelectTrigger>
+                <SelectContent>
+                {paperTypes?.map(pt => (
+                    <SelectItem key={pt.id} value={pt.id}>{pt.paperName} - {pt.gsm}gsm - {pt.length}cm</SelectItem>
+                ))}
+                </SelectContent>
+            </Select>
+        )}
+      </CardContent>
+    </Card>
   );
 
-  const formProps = {
-    availableReels,
-    programs,
-    itemTypes,
-    paperTypes,
-    onSave: handleSaveRuling,
-    onClose: resetForm,
-    isSaving,
-  };
+  const renderStep2 = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Step 2: Select Reel</CardTitle>
+        <CardDescription>
+          Choose the specific reel you are ruling. Only available reels for the selected paper are shown.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {loadingReels ? <Skeleton className="h-24 w-full" /> : 
+        availableReels.length > 0 ? availableReels.map(reel => (
+          <div key={reel.id} onClick={() => handleReelSelect(reel)} className="p-4 border rounded-lg cursor-pointer hover:bg-muted flex justify-between items-center">
+            <div>
+              <p className="font-semibold">{reel.reelNo}</p>
+              <p className="text-sm text-muted-foreground">{reel.weight.toFixed(2)} kg available</p>
+            </div>
+            <Badge variant={reel.status === 'Available' ? 'default' : 'secondary'} className={reel.status === 'Available' ? 'bg-green-600' : ''}>{reel.status}</Badge>
+          </div>
+        )) : <p className="text-muted-foreground text-center p-4">No available reels for this paper type.</p>}
+      </CardContent>
+    </Card>
+  );
+  
+  const renderStep3 = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Step 3: Add Ruling Entries</CardTitle>
+        <div className="flex justify-between items-center">
+            <CardDescription>Log one or more rulings for Reel <span className="font-bold">{selectedReel?.reelNo}</span>.</CardDescription>
+            <Badge variant="outline">{selectedReel?.weight.toFixed(2)} kg</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Accordion type="multiple" className="w-full space-y-4" defaultValue={['ruling-0']}>
+          {rulingEntries.map((entry, index) => {
+            const rulingWeight = (entry.sheetsRuled || 0) * weightUsedPerEntry;
+            const calculated = calculateRulingValues(entry, rulingWeight);
+
+            return (
+            <AccordionItem value={`ruling-${index}`} key={index} className="border-2 rounded-lg p-0">
+                <div className="flex items-center justify-between p-4">
+                    <AccordionTrigger className="font-semibold text-lg flex-1">
+                        Ruling #{index + 1}
+                    </AccordionTrigger>
+                    <Button variant="ghost" size="icon" onClick={() => removeRulingEntry(index)} className="text-destructive"><Trash2 className="h-4 w-4"/></Button>
+                </div>
+                <AccordionContent className="px-4 pb-4 space-y-4">
+                     <div className="space-y-2">
+                        <Label>Program (Optional)</Label>
+                        <Select onValueChange={(value) => handleRulingEntryChange(index, 'programId', value === 'none' ? undefined : value)}>
+                            <SelectTrigger className="h-11"><SelectValue placeholder="Select a program" /></SelectTrigger>
+                            <SelectContent>
+                            <SelectItem value="none">No Program</SelectItem>
+                            {programs?.map(prog => (
+                                <SelectItem key={prog.id} value={prog.id}>{prog.brand} - {itemTypes?.find(i => i.id === prog.itemTypeId)?.itemName}</SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Item Type</Label>
+                            <Select value={entry.itemTypeId} onValueChange={(value) => handleRulingEntryChange(index, 'itemTypeId', value)} disabled={!!entry.programId}>
+                            <SelectTrigger className="h-11"><SelectValue placeholder="Select item" /></SelectTrigger>
+                            <SelectContent>
+                                {itemTypes?.map(item => (<SelectItem key={item.id} value={item.id}>{item.itemName}</SelectItem>))}
+                            </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Cutoff (cm)</Label>
+                            <Input type="number" value={entry.cutoff || ''} onChange={e => handleRulingEntryChange(index, 'cutoff', parseFloat(e.target.value))} disabled={!!entry.programId} className="h-11" />
+                        </div>
+                    </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Sheets Ruled</Label>
+                            <Input type="number" value={entry.sheetsRuled || ''} onChange={e => handleRulingEntryChange(index, 'sheetsRuled', parseInt(e.target.value))} className="h-11" />
+                        </div>
+                         <div className="space-y-2">
+                            <Label>Status</Label>
+                            <Select value={entry.status || 'In Progress'} onValueChange={(value) => handleRulingEntryChange(index, 'status', value)}>
+                            <SelectTrigger className="h-11"><SelectValue placeholder="Select status" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="In Progress">In Progress</SelectItem>
+                                <SelectItem value="Half Finished">Half Finished</SelectItem>
+                                <SelectItem value="Finished">Finished</SelectItem>
+                            </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                     <div className="p-3 bg-muted/50 rounded-md text-sm grid grid-cols-2 gap-x-4 gap-y-1">
+                        <span>Theoretical Sheets:</span> <span className="text-right font-medium">{calculated.theoreticalSheets.toFixed(0)}</span>
+                        <span>Difference:</span> 
+                        <span className="text-right font-medium">
+                            <Badge variant={calculated.difference >= 0 ? 'default' : 'destructive'} className={calculated.difference >= 0 ? 'bg-green-600' : ''}>
+                                {Math.round(calculated.difference || 0).toLocaleString()}
+                            </Badge>
+                        </span>
+                    </div>
+                </AccordionContent>
+            </AccordionItem>
+          )})}
+        </Accordion>
+        
+        <Button variant="outline" onClick={addRulingEntry}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Add Another Ruling
+        </Button>
+        
+        <div className="space-y-2 pt-4 border-t">
+          <Label htmlFor="end-weight" className="text-lg font-semibold">Final Reel Weight (kg)</Label>
+          <Input id="end-weight" type="number" value={endWeight} onChange={e => setEndWeight(parseFloat(e.target.value))} placeholder="Enter final weight of the reel" className="h-11"/>
+        </div>
+      </CardContent>
+      <CardFooter className="sticky bottom-0 bg-background/95 py-4 border-t flex gap-2">
+        <Button variant="outline" onClick={resetAll} className="w-full h-12" disabled={isSaving}>Cancel</Button>
+        <Button onClick={handleSave} className="w-full h-12" disabled={isSaving}>{isSaving ? 'Saving...' : 'Save All Rulings'}</Button>
+      </CardFooter>
+    </Card>
+  );
+  
+  const resetAll = () => {
+    setStep(1);
+    setSelectedPaperTypeId(null);
+    setSelectedReel(null);
+    setRulingEntries([{}]);
+    setEndWeight(0);
+  }
 
   return (
     <>
@@ -322,122 +362,15 @@ export default function RulingPage() {
         title="Reel Ruling"
         description="Log ruling entries for available reels."
       >
-        {isMobile ? (
-          <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <SheetTrigger asChild>
-              <ModalTrigger />
-            </SheetTrigger>
-            <SheetContent side="bottom" className="p-0 flex flex-col h-auto max-h-[90svh]">
-              <SheetHeader className="p-4 border-b">
-                <SheetTitle>Add Reel Ruling</SheetTitle>
-              </SheetHeader>
-              <RulingForm {...formProps} />
-            </SheetContent>
-          </Sheet>
-        ) : (
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <DialogTrigger asChild>
-              <ModalTrigger />
-            </DialogTrigger>
-            <DialogContent className="p-0 max-w-lg max-h-[90vh] flex flex-col">
-              <DialogHeader className="p-6 pb-4">
-                <DialogTitle>Add Reel Ruling</DialogTitle>
-              </DialogHeader>
-              <RulingForm {...formProps} />
-            </DialogContent>
-          </Dialog>
-        )}
+        <Button variant="ghost" size="icon" onClick={() => step > 1 ? setStep(step - 1) : router.back()}>
+            <ArrowLeft />
+        </Button>
       </PageHeader>
-      <div className="mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Rulings</CardTitle>
-            <CardDescription>A list of all individual ruling entries.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loadingRulings ? (
-                 <div className="p-4 border-2 border-dashed border-muted-foreground/50 rounded-lg h-48 flex items-center justify-center">
-                    <p className="text-muted-foreground">Loading rulings...</p>
-                </div>
-            ) : rulings && rulings.length > 0 ? (
-                <Accordion type="single" collapsible className="w-full" defaultValue={`ruling-${rulings[0].id}`}>
-                {rulings.sort((a,b) => (b.date as Timestamp).toMillis() - (a.date as Timestamp).toMillis()).map(ruling => (
-                    <AccordionItem value={`ruling-${ruling.id}`} key={ruling.id}>
-                       <div className="flex items-center w-full">
-                         <AccordionTrigger className="flex-1">
-                            <div className="flex justify-between items-center w-full pr-4 text-left">
-                                <span className="font-semibold">Reel: {ruling.reelNo}</span>
-                                <span className="text-sm text-muted-foreground">{(ruling.date as Timestamp)?.toDate().toLocaleDateString()}</span>
-                            </div>
-                         </AccordionTrigger>
-                        {canDelete && (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="ml-2">
-                                    <MoreVertical className="h-4 w-4" />
-                                </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        <span>Delete</span>
-                                    </DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                        This action cannot be undone. This will permanently delete this ruling entry.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDeleteRuling(ruling.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        )}
-                       </div>
-                        <AccordionContent>
-                           <div className="overflow-x-auto">
-                               <Table>
-                                 <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Item Ruled</TableHead>
-                                        <TableHead>Sheets Ruled</TableHead>
-                                        <TableHead>Program</TableHead>
-                                        <TableHead className="text-right">Difference</TableHead>
-                                    </TableRow>
-                                 </TableHeader>
-                                 <TableBody>
-                                        <TableRow>
-                                            <TableCell className="whitespace-nowrap">{getItemTypeName(ruling.itemTypeId)}</TableCell>
-                                            <TableCell>{ruling.sheetsRuled.toLocaleString()}</TableCell>
-                                            <TableCell className="whitespace-nowrap">{getProgramInfo(ruling.programId)?.brand || 'N/A'}</TableCell>
-                                            <TableCell className="text-right">
-                                                <Badge variant={ruling.difference >= 0 ? 'default' : 'destructive'} className={ruling.difference >= 0 ? 'bg-green-600' : ''}>
-                                                    {Math.round(ruling.difference || 0).toLocaleString()}
-                                                </Badge>
-                                            </TableCell>
-                                        </TableRow>
-                                 </TableBody>
-                               </Table>
-                           </div>
-                        </AccordionContent>
-                    </AccordionItem>
-                ))}
-              </Accordion>
-            ) : (
-                <div className="p-4 border-2 border-dashed border-muted-foreground/50 rounded-lg h-48 flex items-center justify-center">
-                    <p className="text-muted-foreground">No reel rulings have been logged yet.</p>
-                </div>
-            )}
-          </CardContent>
-        </Card>
+      
+      <div className="space-y-6 pb-24">
+        {step === 1 && renderStep1()}
+        {step === 2 && renderStep2()}
+        {step === 3 && renderStep3()}
       </div>
     </>
   );

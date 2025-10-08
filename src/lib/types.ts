@@ -68,20 +68,26 @@ export type Program = {
   counting: number;
 };
 
+export type RulingEntry = {
+  itemTypeId: string;
+  sheetsRuled: number;
+  cutoff: number;
+  theoreticalSheets: number;
+  difference: number;
+  programId?: string;
+  status: 'In Progress' | 'Half Finished' | 'Finished';
+};
+
 export type Ruling = {
   id: string;
   date: Date | Timestamp;
   reelId: string;
-  reelNo: string; // denormalized for easier display
+  reelNo: string; // denormalized
   paperTypeId: string; // denormalized
   startWeight: number;
   endWeight: number;
-  sheetsRuled: number;
-  programId?: string;
-  itemTypeId: string;
-  cutoff: number;
-  theoreticalSheets: number;
-  difference: number;
+  rulingEntries: RulingEntry[];
+  totalSheetsRuled: number;
   createdBy: string;
 };
 

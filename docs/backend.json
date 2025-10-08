@@ -49,7 +49,7 @@
         "length": { "type": "number", "description": "The length of the paper on the reel." },
         "gsm": { "type": "number", "description": "The grammage of the paper." },
         "weight": { "type": "number", "description": "The current weight of the reel." },
-        "status": { "type": "string", "description": "The status of the reel.", "enum": ["Available", "Partially Used", "Finished"] },
+        "status": { "type": "string", "description": "The status of the reel.", "enum": ["Available", "In Use", "Finished"] },
         "createdAt": { "type": "string", "description": "The timestamp when the reel was created.", "format": "date-time" },
         "createdBy": { "type": "string", "description": "The UID of the user who created the reel." }
       },
@@ -79,10 +79,25 @@
       },
       "required": ["date", "paperTypeId", "gsm", "length", "cutoff", "itemTypeId", "notebookPages", "coverIndex", "ups", "piecesPerBundle", "bundlesRequired", "brand"]
     },
+    "RulingEntry": {
+        "title": "Ruling Entry",
+        "type": "object",
+        "description": "Represents a single ruling action within a larger ruling document.",
+        "properties": {
+            "itemTypeId": { "type": "string", "description": "Reference to ItemType." },
+            "sheetsRuled": { "type": "number", "description": "The number of sheets ruled for this specific entry." },
+            "cutoff": { "type": "number", "description": "The cutoff used for this ruling entry." },
+            "theoreticalSheets": { "type": "number", "description": "Calculated theoretical sheets for this entry." },
+            "difference": { "type": "number", "description": "Calculated difference for this entry." },
+            "programId": { "type": "string", "description": "Optional reference to the Program." },
+            "status": { "type": "string", "enum": ["In Progress", "Half Finished", "Finished"] }
+        },
+        "required": ["itemTypeId", "sheetsRuled", "cutoff", "theoreticalSheets", "difference", "status"]
+    },
     "Ruling": {
       "title": "Ruling",
       "type": "object",
-      "description": "Represents a ruling event for a reel.",
+      "description": "Represents a ruling event for a reel, which can contain multiple individual ruling actions.",
       "properties": {
         "id": { "type": "string", "description": "Unique identifier for the ruling event." },
         "date": { "type": "string", "description": "The date of the ruling event.", "format": "date-time" },
@@ -91,15 +106,15 @@
         "paperTypeId": { "type": "string", "description": "Denormalized reference to PaperType." },
         "startWeight": { "type": "number", "description": "The weight of the reel before ruling." },
         "endWeight": { "type": "number", "description": "The weight of the reel after ruling." },
-        "sheetsRuled": { "type": "number", "description": "The number of sheets ruled." },
-        "programId": { "type": "string", "description": "Optional reference to the Program." },
-        "itemTypeId": { "type": "string", "description": "Reference to ItemType." },
-        "cutoff": { "type": "number", "description": "The cutoff used for ruling." },
-        "theoreticalSheets": { "type": "number", "description": "Calculated theoretical sheets." },
-        "difference": { "type": "number", "description": "Calculated difference between ruled and theoretical." },
+        "rulingEntries": {
+            "type": "array",
+            "description": "An array of individual ruling actions performed on the reel.",
+            "items": { "$ref": "#/entities/RulingEntry" }
+        },
+        "totalSheetsRuled": { "type": "number", "description": "The sum of all sheets ruled in the entries." },
         "createdBy": { "type": "string", "description": "The UID of the user who created the ruling." }
       },
-      "required": ["date", "reelId", "reelNo", "paperTypeId", "startWeight", "endWeight", "sheetsRuled", "itemTypeId", "cutoff", "theoreticalSheets", "difference", "createdBy"]
+      "required": ["date", "reelId", "reelNo", "paperTypeId", "startWeight", "endWeight", "rulingEntries", "totalSheetsRuled", "createdBy"]
     },
     "Stock": {
       "title": "Stock",
