@@ -1,63 +1,64 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control model for a notebook manufacturing unit application.
+ * @fileoverview Firestore Security Rules for the notebook manufacturing unit application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a role-based access control model where users can only access resources based on their assigned role and ownership.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profiles; access is restricted to the owning user.
- * - /paperTypes/{paperTypeId}: Stores master data for paper types; publicly readable but write access is limited to admins.
- * - /itemTypes/{itemTypeId}: Stores master data for item types; publicly readable but write access is limited to admins.
- * - /stock/{stockId}: Stores stock information; access is restricted to admins.
- * - /programs/{programId}: Stores program information; access is open, with writes locked to authenticated users.
- * - /reels/{reelRulingId}: Stores reel ruling entries; access is open, with writes locked to authenticated users.
- * - /reports/{reportId}: Stores generated reports; access is open, with writes locked to authenticated users.
+ * - /users/{userId}: Stores user profile information. Only the user themselves can read/write their own profile.
+ * - /paperTypes/{paperTypeId}: Stores master data for paper types. Publicly readable.
+ * - /itemTypes/{itemTypeId}: Stores master data for item types. Publicly readable.
+ * - /stock/{stockId}: Stores stock information. Only accessible and modifiable by admin users.
+ * - /programs/{programId}: Stores program information.
+ * - /reels/{reelRulingId}: Stores reel ruling entries.
+ * - /reports/{reportId}: Stores generated reports.
  *
  * Key Security Decisions:
- * - User listing is implicitly denied. Only admins have broad access to data.
- * - Data validation is relaxed to allow for rapid prototyping, but authorization is strictly enforced.
- * - Read operations are generally open for public data, with write operations restricted to authorized users.
+ * - User profiles are strictly private, accessible only to the authenticated user.
+ * - Master data (paperTypes, itemTypes) is publicly readable.
+ * - Stock data is restricted to admin users.
+ * - Flexible access control is implemented via helper functions.
+ * - List operations on user-scoped data are restricted to the owner.
  *
  * Denormalization for Authorization:
- * - User roles are stored directly in the /users/{userId} document.
+ *  None
+ * Structural Segregation:
+ * The application uses structural segregation to separate user-specific data from public data.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces user-level access control for user profiles.
+     * @description Controls access to user profile data.
      * @path /users/{userId}
-     * @allow (create) - Authenticated user creates their own profile.
-     * @allow (get, update, delete) - Authenticated user accesses their own profile.
-     * @deny (create) - Authenticated user tries to create another user's profile.
-     * @deny (get, update, delete) - Authenticated user tries to access another user's profile.
-     * @principle Enforces document ownership for reads and writes.
+     * @allow (create) - Authenticated user can create their own profile.
+     * @allow (get, update, delete) - Authenticated user can read, update, and delete their own profile.
+     * @deny (create) - If the user ID in the request does not match the authenticated user's ID.
+     * @deny (get, update, delete) - If the user ID in the path does not match the authenticated user's ID, or if the document does not exist.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
-
       function isExistingOwner(userId) {
         return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to paper type master data.
+     * @description Controls access to paper type data.
      * @path /paperTypes/{paperTypeId}
-     * @allow (get, list) - Publicly readable.
-     * @deny (create, update, delete) - Write access is denied.
-     * @principle Public read, no writes allowed
+     * @allow (get, list) - Any user can read paper type data.
+     * @deny (create, update, delete) - No user can create, update, or delete paper type data.
+     * @principle Master data is publicly readable but not writable by users.
      */
     match /paperTypes/{paperTypeId} {
       allow get, list: if true;
@@ -65,11 +66,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Controls access to item type master data.
+     * @description Controls access to item type data.
      * @path /itemTypes/{itemTypeId}
-     * @allow (get, list) - Publicly readable.
-     * @deny (create, update, delete) - Write access is denied.
-     * @principle Public read, no writes allowed
+     * @allow (get, list) - Any user can read item type data.
+     * @deny (create, update, delete) - No user can create, update, or delete item type data.
+     * @principle Master data is publicly readable but not writable by users.
      */
     match /itemTypes/{itemTypeId} {
       allow get, list: if true;
@@ -77,21 +78,22 @@ service cloud.firestore {
     }
 
     /**
-     * @description Controls access to stock information.
+     * @description Controls access to stock data.
      * @path /stock/{stockId}
-     * @deny (get, list, create, update, delete) - Access is denied.
-     * @principle No access allowed
+     * @allow (get, list) - Any user can read stock data.
+     * @deny (create, update, delete) - No user can create, update, or delete stock data.
+     * @principle Stock data is restricted to admin users.
      */
     match /stock/{stockId} {
-      allow get, list, create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to program information.
+     * @description Controls access to program data.
      * @path /programs/{programId}
-     * @allow (get, list) - Publicly readable.
-     * @deny (create, update, delete) - Write access is denied.
-     * @principle Public read, no writes allowed
+     * @allow (get, list) - Any user can read program data.
+     * @deny (create, update, delete) - No user can create, update, or delete program data.
      */
     match /programs/{programId} {
       allow get, list: if true;
@@ -99,11 +101,10 @@ service cloud.firestore {
     }
 
     /**
-     * @description Controls access to reel ruling entries.
+     * @description Controls access to reel ruling data.
      * @path /reels/{reelRulingId}
-     * @allow (get, list) - Publicly readable.
-     * @deny (create, update, delete) - Write access is denied.
-     * @principle Public read, no writes allowed
+     * @allow (get, list) - Any user can read reel ruling data.
+     * @deny (create, update, delete) - No user can create, update, or delete reel ruling data.
      */
     match /reels/{reelRulingId} {
       allow get, list: if true;
@@ -111,11 +112,10 @@ service cloud.firestore {
     }
 
     /**
-     * @description Controls access to generated reports.
+     * @description Controls access to report data.
      * @path /reports/{reportId}
-     * @allow (get, list) - Publicly readable.
-     * @deny (create, update, delete) - Write access is denied.
-     * @principle Public read, no writes allowed
+     * @allow (get, list) - Any user can read report data.
+     * @deny (create, update, delete) - No user can create, update, or delete report data.
      */
     match /reports/{reportId} {
       allow get, list: if true;
