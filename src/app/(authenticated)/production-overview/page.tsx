@@ -51,7 +51,7 @@ export default function ProductionOverviewPage() {
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
 
   const stockQuery = useMemoFirebase(() => {
-    // Wait until the user's role is confirmed.
+    // CRITICAL: Wait until user loading is complete AND we know the role.
     if (isLoadingCurrentUser || !firestore) {
         return null;
     }
@@ -143,10 +143,7 @@ export default function ProductionOverviewPage() {
     return progress;
   }, [programs, rulings]);
   
-  // Comprehensive loading state
-  const isLoading = isLoadingCurrentUser || loadingPrograms || loadingItemTypes || loadingPaperTypes || loadingRulings || (!isOperator && loadingStock);
-  
-  if (isLoadingCurrentUser) { // Start with a more specific loading state
+  if (isLoadingCurrentUser) {
     return (
         <div className="flex h-full w-full items-center justify-center">
             <div className="text-lg text-muted-foreground">Loading Production Data...</div>
@@ -298,3 +295,5 @@ export default function ProductionOverviewPage() {
     </>
   );
 }
+
+    

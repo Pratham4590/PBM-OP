@@ -57,9 +57,8 @@ export default function DashboardPage() {
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   
-  // Conditionally create the stock query only AFTER we know the user is not an operator
   const stockQuery = useMemoFirebase(() => {
-    // Wait until the user's role is confirmed.
+    // CRITICAL: Wait until user loading is complete AND we know the role.
     if (isLoadingCurrentUser || !firestore) {
       return null;
     }
@@ -112,11 +111,8 @@ export default function DashboardPage() {
   }, [rulings]);
 
   const getItemTypeName = (itemTypeId: string) => itemTypes?.find(it => it.id === itemTypeId)?.name || 'N/A';
-
-  // Comprehensive loading state
-  const isLoading = isLoadingCurrentUser || loadingRulings || loadingItemTypes || (!isOperator && loadingStock);
   
-  if (isLoadingCurrentUser) { // Start with a more specific loading state
+  if (isLoadingCurrentUser) {
     return (
         <div className="flex h-full w-full items-center justify-center">
             <div className="text-lg text-muted-foreground">Loading Dashboard...</div>
@@ -284,3 +280,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
