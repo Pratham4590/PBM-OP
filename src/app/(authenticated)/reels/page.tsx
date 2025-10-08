@@ -30,6 +30,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -282,9 +283,9 @@ export default function ReelsPage() {
   
   const filteredReels = useMemo(() => {
     if (!reels) return [];
-    const lowercasedFilter = searchFilter.toLowerCase();
     return reels.filter(reel => {
         if (!searchFilter) return true;
+        const lowercasedFilter = searchFilter.toLowerCase();
         const paperType = paperTypes?.find(p => p.id === reel.paperTypeId);
         const paperNameMatch = paperType?.paperName.toLowerCase().includes(lowercasedFilter);
         const reelNoMatch = reel.reelNo.toLowerCase().includes(lowercasedFilter);
@@ -433,5 +434,7 @@ export default function ReelsPage() {
 }
 
 
+
+    
 
     
