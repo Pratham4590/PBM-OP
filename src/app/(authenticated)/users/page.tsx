@@ -53,12 +53,12 @@ export default function UsersPage() {
   const allUsersQuery = useMemoFirebase(
     () => {
       // Don't run the query until we have confirmed the user is an admin.
-      if (!firestore || isLoadingCurrentUserDoc || !isAdmin) {
+      if (!firestore || isAuthLoading || isLoadingCurrentUserDoc || !isAdmin) {
         return null;
       }
       return collection(firestore, 'users');
     },
-    [firestore, isAdmin, isLoadingCurrentUserDoc]
+    [firestore, isAdmin, isAuthLoading, isLoadingCurrentUserDoc]
   );
 
   const { data: users, isLoading: isLoadingAllUsers } = useCollection<User>(allUsersQuery);
