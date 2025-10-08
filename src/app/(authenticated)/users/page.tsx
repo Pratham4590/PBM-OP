@@ -1,4 +1,3 @@
-
 'use client';
 
 import { PageHeader } from '@/components/page-header';
@@ -36,7 +35,7 @@ export default function UsersPage() {
   const { toast } = useToast();
   
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isCheckingPermissions, setIsCheckingPermissions] = useState(true);
 
   const currentUserDocRef = useMemoFirebase(
     () => (firestore && currentUserAuth ? doc(firestore, 'users', currentUserAuth.uid) : null),
@@ -46,24 +45,22 @@ export default function UsersPage() {
   const { data: currentUserData, isLoading: isLoadingCurrentUserDoc } = useDoc<User>(currentUserDocRef);
 
   useEffect(() => {
-    // This effect determines the final loading and admin status.
+    // This effect determines when permission checking is complete.
     if (!isAuthLoading && !isLoadingCurrentUserDoc) {
-      // Once all loading is done, determine the admin status.
       setIsAdmin(currentUserData?.role === 'Admin');
-      // And set the final loading state to false.
-      setIsLoading(false);
+      setIsCheckingPermissions(false);
     }
   }, [isAuthLoading, isLoadingCurrentUserDoc, currentUserData]);
   
   const allUsersQuery = useMemoFirebase(
     () => {
-      // CRITICAL: Only define the query if loading is complete AND the user is an admin.
-      if (isLoading || !isAdmin) {
+      // CRITICAL: Only define the query if permission checks are done AND the user is an admin.
+      if (isCheckingPermissions || !isAdmin) {
         return null;
       }
       return collection(firestore!, 'users');
     },
-    [firestore, isLoading, isAdmin]
+    [firestore, isCheckingPermissions, isAdmin]
   );
 
   const { data: users, isLoading: isLoadingAllUsers } = useCollection<User>(allUsersQuery);
@@ -79,7 +76,7 @@ export default function UsersPage() {
     });
   };
   
-  if (isLoading) {
+  if (isCheckingPermissions) {
      return (
        <>
         <PageHeader
