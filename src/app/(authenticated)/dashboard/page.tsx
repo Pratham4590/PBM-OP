@@ -288,7 +288,7 @@ export default function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loadingRulings ? (
+                  {loadingRulings || loadingItemTypes ? (
                     <TableRow><TableCell colSpan={3} className="text-center h-24">Loading...</TableCell></TableRow>
                   ) : recentRulings.length > 0 ? recentRulings.map((ruling, index) => (
                     <TableRow key={index}>

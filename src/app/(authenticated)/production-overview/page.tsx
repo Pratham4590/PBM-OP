@@ -33,6 +33,7 @@ import { Program, ItemType, Stock, PaperType, Ruling as RulingType, User as AppU
 import { useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, Timestamp, doc } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
@@ -65,7 +66,7 @@ export default function ProductionOverviewPage() {
   const { data: rulings, isLoading: loadingRulings } = useCollection<RulingType>(rulingsQuery);
 
    const stockDistribution = useMemo(() => {
-    if (loadingStock || !stock || !paperTypes) return [];
+    if (!stock || !paperTypes) return [];
     
     const stockByPaperType: { [key: string]: number } = {};
     stock.forEach(s => {
@@ -79,7 +80,7 @@ export default function ProductionOverviewPage() {
         name: paperTypes.find(pt => pt.id === paperTypeId)?.paperName || 'Unknown',
         value: reelCount,
     }));
-   }, [stock, paperTypes, loadingStock, loadingPaperTypes]);
+   }, [stock, paperTypes]);
    
    const rulingSummary = useMemo(() => {
     if (!rulings || !itemTypes) return [];
@@ -104,10 +105,10 @@ export default function ProductionOverviewPage() {
   }, [rulings, itemTypes]);
 
   const stockSummary = useMemo(() => {
-    if (loadingStock || !stock) return { totalWeight: 0, paperTypes: [] };
+    if (!stock || !paperTypes) return { totalWeight: 0, paperTypesCount: 0 };
     const totalWeight = stock.reduce((acc, s) => acc + (s.totalWeight ?? 0), 0);
-    return { totalWeight, paperTypes: paperTypes || [] };
-  }, [stock, paperTypes, loadingStock, loadingPaperTypes]);
+    return { totalWeight, paperTypesCount: paperTypes?.length || 0 };
+  }, [stock, paperTypes]);
 
   const productionSummary = useMemo(() => {
     if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: '0.0' };
@@ -148,6 +149,7 @@ export default function ProductionOverviewPage() {
   }
 
   const isOperator = currentUser?.role === 'Operator';
+  const isLoadingData = loadingPrograms || loadingItemTypes || loadingRulings || loadingPaperTypes || (loadingStock && !isOperator);
 
   return (
     <>
@@ -162,10 +164,8 @@ export default function ProductionOverviewPage() {
                 <CardTitle className="text-sm font-medium">Total Stock Weight</CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{loadingStock ? '...' : `${stockSummary.totalWeight.toLocaleString()} kg`}</div>
-                <p className="text-xs text-muted-foreground">
-                    {loadingStock ? 'Loading...' : `Across ${stockSummary.paperTypes.length} paper types`}
-                </p>
+                {loadingStock ? <Skeleton className="h-8 w-3/4" /> : <div className="text-2xl font-bold">{`${stockSummary.totalWeight.toLocaleString()} kg`}</div>}
+                {loadingStock || loadingPaperTypes ? <Skeleton className="h-4 w-1/2 mt-1" /> : <p className="text-xs text-muted-foreground">Across {stockSummary.paperTypesCount} paper types</p>}
             </CardContent>
             </Card>
         )}
@@ -174,8 +174,8 @@ export default function ProductionOverviewPage() {
             <CardTitle className="text-sm font-medium">Sheets Ruled (Today)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{productionSummary.sheetsRuledToday.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Across {productionSummary.rulingsToday} rulings</p>
+            {loadingRulings ? <Skeleton className="h-8 w-3/4" /> : <div className="text-2xl font-bold">{productionSummary.sheetsRuledToday.toLocaleString()}</div>}
+            {loadingRulings ? <Skeleton className="h-4 w-1/2 mt-1" /> : <p className="text-xs text-muted-foreground">Across {productionSummary.rulingsToday} rulings</p>}
           </CardContent>
         </Card>
         <Card>
@@ -183,7 +183,7 @@ export default function ProductionOverviewPage() {
             <CardTitle className="text-sm font-medium">Active Programs</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{programs?.length || 0}</div>
+            {loadingPrograms ? <Skeleton className="h-8 w-3/4" /> : <div className="text-2xl font-bold">{programs?.length || 0}</div>}
             <p className="text-xs text-muted-foreground">Currently in production</p>
           </CardContent>
         </Card>
@@ -193,7 +193,7 @@ export default function ProductionOverviewPage() {
                 <CardTitle className="text-sm font-medium">Overall Efficiency</CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{productionSummary.efficiency}%</div>
+                {loadingRulings ? <Skeleton className="h-8 w-3/4" /> : <div className="text-2xl font-bold">{productionSummary.efficiency}%</div>}
                 <p className="text-xs text-muted-foreground">Based on recent production data</p>
             </CardContent>
             </Card>
@@ -208,7 +208,7 @@ export default function ProductionOverviewPage() {
                 <CardDescription>A breakdown of paper types in stock.</CardDescription>
             </CardHeader>
             <CardContent>
-                 {loadingStock ? (
+                 {loadingStock || loadingPaperTypes ? (
                     <div className="flex items-center justify-center h-[250px] text-muted-foreground">Loading chart...</div>
                 ) : (
                 <ResponsiveContainer width="100%" height={250}>
@@ -232,6 +232,9 @@ export default function ProductionOverviewPage() {
             <CardDescription>A comparison of sheets ruled vs. theoretical for each item type.</CardDescription>
           </CardHeader>
           <CardContent>
+             {loadingRulings || loadingItemTypes ? (
+                <div className="flex items-center justify-center h-[250px] text-muted-foreground">Loading chart...</div>
+             ) : (
              <ResponsiveContainer width="100%" height={250}>
               <BarChart data={rulingSummary}>
                 <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
@@ -242,6 +245,7 @@ export default function ProductionOverviewPage() {
                 <Bar dataKey="Ruled" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -265,7 +269,7 @@ export default function ProductionOverviewPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {loadingPrograms ? (
+                            {isLoadingData ? (
                                 <TableRow><TableCell colSpan={5} className="h-24 text-center">Loading programs...</TableCell></TableRow>
                             ) : programs && programs.length > 0 ? programs.map(program => {
                                 const sheetsCompleted = programProgress[program.id as keyof typeof programProgress] || 0;

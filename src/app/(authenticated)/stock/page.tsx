@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTrigger } from '@/components/ui/sheet';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -133,7 +133,7 @@ export default function StockPage() {
     }
     setIsSaving(true);
     
-    const dataToSave: Omit<Stock, 'id' | 'date'> = {
+    const dataToSave = {
       paperTypeId: newStockItem.paperTypeId,
       gsm: newStockItem.gsm!,
       length: newStockItem.length!,
