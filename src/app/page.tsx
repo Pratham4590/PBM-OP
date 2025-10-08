@@ -8,11 +8,14 @@ import { AppLogo } from '@/components/icons';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore, useUser, setDocumentNonBlocking, initiateEmailSignUp, initiateEmailSignIn } from '@/firebase';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  User as FirebaseUser,
 } from 'firebase/auth';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -56,6 +59,25 @@ function LoginPageContent() {
     }
   }, [user, firestore, router, setTheme]);
 
+  const handleCreateUserDocument = async (firebaseUser: FirebaseUser) => {
+    if (!firestore) return;
+    const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    // Only create a new document if one doesn't already exist
+    if (!userDoc.exists()) {
+        const userData = {
+            id: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User',
+            role: 'Operator',
+            createdAt: serverTimestamp(),
+            themePreference: 'system',
+        };
+        await setDoc(userDocRef, userData);
+    }
+  };
+  
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth) return;
@@ -89,23 +111,7 @@ function LoginPageContent() {
 
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        const userDocRef = doc(firestore, 'users', user.uid);
-        
-        const userData = {
-            id: user.uid,
-            email: user.email,
-            displayName: user.email?.split('@')[0] || 'New User',
-            role: 'Operator',
-            createdAt: serverTimestamp(),
-            themePreference: 'system',
-        };
-        
-        await setDoc(userDocRef, userData);
-        
-        // No need to show a toast, user will be redirected to dashboard
-        // The onAuthStateChanged listener in layout will handle the redirect.
-        
+        await handleCreateUserDocument(userCredential.user);
     } catch (error: any) {
         toast({
           variant: 'destructive',
@@ -117,6 +123,24 @@ function LoginPageContent() {
     }
   };
   
+  const handleGoogleSignIn = async () => {
+    if (!auth) return;
+    setIsLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      await handleCreateUserDocument(result.user);
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Google Sign-In Failed',
+        description: error.message || 'Could not sign in with Google.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (isUserLoading || user) {
      return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -206,8 +230,8 @@ function LoginPageContent() {
                 ? 'Login'
                 : 'Create an account'}
             </Button>
-            <Button variant="outline" className="w-full" disabled>
-              Login with Google
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
+              {isLoading ? '...' : 'Login with Google'}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">
