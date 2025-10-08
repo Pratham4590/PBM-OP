@@ -1,3 +1,4 @@
+
 'use client';
 
 import { PageHeader } from '@/components/page-header';
@@ -35,7 +36,8 @@ export default function UsersPage() {
   const { toast } = useToast();
   
   const [isAdmin, setIsAdmin] = useState(false);
-  
+  const [isLoading, setIsLoading] = useState(true);
+
   const currentUserDocRef = useMemoFirebase(
     () => (firestore && currentUserAuth ? doc(firestore, 'users', currentUserAuth.uid) : null),
     [firestore, currentUserAuth]
@@ -44,21 +46,24 @@ export default function UsersPage() {
   const { data: currentUserData, isLoading: isLoadingCurrentUserDoc } = useDoc<User>(currentUserDocRef);
 
   useEffect(() => {
-    if (!isLoadingCurrentUserDoc && currentUserData) {
-      setIsAdmin(currentUserData.role === 'Admin');
+    // This effect determines the final loading and admin status.
+    if (!isAuthLoading && !isLoadingCurrentUserDoc) {
+      // Once all loading is done, determine the admin status.
+      setIsAdmin(currentUserData?.role === 'Admin');
+      // And set the final loading state to false.
+      setIsLoading(false);
     }
-  }, [currentUserData, isLoadingCurrentUserDoc]);
+  }, [isAuthLoading, isLoadingCurrentUserDoc, currentUserData]);
   
-  // The query is only defined if the user is a confirmed admin and all loading is complete.
   const allUsersQuery = useMemoFirebase(
     () => {
-      // Don't run the query until we have confirmed the user is an admin.
-      if (!firestore || isAuthLoading || isLoadingCurrentUserDoc || !isAdmin) {
+      // CRITICAL: Only define the query if loading is complete AND the user is an admin.
+      if (isLoading || !isAdmin) {
         return null;
       }
-      return collection(firestore, 'users');
+      return collection(firestore!, 'users');
     },
-    [firestore, isAdmin, isAuthLoading, isLoadingCurrentUserDoc]
+    [firestore, isLoading, isAdmin]
   );
 
   const { data: users, isLoading: isLoadingAllUsers } = useCollection<User>(allUsersQuery);
@@ -73,8 +78,6 @@ export default function UsersPage() {
         description: `User role has been successfully changed to ${newRole}.`,
     });
   };
-
-  const isLoading = isAuthLoading || isLoadingCurrentUserDoc;
   
   if (isLoading) {
      return (
