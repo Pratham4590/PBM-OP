@@ -15,13 +15,11 @@ function AuthenticatedContent({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    // If loading is finished and there's no user, redirect to login.
     if (!isUserLoading && !user) {
       router.push('/');
     }
   }, [user, isUserLoading, router]);
 
-  // While loading, show a simple loading state.
   if (isUserLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -30,7 +28,6 @@ function AuthenticatedContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If there is a user, show the main authenticated layout.
   if (user) {
     return (
       <SidebarProvider>
@@ -42,7 +39,6 @@ function AuthenticatedContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If no user and not loading, this will soon redirect, so render nothing.
   return null;
 }
 

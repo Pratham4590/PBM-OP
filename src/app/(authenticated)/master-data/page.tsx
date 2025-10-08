@@ -93,6 +93,8 @@ export default function MasterDataPage() {
     }
     setIsPaperModalOpen(true);
   }
+  
+  const handleClosePaperModal = () => setIsPaperModalOpen(false);
 
   const handleSavePaperType = () => {
     if (!firestore || !newPaperType.paperName || !newPaperType.gsm || !newPaperType.length) {
@@ -114,7 +116,7 @@ export default function MasterDataPage() {
       addDocumentNonBlocking(collectionRef, dataToSave);
       toast({ title: 'Paper Type Added' });
     }
-    setIsPaperModalOpen(false);
+    handleClosePaperModal();
   };
   
   const handleDeletePaperType = (id: string) => {
@@ -134,6 +136,8 @@ export default function MasterDataPage() {
     }
     setIsItemModalOpen(true);
   }
+  
+  const handleCloseItemModal = () => setIsItemModalOpen(false);
 
   const handleSaveItemType = () => {
     if (!firestore || !newItemType.itemName || !newItemType.shortCode) {
@@ -154,7 +158,7 @@ export default function MasterDataPage() {
       addDocumentNonBlocking(collectionRef, dataToSave);
       toast({ title: 'Item Type Added' });
     }
-    setIsItemModalOpen(false);
+    handleCloseItemModal();
   };
   
   const handleDeleteItemType = (id: string) => {
@@ -172,7 +176,6 @@ export default function MasterDataPage() {
       >
         {canEdit && (
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-             {/* Add Paper Type Dialog */}
             <Dialog open={isPaperModalOpen} onOpenChange={setIsPaperModalOpen}>
               <DialogTrigger asChild>
                 <Button className="w-full sm:w-auto" onClick={() => openPaperModal()}>
@@ -180,32 +183,31 @@ export default function MasterDataPage() {
                   Add Paper Type
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[90svh] overflow-y-auto">
+              <DialogContent className="max-h-[90svh] flex flex-col">
                 <DialogHeader>
                   <DialogTitle>{editingPaperType ? 'Edit' : 'Add New'} Paper Type</DialogTitle>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="paper-name">Paper Name</Label>
-                    <Input id="paper-name" value={newPaperType.paperName || ''} onChange={(e) => setNewPaperType({ ...newPaperType, paperName: e.target.value })} placeholder="e.g., JK Maplitho" />
+                    <Input id="paper-name" value={newPaperType.paperName || ''} onChange={(e) => setNewPaperType({ ...newPaperType, paperName: e.target.value })} placeholder="e.g., JK Maplitho" className="h-11" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="paper-gsm">GSM (Grams per Square Meter)</Label>
-                    <Input id="paper-gsm" type="number" value={newPaperType.gsm || ''} onChange={(e) => setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })} placeholder="e.g., 58" />
+                    <Input id="paper-gsm" type="number" value={newPaperType.gsm || ''} onChange={(e) => setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })} placeholder="e.g., 58" className="h-11" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="paper-length">Length (cm)</Label>
-                    <Input id="paper-length" type="number" value={newPaperType.length || ''} onChange={(e) => setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })} placeholder="e.g., 60" />
+                    <Input id="paper-length" type="number" value={newPaperType.length || ''} onChange={(e) => setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })} placeholder="e.g., 60" className="h-11" />
                   </div>
                 </div>
-                <DialogFooter>
-                  <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10">
+                  <Button variant="outline" onClick={handleClosePaperModal}>Cancel</Button>
                   <Button onClick={handleSavePaperType}>Save Paper Type</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
 
-             {/* Add Item Type Dialog */}
             <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
               <DialogTrigger asChild>
                 <Button className="w-full sm:w-auto" onClick={() => openItemModal()}>
@@ -213,22 +215,22 @@ export default function MasterDataPage() {
                   Add Item Type
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[90svh] overflow-y-auto">
+              <DialogContent className="max-h-[90svh] flex flex-col">
                 <DialogHeader>
                   <DialogTitle>{editingItemType ? 'Edit' : 'Add New'} Item Type</DialogTitle>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="item-name">Item Name</Label>
-                    <Input id="item-name" value={newItemType.itemName || ''} onChange={(e) => setNewItemType({ ...newItemType, itemName: e.target.value })} placeholder="e.g., Ruled Notebook" />
+                    <Input id="item-name" value={newItemType.itemName || ''} onChange={(e) => setNewItemType({ ...newItemType, itemName: e.target.value })} placeholder="e.g., Ruled Notebook" className="h-11" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="item-shortCode">Short Code</Label>
-                    <Input id="item-shortCode" value={newItemType.shortCode || ''} onChange={(e) => setNewItemType({ ...newItemType, shortCode: e.target.value })} placeholder="e.g., RN01" />
+                    <Input id="item-shortCode" value={newItemType.shortCode || ''} onChange={(e) => setNewItemType({ ...newItemType, shortCode: e.target.value })} placeholder="e.g., RN01" className="h-11" />
                   </div>
                 </div>
-                <DialogFooter>
-                  <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10">
+                  <Button variant="outline" onClick={handleCloseItemModal}>Cancel</Button>
                   <Button onClick={handleSaveItemType}>Save Item Type</Button>
                 </DialogFooter>
               </DialogContent>

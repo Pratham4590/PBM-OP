@@ -29,7 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import { Ruling, PaperType, ItemType, RulingEntry } from '@/lib/types';
+import { Ruling as RulingType, PaperType, ItemType, RulingEntry } from '@/lib/types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -48,7 +48,7 @@ export default function ReportsPage() {
   const paperTypesQuery = useMemoFirebase(() => firestore && collection(firestore, 'paperTypes'), [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore && collection(firestore, 'itemTypes'), [firestore]);
 
-  const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
+  const { data: rulings, isLoading: loadingRulings } = useCollection<RulingType>(rulingsQuery);
   const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
 
@@ -76,8 +76,8 @@ export default function ReportsPage() {
     });
   }, [reportData, paperFilter, itemFilter]);
 
-  const getPaperTypeName = (paperTypeId: string) => paperTypes?.find(p => p.id === paperTypeId)?.name || 'N/A';
-  const getItemTypeName = (itemTypeId: string) => itemTypes?.find(i => i.id === itemTypeId)?.name || 'N/A';
+  const getPaperTypeName = (paperTypeId: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
+  const getItemTypeName = (itemTypeId: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName || 'N/A';
 
   const handleExport = () => {
     const doc = new jsPDF();
@@ -86,12 +86,11 @@ export default function ReportsPage() {
     doc.text("Production Report", 15, 20);
     doc.setFontSize(12);
     doc.text(`Date: ${new Date().toLocaleDateString()}`, 15, 30);
+    doc.text(`Filters: ${getPaperTypeName(paperFilter)}, ${getItemTypeName(itemFilter)}`, 15, 25);
 
-    const tableColumn = ["Reel No.", "Paper Type", "Item Ruled", "Reel Wt. (kg)", "Sheets Ruled", "Theoretical", "Difference"];
-    const tableRows: (string | number)[][] = [];
-
-    filteredData.forEach(row => {
-        const rowData = [
+    autoTable(doc, {
+        head: [["Reel No.", "Paper", "Item", "Reel Wt.", "Ruled", "Theory", "Diff"]],
+        body: filteredData.map(row => [
             row.reelNo,
             getPaperTypeName(row.paperTypeId),
             getItemTypeName(row.itemTypeId),
@@ -99,13 +98,7 @@ export default function ReportsPage() {
             row.sheetsRuled.toLocaleString(),
             Math.round(row.theoreticalSheets).toLocaleString(),
             Math.round(row.difference).toLocaleString()
-        ];
-        tableRows.push(rowData);
-    });
-
-    autoTable(doc, {
-        head: [tableColumn],
-        body: tableRows,
+        ]),
         startY: 35,
         headStyles: { fillColor: [38, 115, 101] }, // Corresponds to primary color
         didDrawPage: (data) => {
@@ -140,23 +133,23 @@ export default function ReportsPage() {
           <CardDescription>
             A detailed breakdown of every ruling entry. Use the filters to narrow down the results.
           </CardDescription>
-          <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 pt-4">
+          <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 pt-4">
              <Select value={paperFilter} onValueChange={setPaperFilter}>
-                <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectTrigger className="w-full sm:w-[200px] h-11">
                     <SelectValue placeholder="Filter by paper type..." />
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">All Paper Types</SelectItem>
-                    {paperTypes?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                    {paperTypes?.map(p => <SelectItem key={p.id} value={p.id}>{p.paperName}</SelectItem>)}
                 </SelectContent>
             </Select>
             <Select value={itemFilter} onValueChange={setItemFilter}>
-                <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectTrigger className="w-full sm:w-[200px] h-11">
                     <SelectValue placeholder="Filter by item type..." />
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">All Item Types</SelectItem>
-                    {itemTypes?.map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                    {itemTypes?.map(i => <SelectItem key={i.id} value={i.id}>{i.itemName}</SelectItem>)}
                 </SelectContent>
             </Select>
           </div>
@@ -192,7 +185,7 @@ export default function ReportsPage() {
                       <TableCell className="text-right">{row.sheetsRuled.toLocaleString()}</TableCell>
                       <TableCell className="text-right">{Math.round(row.theoreticalSheets).toLocaleString()}</TableCell>
                       <TableCell className="text-right">
-                         <Badge variant={row.difference >= 0 ? 'default' : 'destructive'} className={row.difference >= 0 ? 'bg-green-600' : ''}>
+                         <Badge variant={row.difference >= 0 ? 'default' : 'destructive'} className={row.difference >= 0 ? 'bg-green-600 dark:bg-green-800' : ''}>
                           {Math.round(row.difference).toLocaleString()}
                         </Badge>
                       </TableCell>

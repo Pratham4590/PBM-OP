@@ -12,7 +12,6 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTrigger,
-  DialogClose,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -70,11 +69,11 @@ export default function StockPage() {
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
   
   const stockQuery = useMemoFirebase(() => {
-    if (!currentUser || currentUser.role === 'Operator') {
+    if (isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
       return null;
     }
     return collection(firestore, 'stock');
-  }, [firestore, currentUser]);
+  }, [firestore, currentUser, isLoadingCurrentUser]);
   
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
 
@@ -110,6 +109,11 @@ export default function StockPage() {
       setNewStockItem({ numberOfReels: 1, totalWeight: 0 });
     }
     setIsModalOpen(true);
+  }
+  
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingStock(null);
   }
 
   const handleSelectPaper = (paperTypeId: string) => {
@@ -149,8 +153,7 @@ export default function StockPage() {
       toast({ title: 'Stock Added' });
     }
     
-    setIsModalOpen(false);
-    setEditingStock(null);
+    closeModal();
   };
   
   const handleDeleteStock = (id: string) => {
@@ -204,38 +207,38 @@ export default function StockPage() {
           <DialogTrigger asChild>
             <Button onClick={() => openModal()}><PlusCircle className="mr-2 h-4 w-4" />Add Stock</Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[90svh] overflow-y-auto">
+          <DialogContent className="max-h-[90svh] flex flex-col">
             <DialogHeader>
               <DialogTitle>{editingStock ? 'Edit' : 'Add New'} Stock</DialogTitle>
               <DialogDescription>Enter the details of the paper stock.</DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="paper-type">Paper Type</Label>
                 <Select value={newStockItem.paperTypeId} onValueChange={handleSelectPaper} disabled={loadingPaperTypes}>
-                  <SelectTrigger><SelectValue placeholder="Select a paper type" /></SelectTrigger>
+                  <SelectTrigger className="h-11"><SelectValue placeholder="Select a paper type" /></SelectTrigger>
                   <SelectContent>
                     {paperTypes?.map((paper) => (<SelectItem key={paper.id} value={paper.id}>{paper.paperName}</SelectItem>))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label htmlFor="gsm">GSM</Label><Input id="gsm" value={newStockItem.gsm || ''} readOnly disabled/></div>
-                <div className="space-y-2"><Label htmlFor="length">Length (cm)</Label><Input id="length" value={newStockItem.length || ''} readOnly disabled/></div>
+                <div className="space-y-2"><Label htmlFor="gsm">GSM</Label><Input id="gsm" value={newStockItem.gsm || ''} readOnly disabled className="h-11" /></div>
+                <div className="space-y-2"><Label htmlFor="length">Length (cm)</Label><Input id="length" value={newStockItem.length || ''} readOnly disabled className="h-11" /></div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="total-weight">Total Weight (kg)</Label>
-                  <Input id="total-weight" type="number" value={newStockItem.totalWeight || ''} onChange={(e) => setNewStockItem({ ...newStockItem, totalWeight: parseFloat(e.target.value) || 0 })} />
+                  <Input id="total-weight" type="number" value={newStockItem.totalWeight || ''} onChange={(e) => setNewStockItem({ ...newStockItem, totalWeight: parseFloat(e.target.value) || 0 })} className="h-11" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="reels">Number of Reels</Label>
-                  <Input id="reels" type="number" value={newStockItem.numberOfReels || ''} onChange={(e) => setNewStockItem({ ...newStockItem, numberOfReels: parseInt(e.target.value) || 0 })}/>
+                  <Input id="reels" type="number" value={newStockItem.numberOfReels || ''} onChange={(e) => setNewStockItem({ ...newStockItem, numberOfReels: parseInt(e.target.value) || 0 })} className="h-11" />
                 </div>
               </div>
             </div>
-            <DialogFooter>
-               <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <DialogFooter className="mt-auto pt-4 border-t sticky bottom-0 bg-background z-10">
+               <Button variant="outline" onClick={closeModal}>Cancel</Button>
               <Button onClick={handleSaveStock}>Save Stock</Button>
             </DialogFooter>
           </DialogContent>
@@ -249,7 +252,6 @@ export default function StockPage() {
           <CardDescription>A list of all paper stock available.</CardDescription>
         </CardHeader>
         <CardContent>
-           {/* Mobile View: Card List */}
           <div className="grid gap-4 sm:hidden">
             {loadingStock ? (
               <p className="text-center text-muted-foreground">Loading stock...</p>
@@ -257,8 +259,11 @@ export default function StockPage() {
               stock.map((item) => (
                 <Card key={item.id}>
                   <CardContent className="p-4 space-y-2">
-                    <div className="flex justify-between">
-                      <p className="font-medium">{getPaperTypeName(item.paperTypeId)}</p>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium">{getPaperTypeName(item.paperTypeId)}</p>
+                        <p className="text-sm text-muted-foreground">{formatDate(item.date)}</p>
+                      </div>
                       {canEdit && (
                          <DropdownMenu>
                           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="-mt-2 -mr-2"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
@@ -277,12 +282,11 @@ export default function StockPage() {
                         </DropdownMenu>
                       )}
                     </div>
-                     <p className="text-sm text-muted-foreground">{formatDate(item.date)}</p>
-                    <div className="text-sm text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1">
-                        <span>GSM:</span><span className="font-medium text-foreground">{item.gsm}</span>
-                        <span>Length:</span><span className="font-medium text-foreground">{item.length} cm</span>
-                        <span>Weight:</span><span className="font-medium text-foreground">{item.totalWeight?.toLocaleString()} kg</span>
-                        <span>Reels:</span><span className="font-medium text-foreground">{item.numberOfReels}</span>
+                    <div className="text-sm text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1 pt-2 border-t">
+                        <span>GSM:</span><span className="font-medium text-foreground text-right">{item.gsm}</span>
+                        <span>Length:</span><span className="font-medium text-foreground text-right">{item.length} cm</span>
+                        <span>Weight:</span><span className="font-medium text-foreground text-right">{item.totalWeight?.toLocaleString()} kg</span>
+                        <span>Reels:</span><span className="font-medium text-foreground text-right">{item.numberOfReels}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -292,7 +296,6 @@ export default function StockPage() {
             )}
           </div>
 
-          {/* Desktop View: Table */}
           <div className="hidden sm:block overflow-x-auto">
             <Table>
               <TableHeader>

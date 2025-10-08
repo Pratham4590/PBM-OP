@@ -34,7 +34,7 @@ import { useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, Timestamp, doc } from 'firebase/firestore';
 
-const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
+const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
 export default function ProductionOverviewPage() {
   const firestore = useFirestore();
@@ -49,11 +49,11 @@ export default function ProductionOverviewPage() {
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
 
   const stockQuery = useMemoFirebase(() => {
-    if (!currentUser || currentUser.role === 'Operator') {
+    if (isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
       return null;
     }
     return collection(firestore, 'stock');
-  }, [firestore, currentUser]);
+  }, [firestore, currentUser, isLoadingCurrentUser]);
 
   const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
@@ -211,7 +211,7 @@ export default function ProductionOverviewPage() {
                     ))}
                     </Pie>
                     <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }} />
-                    <Legend />
+                    <Legend wrapperStyle={{fontSize: "0.875rem"}}/>
                 </PieChart>
                 </ResponsiveContainer>
             </CardContent>
@@ -225,11 +225,11 @@ export default function ProductionOverviewPage() {
           <CardContent>
              <ResponsiveContainer width="100%" height={250}>
               <BarChart data={rulingSummary}>
-                <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value / 1000}k`} />
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value / 1000}k`} />
                 <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }} />
-                <Legend />
-                <Bar dataKey="Theoretical" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} />
+                <Legend wrapperStyle={{fontSize: "0.875rem"}}/>
+                <Bar dataKey="Theoretical" fill="hsl(var(--secondary-foreground))" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Ruled" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -250,9 +250,9 @@ export default function ProductionOverviewPage() {
                             <TableRow>
                                 <TableHead>Brand</TableHead>
                                 <TableHead>Item Type</TableHead>
-                                <TableHead>Total Sheets Required</TableHead>
-                                <TableHead>Sheets Completed</TableHead>
-                                <TableHead className="w-[250px]">Progress</TableHead>
+                                <TableHead>Total Sheets</TableHead>
+                                <TableHead>Completed</TableHead>
+                                <TableHead className="w-[150px] md:w-[250px]">Progress</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -263,8 +263,8 @@ export default function ProductionOverviewPage() {
                                 const itemType = itemTypes?.find(it => it.id === program.itemTypeId);
                                 return (
                                     <TableRow key={program.id}>
-                                        <TableCell className="font-medium">{program.brand}</TableCell>
-                                        <TableCell>{itemType?.itemName || 'N/A'}</TableCell>
+                                        <TableCell className="font-medium whitespace-nowrap">{program.brand}</TableCell>
+                                        <TableCell className="whitespace-nowrap">{itemType?.itemName || 'N/A'}</TableCell>
                                         <TableCell>{(program.totalSheetsRequired ?? 0).toLocaleString()}</TableCell>
                                         <TableCell>{sheetsCompleted.toLocaleString()}</TableCell>
                                         <TableCell>

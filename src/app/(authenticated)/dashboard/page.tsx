@@ -22,6 +22,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend
 } from 'recharts';
 import { PageHeader } from '@/components/page-header';
 import {
@@ -56,11 +57,11 @@ export default function DashboardPage() {
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   
   const stockQuery = useMemoFirebase(() => {
-    if (!currentUser || currentUser.role === 'Operator') {
-      return null;
+    if (isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
+        return null;
     }
     return collection(firestore, 'stock');
-  }, [firestore, currentUser]);
+  }, [firestore, currentUser, isLoadingCurrentUser]);
   
   const { data: rulings, isLoading: loadingRulings } = useCollection<RulingType>(rulingsQuery);
   const { data: stock, isLoading: loadingStock } = useCollection<Stock>(stockQuery);
@@ -194,13 +195,13 @@ export default function DashboardPage() {
                 <BarChart data={chartData}>
                     <XAxis
                     dataKey="date"
-                    stroke="#888888"
+                    stroke="hsl(var(--muted-foreground))"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
                     />
                     <YAxis
-                    stroke="#888888"
+                    stroke="hsl(var(--muted-foreground))"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
@@ -213,9 +214,10 @@ export default function DashboardPage() {
                         borderColor: 'hsl(var(--border))'
                     }}
                     />
+                     <Legend wrapperStyle={{fontSize: "0.875rem"}}/>
                     <Bar
                     dataKey="Planned"
-                    fill="hsl(var(--secondary))"
+                    fill="hsl(var(--secondary-foreground))"
                     radius={[4, 4, 0, 0]}
                     name="Planned Sheets"
                     />
@@ -258,13 +260,13 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell>{getItemTypeName(ruling.itemTypeId)}</TableCell>
                       <TableCell className="text-right">
-                        <Badge variant={ruling.difference >= 0 ? "default" : "destructive"} className={ruling.difference >= 0 ? "bg-green-600" : ""}>
+                        <Badge variant={ruling.difference >= 0 ? "default" : "destructive"} className={ruling.difference >= 0 ? "bg-green-600 dark:bg-green-800" : ""}>
                           {Math.round(ruling.difference || 0).toLocaleString()}
                         </Badge>
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={3} className="text-center">No recent rulings found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={3} className="text-center h-24">No recent rulings found.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

@@ -74,7 +74,6 @@ function LoginPageContent() {
             createdAt: serverTimestamp() as Timestamp,
             themePreference: 'system',
         };
-        // Use setDoc to create the document.
         await setDoc(userDocRef, userData);
     }
   };
@@ -152,11 +151,11 @@ function LoginPageContent() {
 
   return (
     <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2 xl:min-h-screen">
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 z-10">
         <ThemeToggle />
       </div>
-      <div className="flex items-center justify-center py-12">
-        <div className="mx-auto grid w-[350px] gap-6">
+      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto grid w-full max-w-sm gap-6">
           <div className="grid gap-2 text-center">
             <div className="flex justify-center items-center gap-2">
               <AppLogo className="h-8 w-8 text-primary" />
@@ -182,6 +181,7 @@ function LoginPageContent() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
+                className="h-11"
               />
             </div>
             <div className="grid gap-2">
@@ -207,6 +207,7 @@ function LoginPageContent() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
+                className="h-11"
               />
             </div>
             {!isLoginView && (
@@ -219,10 +220,11 @@ function LoginPageContent() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={isLoading}
+                  className="h-11"
                 />
               </div>
             )}
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full h-11" disabled={isLoading}>
               {isLoading
                 ? isLoginView
                   ? 'Logging in...'
@@ -231,7 +233,7 @@ function LoginPageContent() {
                 ? 'Login'
                 : 'Create an account'}
             </Button>
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading} type="button">
+            <Button variant="outline" className="w-full h-11" onClick={handleGoogleSignIn} disabled={isLoading} type="button">
               {isLoading ? '...' : 'Login with Google'}
             </Button>
           </form>
@@ -260,7 +262,7 @@ function LoginPageContent() {
             alt={loginImage.description}
             width="1920"
             height="1080"
-            className="h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
+            className="h-full w-full object-cover dark:brightness-[0.3]"
             data-ai-hint={loginImage.imageHint}
           />
         )}

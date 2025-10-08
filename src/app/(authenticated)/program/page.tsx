@@ -12,7 +12,6 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTrigger,
-  DialogClose,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -31,8 +30,6 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
-  SheetFooter,
-  SheetClose,
   SheetTrigger,
 } from '@/components/ui/sheet';
 import {
@@ -183,16 +180,16 @@ const ProgramForm = ({
 
   return (
     <>
-    <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto -mx-6 px-6 py-4 space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="brand">Brand Name</Label>
-              <Input id="brand" value={program.brand || ''} onChange={(e) => handleInputChange('brand', e.target.value)} />
+              <Input id="brand" value={program.brand || ''} onChange={(e) => handleInputChange('brand', e.target.value)} className="h-11" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="paperTypeId">Paper Type</Label>
               <Select onValueChange={(value) => handleSelectChange('paperTypeId', value)} disabled={loadingPaperTypes} value={program.paperTypeId}>
-                <SelectTrigger><SelectValue placeholder="Select paper" /></SelectTrigger>
+                <SelectTrigger className="h-11"><SelectValue placeholder="Select paper" /></SelectTrigger>
                 <SelectContent>
                   {paperTypes?.map((paper) => (<SelectItem key={paper.id} value={paper.id}>{paper.paperName}</SelectItem>))}
                 </SelectContent>
@@ -201,7 +198,7 @@ const ProgramForm = ({
             <div className="space-y-2">
               <Label htmlFor="itemTypeId">Item Type</Label>
                 <Select onValueChange={(value) => handleSelectChange('itemTypeId', value)} disabled={loadingItemTypes} value={program.itemTypeId}>
-                  <SelectTrigger><SelectValue placeholder="Select item type" /></SelectTrigger>
+                  <SelectTrigger className="h-11"><SelectValue placeholder="Select item type" /></SelectTrigger>
                   <SelectContent>
                     {itemTypes?.map((item) => (<SelectItem key={item.id} value={item.id}>{item.itemName}</SelectItem>))}
                   </SelectContent>
@@ -209,36 +206,36 @@ const ProgramForm = ({
             </div>
             <div className="space-y-2">
               <Label htmlFor="cutoff">Cutoff (cm)</Label>
-              <Input id="cutoff" type="number" value={program.cutoff || ''} onChange={(e) => handleInputChange('cutoff', parseFloat(e.target.value) || 0)} />
+              <Input id="cutoff" type="number" value={program.cutoff || ''} onChange={(e) => handleInputChange('cutoff', parseFloat(e.target.value) || 0)} className="h-11" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="notebookPages">Notebook Pages</Label>
-              <Input id="notebookPages" type="number" value={program.notebookPages || ''} onChange={(e) => handleInputChange('notebookPages', parseInt(e.target.value) || 0)} />
+              <Input id="notebookPages" type="number" value={program.notebookPages || ''} onChange={(e) => handleInputChange('notebookPages', parseInt(e.target.value) || 0)} className="h-11" />
             </div>
               <div className="space-y-2">
               <Label htmlFor="coverIndex">Cover &amp; Index Pages</Label>
-              <Input id="coverIndex" type="number" value={program.coverIndex || ''} onChange={(e) => handleInputChange('coverIndex', parseInt(e.target.value) || 0)} />
+              <Input id="coverIndex" type="number" value={program.coverIndex || ''} onChange={(e) => handleInputChange('coverIndex', parseInt(e.target.value) || 0)} className="h-11" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="piecesPerBundle">Pieces per Bundle</Label>
-              <Input id="piecesPerBundle" type="number" value={program.piecesPerBundle || ''} onChange={(e) => handleInputChange('piecesPerBundle', parseInt(e.target.value) || 0)} />
+              <Input id="piecesPerBundle" type="number" value={program.piecesPerBundle || ''} onChange={(e) => handleInputChange('piecesPerBundle', parseInt(e.target.value) || 0)} className="h-11" />
             </div>
               <div className="space-y-2">
               <Label htmlFor="bundlesRequired">Bundles Required</Label>
-              <Input id="bundlesRequired" type="number" value={program.bundlesRequired || ''} onChange={(e) => handleInputChange('bundlesRequired', parseInt(e.target.value) || 0)} />
+              <Input id="bundlesRequired" type="number" value={program.bundlesRequired || ''} onChange={(e) => handleInputChange('bundlesRequired', parseInt(e.target.value) || 0)} className="h-11" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="ups">UPS</Label>
-              <Input id="ups" type="number" value={program.ups || ''} onChange={(e) => handleInputChange('ups', parseInt(e.target.value) || 0)} />
+              <Input id="ups" type="number" value={program.ups || ''} onChange={(e) => handleInputChange('ups', parseInt(e.target.value) || 0)} className="h-11" />
             </div>
               <div className="space-y-2 sm:col-span-2 grid grid-cols-2 gap-4">
                 <div>
                 <Label htmlFor="gsm-readonly">GSM</Label>
-                <Input id="gsm-readonly" value={program.gsm || ''} readOnly disabled />
+                <Input id="gsm-readonly" value={program.gsm || ''} readOnly disabled className="h-11" />
                 </div>
                 <div>
                 <Label htmlFor="length-readonly">Size (cm)</Label>
-                <Input id="length-readonly" value={program.length || ''} readOnly disabled />
+                <Input id="length-readonly" value={program.length || ''} readOnly disabled className="h-11" />
                 </div>
               </div>
         </div>
@@ -247,23 +244,25 @@ const ProgramForm = ({
           <AccordionItem value="item-1">
             <AccordionTrigger className="text-base">View Calculations</AccordionTrigger>
             <AccordionContent>
-                <div className="space-y-4 rounded-md bg-muted p-4">
+                <div className="space-y-4 rounded-md bg-muted/50 p-4">
                   <h3 className="font-semibold text-lg">Calculations</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Sheets per Notebook (Counting)</Label>
-                    <Input value={calculatedValues.counting.toFixed(2)} readOnly disabled />
+                    <Input value={calculatedValues.counting.toFixed(2)} readOnly disabled className="h-11" />
                   </div>
                   <div className="space-y-2">
                     <Label>Sheets per Bundle</Label>
-                    <Input value={calculatedValues.sheetsPerBundle.toFixed(2)} readOnly disabled />
+                    <Input value={calculatedValues.sheetsPerBundle.toFixed(2)} readOnly disabled className="h-11" />
                   </div>
                   <div className="space-y-2">
                     <Label>Total Sheets Required</Label>
-                    <Input value={calculatedValues.totalSheetsRequired.toLocaleString()} readOnly disabled />
+                    <Input value={calculatedValues.totalSheetsRequired.toLocaleString()} readOnly disabled className="h-11" />
                   </div>
                   <div className="space-y-2">
                     <Label>Ream Weight (kg)</Label>
-                    <Input value={calculatedValues.reamWeight.toFixed(2)} readOnly disabled />
+                    <Input value={calculatedValues.reamWeight.toFixed(2)} readOnly disabled className="h-11" />
+                  </div>
                   </div>
                 </div>
             </AccordionContent>
@@ -273,8 +272,8 @@ const ProgramForm = ({
       </div>
 
       <div className="p-4 border-t sticky bottom-0 bg-background z-10 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2 w-full">
-        <Button variant="outline" disabled={isSaving} onClick={onClose} className="w-full sm:w-auto">Cancel</Button>
-        <Button onClick={handleCreateProgram} disabled={isSaving} className="w-full sm:w-auto">
+        <Button variant="outline" disabled={isSaving} onClick={onClose} className="w-full sm:w-auto h-11">Cancel</Button>
+        <Button onClick={handleCreateProgram} disabled={isSaving} className="w-full sm:w-auto h-11">
           {isSaving ? 'Saving...' : 'Save Program'}
         </Button>
       </div>
@@ -304,51 +303,46 @@ export default function ProgramPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   
-  const [canEdit, setCanEdit] = useState(false);
-
-  useEffect(() => {
-    if (!isLoadingCurrentUser && currentUser) {
-      setCanEdit(currentUser.role === 'Admin' || currentUser.role === 'Member');
-    }
+  const canEdit = useMemo(() => {
+    if (isLoadingCurrentUser || !currentUser) return false;
+    return currentUser.role === 'Admin' || currentUser.role === 'Member';
   }, [currentUser, isLoadingCurrentUser]);
 
-  useEffect(() => {
-    if (isModalOpen) {
-      document.body.classList.add('overflow-hidden');
-    } else {
-      document.body.classList.remove('overflow-hidden');
-    }
-    return () => document.body.classList.remove('overflow-hidden');
-  }, [isModalOpen]);
 
   const openModal = (program?: Program) => {
     setEditingProgram(program || null);
     setIsModalOpen(true);
+  }
+  
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingProgram(null);
   }
 
   const handleSaveProgram = async (programData: Partial<Program>) => {
     if (!firestore) return;
     setIsSaving(true);
     
-    if (editingProgram) {
-        // Update existing
-        const docRef = doc(firestore, 'programs', editingProgram.id);
-        updateDocumentNonBlocking(docRef, programData);
-        toast({ title: 'Program Updated' });
-    } else {
-        // Create new
-        const programToAdd = {
-          ...programData,
-          date: serverTimestamp(),
-        };
-        const collectionRef = collection(firestore, 'programs');
-        await addDoc(collectionRef, programToAdd);
-        toast({ title: 'Program Created' });
+    try {
+      if (editingProgram) {
+          const docRef = doc(firestore, 'programs', editingProgram.id);
+          updateDocumentNonBlocking(docRef, programData);
+          toast({ title: 'Program Updated' });
+      } else {
+          const programToAdd = {
+            ...programData,
+            date: serverTimestamp(),
+          };
+          const collectionRef = collection(firestore, 'programs');
+          await addDoc(collectionRef, programToAdd);
+          toast({ title: 'Program Created' });
+      }
+      closeModal();
+    } catch(e) {
+      toast({ variant: 'destructive', title: 'Save failed', description: 'Could not save program.'});
+    } finally {
+      setIsSaving(false);
     }
-
-    setIsSaving(false);
-    setIsModalOpen(false);
-    setEditingProgram(null);
   };
   
   const handleDeleteProgram = (id: string) => {
@@ -374,7 +368,7 @@ export default function ProgramPage() {
           {programs.map(program => (
             <AccordionItem value={program.id} key={program.id}>
               <div className="flex items-center w-full">
-                <AccordionTrigger className="flex-1">
+                <AccordionTrigger className="flex-1 py-4">
                   <div className="flex flex-col text-left">
                     <span className="font-semibold">{program.brand}</span>
                     <span className="text-sm text-muted-foreground">{getItemTypeName(program.itemTypeId)}</span>
@@ -382,7 +376,7 @@ export default function ProgramPage() {
                 </AccordionTrigger>
                 {canEdit && (
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="ml-2" onClick={(e) => e.stopPropagation()}><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="ml-2 shrink-0" onClick={(e) => e.stopPropagation()}><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent>
                         <DropdownMenuItem onClick={() => openModal(program)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
                         <AlertDialog>
@@ -405,7 +399,7 @@ export default function ProgramPage() {
                 )}
               </div>
               <AccordionContent>
-                <div className="space-y-2 text-sm p-2">
+                <div className="space-y-2 text-sm p-2 bg-muted/50 rounded-md">
                   <p><strong>Paper:</strong> {getPaperTypeName(program.paperTypeId)} ({program.gsm}gsm, {program.length}cm)</p>
                   <p><strong>Sheets Required:</strong> {program.totalSheetsRequired?.toLocaleString()}</p>
                   <p><strong>Ream Weight:</strong> {program.reamWeight?.toFixed(2)} kg</p>
@@ -487,7 +481,7 @@ export default function ProgramPage() {
     loadingPaperTypes,
     loadingItemTypes,
     onSave: handleSaveProgram,
-    onClose: () => setIsModalOpen(false),
+    onClose: closeModal,
     isSaving,
     initialData: editingProgram,
   };
@@ -502,7 +496,7 @@ export default function ProgramPage() {
           isMobile ? (
              <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
               <SheetTrigger asChild>{renderTrigger()}</SheetTrigger>
-              <SheetContent side="bottom" className="p-0 flex flex-col h-[90vh]">
+              <SheetContent side="bottom" className="p-0 flex flex-col h-[90svh]">
                  <SheetHeader className="p-4 border-b">
                     <SheetTitle>{editingProgram ? 'Edit' : 'Create New'} Production Program</SheetTitle>
                     <SheetDescription>
@@ -516,7 +510,7 @@ export default function ProgramPage() {
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
               <DialogTrigger asChild>{renderTrigger()}</DialogTrigger>
               <DialogContent className="p-0 flex flex-col sm:max-w-3xl h-full sm:h-auto sm:max-h-[90vh]">
-                <DialogHeader className="p-4 border-b">
+                <DialogHeader className="p-6 pb-0">
                   <DialogTitle>{editingProgram ? 'Edit' : 'Create New'} Production Program</DialogTitle>
                   <DialogDescription>
                     Fill in the details. Calculated values will update automatically.
@@ -536,7 +530,7 @@ export default function ProgramPage() {
               List of all created production programs.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0 sm:p-6">
             {renderProgramList()}
           </CardContent>
         </Card>

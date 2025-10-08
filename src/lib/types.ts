@@ -4,11 +4,11 @@ export type UserRole = "Admin" | "Member" | "Operator";
 
 export type User = {
   id: string;
-  email?: string;
-  displayName?: string;
+  email: string;
+  displayName: string;
   role: UserRole;
-  createdAt?: Timestamp;
-  themePreference?: "light" | "dark" | "system";
+  createdAt: Timestamp;
+  themePreference: "light" | "dark" | "system";
 };
 
 export type PaperType = {
@@ -27,11 +27,11 @@ export type ItemType = {
 export type Stock = {
   id: string;
   date?: Date | Timestamp;
-  paperTypeId?: string;
-  length?: number;
-  gsm?: number;
-  totalWeight?: number; // in kg
-  numberOfReels?: number;
+  paperTypeId: string;
+  length: number;
+  gsm: number;
+  totalWeight: number; // in kg
+  numberOfReels: number;
 };
 
 export type Program = {
@@ -56,7 +56,7 @@ export type Program = {
 
 export type Ruling = {
   id: string;
-  date?: Date | Timestamp;
+  date: Date | Timestamp;
   serialNo: string;
   reelNo: string;
   paperTypeId: string;

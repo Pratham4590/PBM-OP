@@ -28,6 +28,7 @@ import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function UsersPage() {
   const firestore = useFirestore();
@@ -53,7 +54,6 @@ export default function UsersPage() {
   
   const allUsersQuery = useMemoFirebase(
     () => {
-      // CRITICAL: Only define the query if permission checks are done AND the user is an admin.
       if (isCheckingPermissions || !isAdmin) {
         return null;
       }
@@ -89,8 +89,10 @@ export default function UsersPage() {
               Checking permissions and loading users...
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p>Please wait.</p>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
           </CardContent>
         </Card>
        </>
@@ -165,7 +167,7 @@ export default function UsersPage() {
                           }
                           disabled={user.id === currentUserAuth?.uid} // Can't change your own role
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="h-11">
                             <SelectValue placeholder="Select role" />
                           </SelectTrigger>
                           <SelectContent>
