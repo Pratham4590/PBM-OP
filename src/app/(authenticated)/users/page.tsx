@@ -31,27 +31,19 @@ import { useEffect, useState } from 'react';
 
 export default function UsersPage() {
   const firestore = useFirestore();
-  const { user: currentUserAuth } = useUser();
+  const { user: currentUserAuth, isUserLoading: isAuthLoading } = useUser();
   const { toast } = useToast();
-
-  const [isAdmin, setIsAdmin] = useState(false);
 
   const currentUserDocRef = useMemoFirebase(
     () => (firestore && currentUserAuth ? doc(firestore, 'users', currentUserAuth.uid) : null),
     [firestore, currentUserAuth]
   );
   
-  const { data: currentUserData, isLoading: isLoadingCurrentUser } = useDoc<User>(currentUserDocRef);
+  const { data: currentUserData, isLoading: isLoadingCurrentUserDoc } = useDoc<User>(currentUserDocRef);
 
-  useEffect(() => {
-    if (currentUserData?.role === 'Admin') {
-      setIsAdmin(true);
-    } else {
-      setIsAdmin(false);
-    }
-  }, [currentUserData]);
-
-  // Only query all users if the current user is an admin
+  const isAdmin = currentUserData?.role === 'Admin';
+  
+  // Only query all users if the current user is a confirmed admin
   const allUsersQuery = useMemoFirebase(
     () => (firestore && isAdmin ? collection(firestore, 'users') : null),
     [firestore, isAdmin]
@@ -69,7 +61,7 @@ export default function UsersPage() {
     });
   };
 
-  const isLoading = isLoadingCurrentUser || (isAdmin && isLoadingAllUsers);
+  const isLoading = isAuthLoading || isLoadingCurrentUserDoc;
   
   if (isLoading) {
      return (
@@ -139,7 +131,16 @@ export default function UsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users && users.length > 0 ? (
+                {isLoadingAllUsers ? (
+                   <TableRow>
+                    <TableCell
+                      colSpan={3}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      Loading users...
+                    </TableCell>
+                  </TableRow>
+                ) : users && users.length > 0 ? (
                   users.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium whitespace-nowrap">{user.email}</TableCell>

@@ -40,7 +40,7 @@ export default function MasterDataPage() {
   const { user } = useUser();
   
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
-  const { data: currentUser } = useDoc<AppUser>(currentUserDocRef);
+  const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
 
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
@@ -72,7 +72,7 @@ export default function MasterDataPage() {
     }
   };
   
-  const canEdit = currentUser?.role === 'Admin' || currentUser?.role === 'Member';
+  const canEdit = !isLoadingCurrentUser && (currentUser?.role === 'Admin' || currentUser?.role === 'Member');
 
   return (
     <>

@@ -278,7 +278,7 @@ export default function ProgramPage() {
   const { toast } = useToast();
 
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
-  const { data: currentUser } = useDoc<AppUser>(currentUserDocRef);
+  const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
 
   const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
@@ -333,7 +333,7 @@ export default function ProgramPage() {
   const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.name;
   const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.name;
   
-  const canEdit = currentUser?.role === 'Admin' || currentUser?.role === 'Member';
+  const canEdit = !isLoadingCurrentUser && (currentUser?.role === 'Admin' || currentUser?.role === 'Member');
 
   const renderProgramList = () => {
     if (loadingPrograms) {
@@ -477,5 +477,3 @@ export default function ProgramPage() {
     </>
   );
 }
-
-    

@@ -50,7 +50,7 @@ export default function StockPage() {
   const { toast } = useToast();
   
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
-  const { data: currentUser } = useDoc<AppUser>(currentUserDocRef);
+  const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
 
   const stockQuery = useMemoFirebase(() => firestore ? collection(firestore, 'stock') : null, [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
@@ -127,7 +127,7 @@ export default function StockPage() {
     return 'N/A';
   }
   
-  const canEdit = currentUser?.role === 'Admin' || currentUser?.role === 'Member';
+  const canEdit = !isLoadingCurrentUser && (currentUser?.role === 'Admin' || currentUser?.role === 'Member');
 
   return (
     <>
