@@ -302,7 +302,3 @@ export default function ProductionOverviewPage() {
     </>
   );
 }
-
-    
-
-    
