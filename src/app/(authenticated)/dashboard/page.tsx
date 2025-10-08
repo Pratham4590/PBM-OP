@@ -58,7 +58,7 @@ export default function DashboardPage() {
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   
   const stockQuery = useMemoFirebase(() => {
-    if (!firestore || isLoadingCurrentUser || !currentUser) {
+    if (!firestore || isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
       return null;
     }
     // IMPORTANT: Only create the query if the user has the correct role

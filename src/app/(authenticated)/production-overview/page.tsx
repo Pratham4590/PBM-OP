@@ -50,7 +50,7 @@ export default function ProductionOverviewPage() {
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
 
   const stockQuery = useMemoFirebase(() => {
-    if (!firestore || isLoadingCurrentUser || !currentUser) {
+    if (!firestore || isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
       return null;
     }
     if (currentUser.role === 'Admin' || currentUser.role === 'Member') {
