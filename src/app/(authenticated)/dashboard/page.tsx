@@ -56,11 +56,11 @@ export default function DashboardPage() {
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   
   const stockQuery = useMemoFirebase(() => {
-    if (!firestore || isLoadingCurrentUser || !currentUser || currentUser.role === 'Operator') {
+    if (!currentUser || currentUser.role === 'Operator') {
       return null;
     }
     return collection(firestore, 'stock');
-  }, [firestore, currentUser, isLoadingCurrentUser]);
+  }, [firestore, currentUser]);
   
   const { data: rulings, isLoading: loadingRulings } = useCollection<RulingType>(rulingsQuery);
   const { data: stock, isLoading: loadingStock } = useCollection<Stock>(stockQuery);
