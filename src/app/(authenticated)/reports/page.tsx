@@ -80,9 +80,9 @@ export default function ReportsPage() {
   const getItemTypeName = (itemTypeId: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName || 'N/A';
 
   const handleExport = () => {
-    const doc = new jsPDF();
-    const head = [["Reel No.", "Paper", "Item", "Reel Wt.", "Ruled", "Theory", "Diff"]];
-    const body = filteredData.map(row => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const tableHead = [["Reel No.", "Paper", "Item", "Reel Wt.", "Ruled", "Theory", "Diff"]];
+    const tableBody = filteredData.map(row => {
       const difference = Math.round(row.difference);
       return [
         row.reelNo,
@@ -95,16 +95,27 @@ export default function ReportsPage() {
       ];
     });
 
-    doc.setFontSize(20);
-    doc.text("Production Report", 15, 20);
-    doc.setFontSize(12);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 15, 25);
-    
+    const totalReelWeight = filteredData.reduce((sum, row) => sum + row.reelWeight, 0);
+    const totalSheetsRuled = filteredData.reduce((sum, row) => sum + row.sheetsRuled, 0);
+    const totalTheoreticalSheets = filteredData.reduce((sum, row) => sum + row.theoreticalSheets, 0);
+    const totalDifference = totalSheetsRuled - totalTheoreticalSheets;
+
+    const totalsBody = [
+        ['', '', 'TOTALS', totalReelWeight.toLocaleString(), totalSheetsRuled.toLocaleString(), Math.round(totalTheoreticalSheets).toLocaleString(), Math.round(totalDifference).toLocaleString()]
+    ];
+
     autoTable(doc, {
-        head: head,
-        body: body,
-        startY: 35,
-        headStyles: { fillColor: [21, 128, 61] }, // Deep Green
+        head: tableHead,
+        body: tableBody,
+        startY: 25,
+        margin: { top: 25, right: 10, bottom: 15, left: 10 },
+        headStyles: { fillColor: [34, 139, 34] }, // Forest Green
+        didParseCell: (data) => {
+            // Align numeric columns to the right
+            if (data.column.index >= 3 && data.cell.section === 'body') {
+                data.cell.styles.halign = 'right';
+            }
+        },
         didDrawCell: (data) => {
             if (data.column.index === 6 && data.cell.section === 'body') {
                 const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
@@ -114,17 +125,41 @@ export default function ReportsPage() {
             }
         },
         willDrawCell: (data) => {
-            doc.setTextColor(0,0,0); // Reset text color for other cells
+            doc.setTextColor(0, 0, 0); // Reset text color
         },
         didDrawPage: (data) => {
-            const str = `Page ${doc.internal.getNumberOfPages()}`;
+            // Header
+            doc.setFontSize(20);
+            doc.text("Production Report", data.settings.margin.left, 15);
+            doc.setFontSize(12);
+            doc.text(`Date: ${new Date().toLocaleDateString()}`, data.settings.margin.left, 20);
+
+            // Footer (Page Number)
+            const pageCount = doc.internal.getNumberOfPages();
             doc.setFontSize(10);
-            const pageSize = doc.internal.pageSize;
-            const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
-            doc.text(str, data.settings.margin.left, pageHeight - 10);
+            doc.text(`Page ${doc.internal.pages.length - 1} of ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
+        
+            // Border
+            doc.setDrawColor(0, 0, 0); // Black
+            doc.rect(5, 5, doc.internal.pageSize.width - 10, doc.internal.pageSize.height - 10);
+        },
+    });
+
+    // Add the Totals table at the end
+    const lastTable = (doc as any).lastAutoTable;
+    autoTable(doc, {
+        body: totalsBody,
+        startY: lastTable.finalY + 5,
+        margin: { left: 10, right: 10 },
+        theme: 'grid',
+        bodyStyles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] },
+        didParseCell: (data) => {
+             if (data.column.index <= 1) {
+                data.cell.styles.halign = 'left';
+            }
         }
     });
-    
+
     doc.save("production_report.pdf");
   };
   
