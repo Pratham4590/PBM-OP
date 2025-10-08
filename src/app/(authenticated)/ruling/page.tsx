@@ -82,7 +82,7 @@ export default function RulingPage() {
   const { toast } = useToast();
   
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
-  const { data: currentUser } = useDoc<AppUser>(currentUserDocRef);
+  const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
 
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
@@ -229,6 +229,24 @@ export default function RulingPage() {
 
   const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.name;
 
+  if (isLoadingCurrentUser) {
+    return (
+      <>
+        <PageHeader
+          title="Reel Ruling"
+          description="Log reel ruling with or without a program, and manage multiple rulings per reel."
+        />
+        <Card>
+          <CardHeader>
+            <CardTitle>Loading Rulings...</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>Please wait...</p>
+          </CardContent>
+        </Card>
+      </>
+    );
+  }
 
   return (
     <>
