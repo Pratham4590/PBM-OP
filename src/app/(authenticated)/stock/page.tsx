@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogDescription,
+  DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
@@ -384,3 +386,5 @@ export default function StockPage() {
     </>
   );
 }
+
+    
