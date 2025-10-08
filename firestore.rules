@@ -1,184 +1,163 @@
 /**
- * @file Overview
- * This ruleset enforces a role-based access control model for a production management application.
- * It uses denormalization to ensure authorization independence and avoids costly `get()` calls.
- *
- * Data Structure:
- * - /users/{userId}: User profiles, accessible only to the owner.
- * - /roles_admin/{userId}: Admin role assignment. The existence of a document grants admin privileges.
- * - /paper_types/{paperTypeId}: Paper types, publicly readable.
- * - /item_types/{itemTypeId}: Item types, publicly readable.
- * - /stock/{stockId}: Stock information, accessible only to admins.
- * - /programs/{programId}: Production programs, publicly readable.
- * - /rulings/{rulingId}: Ruling events, access controlled via a 'members' map within each document.
- *
- * Key Security Decisions:
- * - User listing is disabled to prevent enumeration.
- * - Public read access is granted to paper_types, item_types, and programs.
- * - Stock data is strictly limited to admins.
- * - Rulings are secured using a 'members' map for collaborative access.
- *
- * Denormalization for Authorization:
- * - Ruling documents contain a 'members' map (e.g., {uid1: 'admin', uid2: 'operator'}) to specify roles, enabling rules to directly verify access without needing to fetch parent document data.
- * - Admin privileges are granted based on the existence of a document in `/roles_admin/{userId}`.
+ * @file Firestore Security Rules
+ * @core_philosophy This ruleset enforces a user-ownership model for user profiles and creator-ownership for reels and rulings.
+ * Master data collections like `paperTypes` and `itemTypes` are publicly readable.
+ * @data_structure
+ * - /users/{userId}: User profile information, owned by the user.
+ * - /paperTypes/{paperTypeId}: Master data for paper types. Publicly readable.
+ * - /itemTypes/{itemTypeId}: Master data for item types. Publicly readable.
+ * - /reels/{reelId}: Individual reel stock information, owned by the creator.
+ * - /programs/{programId}: Production program definitions.
+ * - /rulings/{rulingId}: Ruling entries for each reel, owned by the creator.
+ * @key_security_decisions
+ * - Users can only read and write their own profile data.
+ * - Master data (paperTypes, itemTypes) is publicly readable but not writable (create, update, delete are denied).
+ * - Reels and Rulings are protected by creator-ownership: only the user who created the document can update or delete it.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the requesting user is signed in.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the requesting user's UID matches the provided userId.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the requesting user is an existing owner (signed in and owns the resource).
-     */
-    function isExistingOwner(userId) {
-      return isSignedIn() && isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Checks if the requesting user is an admin by verifying the existence of a document in /roles_admin/{userId}.
-     */
-    function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-
-    /**
-     * @description Checks if the requesting user has a specific role in the 'members' map of the document.
-     */
-    function hasRole(role) {
-      return resource.data.members[request.auth.uid] == role;
-    }
-
-    /**
-     * @description Checks if the requesting user is an existing admin (signed in and is an admin).
-     */
-    function isExistingAdmin() {
-      return isSignedIn() && isAdmin() && resource != null;
-    }
-
-    /**
-     * @description Defines access rules for user profiles.
+     * @description Secure user profiles; only the user can read/write their own profile.
      * @path /users/{userId}
-     * @allow (create) User with UID 'user123' can create their profile.
-     * @allow (get) User with UID 'user123' can read their profile.
-     * @allow (update) User with UID 'user123' can update their profile.
-     * @allow (delete) User with UID 'user123' can delete their profile.
-     * @deny (create) User with UID 'user456' cannot create a profile for 'user123'.
-     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, and validates relational integrity between documents.
+     * @allow (create) User with UID 'user123' can create a profile with id 'user123'.
+     * @allow (get) User with UID 'user123' can read their own profile at /users/user123.
+     * @allow (update) User with UID 'user123' can update their own profile at /users/user123.
+     * @allow (delete) User with UID 'user123' can delete their own profile at /users/user123.
+     * @deny (create) User with UID 'user456' cannot create a profile with id 'user123'.
+     * @deny (get) User with UID 'user456' cannot read the profile at /users/user123.
+     * @deny (update) User with UID 'user456' cannot update the profile at /users/user123.
+     * @deny (delete) User with UID 'user456' cannot delete the profile at /users/user123.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
-      // Allow the user to create their own profile if the UID matches
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
-      // Allow the user to get their own profile
-      allow get: if isSignedIn() && isOwner(userId);
-      // Allow the user to list their own profile (though there will only be one)
-      allow list: if isSignedIn() && isOwner(userId);
-      // Allow the user to update their own profile
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+        function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      // Allow the user to delete their own profile
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Defines access rules for admin roles.
-     * @path /roles_admin/{userId}
-     * @allow (create) User with UID 'admin123' can be granted admin role (document creation).
-     * @allow (get) Any authenticated user can check for the existence of a document with their user ID.
-     * @allow (delete) User with UID 'admin123' can be revoked admin role (document deletion).
-     * @deny (create) User with UID 'user123' cannot grant admin role to 'admin123'.
-     * @principle Uses existence of document to grant role, avoids content checks in rules, enforces admin-only role assignments.
+     * @description Make paperTypes publicly readable, but prevent any writes.
+     * @path /paperTypes/{paperTypeId}
+     * @allow (get) Any user can read paper type data.
+     * @allow (list) Any user can list paper types.
+     * @deny (create) No one can create paper type data.
+     * @deny (update) No one can update paper type data.
+     * @deny (delete) No one can delete paper type data.
+     * @principle Public read access with no write access.
      */
-    match /roles_admin/{userId} {
-      // Only allow creation by another admin
-      allow create: if isSignedIn() && isAdmin();
-      // Only allow gets by any signed in user
-      allow get: if isSignedIn();
-      // Only allow listing by another admin
-      allow list: if isSignedIn() && isAdmin();
-      // Only allow deletion by another admin
-      allow delete: if isExistingAdmin();
-      // No updates allowed, delete and recreate if needed
+    match /paperTypes/{paperTypeId} {
+      allow get, list: if true;
+      allow create: if false;
       allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Defines access rules for paper types.
-     * @path /paper_types/{paperTypeId}
-     * @allow (get, list) Any authenticated user can read paper types.
-     * @deny (create, update, delete) Only admins can modify paper types.
-     * @principle Allows public read access with admin-only writes for managing paper types.
+     * @description Make itemTypes publicly readable, but prevent any writes.
+     * @path /itemTypes/{itemTypeId}
+     * @allow (get) Any user can read item type data.
+     * @allow (list) Any user can list item types.
+     * @deny (create) No one can create item type data.
+     * @deny (update) No one can update item type data.
+     * @deny (delete) No one can delete item type data.
+     * @principle Public read access with no write access.
      */
-    match /paper_types/{paperTypeId} {
-      // Allow anyone to read paper types
+    match /itemTypes/{itemTypeId} {
       allow get, list: if true;
-      // Only allow admins to create, update, and delete paper types
-      allow create, update, delete: if isSignedIn() && isAdmin();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Defines access rules for item types.
-     * @path /item_types/{itemTypeId}
-     * @allow (get, list) Any authenticated user can read item types.
-     * @deny (create, update, delete) Only admins can modify item types.
-     * @principle Allows public read access with admin-only writes for managing item types.
+     * @description Enforce creator-ownership for reels: only the creator can update or delete.
+     * @path /reels/{reelId}
+     * @allow (create) User with UID 'user123' can create a reel if createdBy is 'user123'.
+     * @allow (get) Any user can read reel data.
+     * @allow (list) Any user can list reel data.
+     * @allow (update) User with UID 'user123' can update a reel if they created it.
+     * @allow (delete) User with UID 'user123' can delete a reel if they created it.
+     * @deny (create) User with UID 'user456' cannot create a reel with createdBy 'user123'.
+     * @deny (update) User with UID 'user456' cannot update a reel created by 'user123'.
+     * @deny (delete) User with UID 'user456' cannot delete a reel created by 'user123'.
+     * @principle Enforces creator-ownership for writes.
      */
-    match /item_types/{itemTypeId} {
-      // Allow anyone to read item types
+    match /reels/{reelId} {
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+      function isOwner(userId) {
+        return request.auth != null && userId == request.auth.uid;
+      }
+        function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
       allow get, list: if true;
-      // Only allow admins to create, update, and delete item types
-      allow create, update, delete: if isSignedIn() && isAdmin();
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.createdBy);
+      allow delete: if isExistingOwner(resource.data.createdBy);
     }
 
     /**
-     * @description Defines access rules for stock information.
-     * @path /stock/{stockId}
-     * @allow (create, get, list, update, delete) Only admins can access stock information.
-     * @principle Restricts access to sensitive stock data to administrators only.
-     */
-    match /stock/{stockId} {
-      // Only allow admins to do anything with stock data
-      allow get, list, create, update, delete: if isSignedIn() && isAdmin();
-    }
-
-    /**
-     * @description Defines access rules for production programs.
+     * @description Allow all reads, but restrict writes to authorized users.  No ownership is enforced on Program.
      * @path /programs/{programId}
-     * @allow (get, list) Any authenticated user can read production programs.
-     * @deny (create, update, delete) Only admins can modify production programs.
-     * @principle Allows public read access with admin-only writes for managing production programs.
+     * @allow (get) Any user can read program data.
+     * @allow (list) Any user can list program data.
+     * @allow (create) Signed in user can create program data.
+     * @allow (update) Signed in user can update program data.
+     * @allow (delete) Signed in user can delete program data.
+     * @principle Public read access with restricted write access based on authentication.
      */
     match /programs/{programId} {
-      // Allow anyone to read programs
+        function isSignedIn() {
+            return request.auth != null;
+        }
       allow get, list: if true;
-      // Only allow admins to create, update, and delete programs
-      allow create, update, delete: if isSignedIn() && isAdmin();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
     /**
-     * @description Defines access rules for rulings.
+     * @description Enforce creator-ownership for rulings: only the creator can update or delete.
      * @path /rulings/{rulingId}
-     * @allow (get) User with role 'admin' or 'operator' in the 'members' map can read the ruling.
-     * @allow (create, update, delete) User with role 'admin' in the 'members' map can modify the ruling.
-     * @deny (get) User not in the 'members' map cannot read the ruling.
-     * @principle Enforces role-based access control using a 'members' map within each ruling document, ensuring authorization independence.
+     * @allow (create) User with UID 'user123' can create a ruling if createdBy is 'user123'.
+     * @allow (get) Any user can read ruling data.
+     * @allow (list) Any user can list ruling data.
+     * @allow (update) User with UID 'user123' can update a ruling if they created it.
+     * @allow (delete) User with UID 'user123' can delete a ruling if they created it.
+     * @deny (create) User with UID 'user456' cannot create a ruling with createdBy 'user123'.
+     * @deny (update) User with UID 'user456' cannot update a ruling created by 'user123'.
+     * @deny (delete) User with UID 'user456' cannot delete a ruling created by 'user123'.
+     * @principle Enforces creator-ownership for writes.
      */
     match /rulings/{rulingId} {
-      // Allow get and list if the user has the 'admin' or 'operator' role
-      allow get, list: if isSignedIn() && (hasRole('admin') || hasRole('operator'));
-      // Only allow create, update, and delete if the user has the 'admin' role
-      allow create, update, delete: if isSignedIn() && hasRole('admin');
+        function isSignedIn() {
+            return request.auth != null;
+        }
+      function isOwner(userId) {
+        return request.auth != null && userId == request.auth.uid;
+      }
+        function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.createdBy);
+      allow delete: if isExistingOwner(resource.data.createdBy);
     }
   }
 }
