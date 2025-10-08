@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Trash2, MoreVertical, Edit } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,13 +11,24 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTrigger,
+  DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,6 +46,7 @@ import {
   PaperType,
   ItemType,
   Program,
+  User as AppUser,
 } from '@/lib/types';
 import {
   Table,
@@ -51,11 +63,24 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
+import { collection, serverTimestamp, Timestamp, doc } from 'firebase/firestore';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useToast } from '@/hooks/use-toast';
+
 
 export default function RulingPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
+  const { toast } = useToast();
+  
+  const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
+  const { data: currentUser } = useDoc<AppUser>(currentUserDocRef);
 
   const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
@@ -68,15 +93,26 @@ export default function RulingPage() {
   const { data: programs } = useCollection<Program>(programsQuery);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingRuling, setEditingRuling] = useState<Ruling | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [newRuling, setNewRuling] = useState<Partial<Ruling>>({ entries: [] });
   const [newEntry, setNewEntry] = useState<Partial<RulingEntry>>({});
+
+  const canEdit = useMemo(() => currentUser?.role === 'Admin' || currentUser?.role === 'Member', [currentUser]);
+
+  const openEditModal = (ruling: Ruling) => {
+    setEditingRuling(ruling);
+    setNewRuling(ruling);
+    setCurrentStep(1);
+    setIsModalOpen(true);
+  }
 
   const resetForm = useCallback(() => {
     setNewRuling({ entries: [] });
     setNewEntry({});
     setCurrentStep(1);
     setIsModalOpen(false);
+    setEditingRuling(null);
   }, []);
 
   const handleAddRulingEntry = () => {
@@ -133,14 +169,30 @@ export default function RulingPage() {
       return;
     };
 
-    const rulingToAdd = {
-      date: serverTimestamp(),
-      ...newRuling,
-    };
+    if (editingRuling) {
+        // Update existing ruling
+        const rulingDocRef = doc(firestore, 'reels', editingRuling.id);
+        updateDocumentNonBlocking(rulingDocRef, newRuling);
+        toast({ title: 'Ruling Updated', description: `Reel ${editingRuling.reelNo} has been updated.` });
+
+    } else {
+        // Add new ruling
+        const rulingToAdd = {
+          date: serverTimestamp(),
+          ...newRuling,
+        };
+        const rulingsCollection = collection(firestore, 'reels');
+        addDocumentNonBlocking(rulingsCollection, rulingToAdd);
+        toast({ title: 'Ruling Added', description: `Reel ${newRuling.reelNo} has been added.` });
+    }
     
-    const rulingsCollection = collection(firestore, 'reels');
-    addDocumentNonBlocking(rulingsCollection, rulingToAdd);
     resetForm();
+  }
+
+  const handleDeleteRuling = (rulingId: string) => {
+    if (!firestore) return;
+    deleteDocumentNonBlockingById(firestore, 'reels', rulingId);
+    toast({ variant: 'destructive', title: 'Ruling Deleted', description: 'The reel ruling has been permanently deleted.' });
   }
   
   const getProgramInfo = (programId?: string) => {
@@ -194,9 +246,9 @@ export default function RulingPage() {
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90svh] flex flex-col">
             <DialogHeader>
-              <DialogTitle>Add Reel Ruling</DialogTitle>
+              <DialogTitle>{editingRuling ? 'Edit' : 'Add'} Reel Ruling</DialogTitle>
               <DialogDescription>
-                Follow the steps to log a new ruling for a reel.
+                {editingRuling ? 'Update the details for this reel ruling.' : 'Follow the steps to log a new ruling for a reel.'}
               </DialogDescription>
             </DialogHeader>
             <div className="flex-grow overflow-y-auto pr-6 -mr-6">
@@ -206,7 +258,7 @@ export default function RulingPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="date">Date</Label>
-                    <Input id="date" value={new Date().toLocaleDateString()} readOnly disabled />
+                    <Input id="date" value={new Date((newRuling.date as Timestamp)?.toDate() || Date.now()).toLocaleDateString()} readOnly disabled />
                   </div>
                    <div className="space-y-2">
                     <Label htmlFor="serialNo">Serial No.</Label>
@@ -236,7 +288,7 @@ export default function RulingPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="paperTypeId">Paper Type</Label>
-                  <Select onValueChange={(value) => setNewRuling({ ...newRuling, paperTypeId: value })}>
+                  <Select value={newRuling.paperTypeId || ''} onValueChange={(value) => setNewRuling({ ...newRuling, paperTypeId: value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select paper" />
                     </SelectTrigger>
@@ -422,7 +474,7 @@ export default function RulingPage() {
                     </Card>
                     <div className="space-y-2">
                         <Label htmlFor="status">Final Reel Status</Label>
-                         <Select onValueChange={(value) => setNewRuling({...newRuling, status: value as "Partially Used" | "Finished"})}>
+                         <Select value={newRuling.status} onValueChange={(value) => setNewRuling({...newRuling, status: value as "Partially Used" | "Finished"})}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Select final status"/>
                             </SelectTrigger>
@@ -476,7 +528,44 @@ export default function RulingPage() {
                         <AccordionTrigger>
                             <div className="flex justify-between items-center w-full pr-4 text-left">
                                 <span className="font-semibold">Reel: {ruling.reelNo} (SN: {ruling.serialNo})</span>
+                                <div className="flex items-center">
                                 <Badge variant={ruling.status === 'Finished' ? 'default' : 'secondary'} className={`ml-2 whitespace-nowrap ${ruling.status === 'Finished' ? 'bg-green-600' : ''}`}>{ruling.status}</Badge>
+                                {canEdit && (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="ml-2" onClick={(e) => e.stopPropagation()}>
+                                            <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent>
+                                        <DropdownMenuItem onClick={() => openEditModal(ruling)}>
+                                            <Edit className="mr-2 h-4 w-4" />
+                                            <span>Edit</span>
+                                        </DropdownMenuItem>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                                                <span className="text-destructive">Delete</span>
+                                            </DropdownMenuItem>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                This action cannot be undone. This will permanently delete the reel ruling for reel <strong>{ruling.reelNo}</strong>.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteRuling(ruling.id)}>Delete</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                )}
+                                </div>
                             </div>
                         </AccordionTrigger>
                         <AccordionContent>

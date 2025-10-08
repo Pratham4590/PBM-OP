@@ -58,7 +58,7 @@ export type Program = {
 
 export type Ruling = {
   id: string;
-  date: Date | Timestamp;
+  date?: Date | Timestamp;
   serialNo: string;
   reelNo: string;
   paperTypeId: string;

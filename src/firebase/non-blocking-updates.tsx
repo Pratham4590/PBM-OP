@@ -8,6 +8,8 @@ import {
   CollectionReference,
   DocumentReference,
   SetOptions,
+  Firestore,
+  doc,
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import {FirestorePermissionError} from '@/firebase/errors';
@@ -76,6 +78,24 @@ export function updateDocumentNonBlocking(docRef: DocumentReference, data: any) 
  * Does NOT await the write operation internally.
  */
 export function deleteDocumentNonBlocking(docRef: DocumentReference) {
+  deleteDoc(docRef)
+    .catch(error => {
+      errorEmitter.emit(
+        'permission-error',
+        new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'delete',
+        })
+      )
+    });
+}
+
+/**
+ * Initiates a deleteDoc operation for a document by its ID.
+ * Does NOT await the write operation internally.
+ */
+export function deleteDocumentNonBlockingById(db: Firestore, collectionName: string, docId: string) {
+  const docRef = doc(db, collectionName, docId);
   deleteDoc(docRef)
     .catch(error => {
       errorEmitter.emit(
