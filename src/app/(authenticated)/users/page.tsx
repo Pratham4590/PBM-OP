@@ -51,6 +51,7 @@ export default function UsersPage() {
     }
   }, [currentUserData]);
 
+  // Only query all users if the current user is an admin
   const allUsersQuery = useMemoFirebase(
     () => (firestore && isAdmin ? collection(firestore, 'users') : null),
     [firestore, isAdmin]
@@ -60,15 +61,39 @@ export default function UsersPage() {
   const handleRoleChange = (userId: string, newRole: UserRole) => {
     if (!firestore || !isAdmin) return;
 
-    const userDocRef = doc(firestore, 'users', userId);
-    updateDocumentNonBlocking(userDocRef, { role: newRole });
+    const userDocToUpdate = doc(firestore, 'users', userId);
+    updateDocumentNonBlocking(userDocToUpdate, { role: newRole });
     toast({
         title: 'Role Updated',
         description: `User role has been successfully changed to ${newRole}.`,
     });
   };
 
-  if (!isLoadingCurrentUser && !isAdmin) {
+  const isLoading = isLoadingCurrentUser || (isAdmin && isLoadingAllUsers);
+  
+  if (isLoading) {
+     return (
+       <>
+        <PageHeader
+          title="Users & Management"
+          description="Manage user roles and permissions."
+        />
+        <Card>
+           <CardHeader>
+            <CardTitle>Loading...</CardTitle>
+            <CardDescription>
+              Checking permissions and loading users...
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p>Please wait.</p>
+          </CardContent>
+        </Card>
+       </>
+     )
+  }
+
+  if (!isAdmin) {
     return (
       <>
         <PageHeader
@@ -89,8 +114,6 @@ export default function UsersPage() {
       </>
     );
   }
-
-  const isLoading = isLoadingCurrentUser || (isAdmin && isLoadingAllUsers);
 
   return (
     <>
@@ -116,13 +139,7 @@ export default function UsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={3} className="h-24 text-center">
-                      Loading users...
-                    </TableCell>
-                  </TableRow>
-                ) : users && users.length > 0 ? (
+                {users && users.length > 0 ? (
                   users.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium whitespace-nowrap">{user.email}</TableCell>
