@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetTrigger } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useMemo, useState } from 'react';
@@ -96,7 +97,9 @@ export default function MasterDataPage() {
     setIsPaperModalOpen(true);
   }
   
-  const handleClosePaperModal = () => setIsPaperModalOpen(false);
+  const handleClosePaperModal = () => {
+    setIsPaperModalOpen(false);
+  }
 
   const handleSavePaperType = () => {
     if (!firestore || !newPaperType.paperName || !newPaperType.gsm || !newPaperType.length) {
@@ -139,7 +142,9 @@ export default function MasterDataPage() {
     setIsItemModalOpen(true);
   }
   
-  const handleCloseItemModal = () => setIsItemModalOpen(false);
+  const handleCloseItemModal = () => {
+    setIsItemModalOpen(false);
+  }
 
   const handleSaveItemType = () => {
     if (!firestore || !newItemType.itemName || !newItemType.shortCode) {
@@ -413,3 +418,5 @@ export default function MasterDataPage() {
     </>
   );
 }
+
+    
