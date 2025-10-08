@@ -13,14 +13,14 @@ export type User = {
 
 export type PaperType = {
   id: string;
-  name: string;
+  paperName: string;
   gsm: number;
   length: number; // in cm
 };
 
 export type ItemType = {
   id: string;
-  name:string;
+  itemName:string;
   shortCode: string;
 };
 
@@ -91,5 +91,3 @@ export type PlaceholderImage = {
   imageUrl: string;
   imageHint: string;
 };
-
-    

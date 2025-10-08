@@ -48,26 +48,26 @@ export default function MasterDataPage() {
   const { data: paperTypes, isLoading: loadingPaper } = useCollection<PaperType>(paperTypesQuery);
   const { data: itemTypes, isLoading: loadingItems } = useCollection<ItemType>(itemTypesQuery);
 
-  const [newPaperType, setNewPaperType] = useState<Omit<PaperType, 'id' | 'name'> & { name: string }>({ name: '', gsm: 0, length: 0 });
-  const [newItemType, setNewItemType] = useState<Omit<ItemType, 'id' | 'name'> & { name: string }>({ name: '', shortCode: '' });
+  const [newPaperType, setNewPaperType] = useState<Omit<PaperType, 'id'>>({ paperName: '', gsm: 0, length: 0 });
+  const [newItemType, setNewItemType] = useState<Omit<ItemType, 'id'>>({ itemName: '', shortCode: '' });
 
   const [isPaperModalOpen, setIsPaperModalOpen] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
 
   const handleAddPaperType = () => {
-    if (newPaperType.name && newPaperType.gsm && newPaperType.length && firestore) {
+    if (newPaperType.paperName && newPaperType.gsm && newPaperType.length && firestore) {
       const paperTypesCollection = collection(firestore, 'paperTypes');
       addDocumentNonBlocking(paperTypesCollection, newPaperType);
-      setNewPaperType({ name: '', gsm: 0, length: 0 });
+      setNewPaperType({ paperName: '', gsm: 0, length: 0 });
       setIsPaperModalOpen(false);
     }
   };
 
   const handleAddItemType = () => {
-    if (newItemType.name && newItemType.shortCode && firestore) {
+    if (newItemType.itemName && newItemType.shortCode && firestore) {
       const itemTypesCollection = collection(firestore, 'itemTypes');
       addDocumentNonBlocking(itemTypesCollection, newItemType);
-      setNewItemType({ name: '', shortCode: '' });
+      setNewItemType({ itemName: '', shortCode: '' });
       setIsItemModalOpen(false);
     }
   };
@@ -84,7 +84,7 @@ export default function MasterDataPage() {
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Dialog open={isPaperModalOpen} onOpenChange={setIsPaperModalOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="w-full sm:w-auto">
                   <PlusCircle className="mr-2 h-4 w-4" />
                   Add Paper Type
                 </Button>
@@ -96,19 +96,20 @@ export default function MasterDataPage() {
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="paper-name">
-                      Name
+                      Paper Name
                     </Label>
                     <Input
                       id="paper-name"
-                      value={newPaperType.name}
+                      value={newPaperType.paperName}
                       onChange={(e) =>
-                        setNewPaperType({ ...newPaperType, name: e.target.value })
+                        setNewPaperType({ ...newPaperType, paperName: e.target.value })
                       }
+                      placeholder="e.g., JK Maplitho"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="paper-gsm">
-                      GSM
+                      GSM (Grams per Square Meter)
                     </Label>
                     <Input
                       id="paper-gsm"
@@ -117,6 +118,7 @@ export default function MasterDataPage() {
                       onChange={(e) =>
                         setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })
                       }
+                      placeholder="e.g., 58"
                     />
                   </div>
                   <div className="space-y-2">
@@ -130,6 +132,7 @@ export default function MasterDataPage() {
                       onChange={(e) =>
                         setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })
                       }
+                      placeholder="e.g., 60"
                     />
                   </div>
                 </div>
@@ -144,7 +147,7 @@ export default function MasterDataPage() {
 
             <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="w-full sm:w-auto">
                   <PlusCircle className="mr-2 h-4 w-4" />
                   Add Item Type
                 </Button>
@@ -156,14 +159,15 @@ export default function MasterDataPage() {
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="item-name">
-                      Name
+                      Item Name
                     </Label>
                     <Input
                       id="item-name"
-                      value={newItemType.name}
+                      value={newItemType.itemName}
                       onChange={(e) =>
-                        setNewItemType({ ...newItemType, name: e.target.value })
+                        setNewItemType({ ...newItemType, itemName: e.target.value })
                       }
+                      placeholder="e.g., Ruled Notebook"
                     />
                   </div>
                   <div className="space-y-2">
@@ -179,6 +183,7 @@ export default function MasterDataPage() {
                           shortCode: e.target.value,
                         })
                       }
+                      placeholder="e.g., RN01"
                     />
                   </div>
                 </div>
@@ -213,11 +218,11 @@ export default function MasterDataPage() {
                 </TableHeader>
                 <TableBody>
                   {loadingPaper ? (
-                    <TableRow><TableCell colSpan={3} className="text-center">Loading...</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={3} className="text-center h-24">Loading...</TableCell></TableRow>
                   ) : paperTypes && paperTypes.length > 0 ? (
                     paperTypes.map((paper) => (
                       <TableRow key={paper.id}>
-                        <TableCell className="font-medium whitespace-nowrap">{paper.name}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">{paper.paperName}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{paper.gsm}</Badge>
                         </TableCell>
@@ -225,7 +230,7 @@ export default function MasterDataPage() {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={3} className="text-center">No paper types found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={3} className="text-center h-24">No paper types found.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -236,7 +241,7 @@ export default function MasterDataPage() {
           <CardHeader>
             <CardTitle>Item Types</CardTitle>
             <CardDescription>
-              Define the ruling types for notebooks.
+              Define the types of items produced (e.g., notebooks).
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -250,18 +255,18 @@ export default function MasterDataPage() {
                 </TableHeader>
                 <TableBody>
                   {loadingItems ? (
-                    <TableRow><TableCell colSpan={2} className="text-center">Loading...</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={2} className="text-center h-24">Loading...</TableCell></TableRow>
                   ) : itemTypes && itemTypes.length > 0 ? (
                     itemTypes.map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-medium whitespace-nowrap">{item.name}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">{item.itemName}</TableCell>
                         <TableCell className="text-right">
                           {item.shortCode}
                         </TableCell>
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={2} className="text-center">No item types found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={2} className="text-center h-24">No item types found.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
