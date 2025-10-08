@@ -45,7 +45,6 @@ export default function UsersPage() {
   const { data: currentUserData, isLoading: isLoadingCurrentUserDoc } = useDoc<User>(currentUserDocRef);
 
   useEffect(() => {
-    // This effect determines when permission checking is complete.
     if (!isAuthLoading && !isLoadingCurrentUserDoc) {
       setIsAdmin(currentUserData?.role === 'Admin');
       setIsCheckingPermissions(false);
