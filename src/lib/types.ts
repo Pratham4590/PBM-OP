@@ -1,3 +1,4 @@
+
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = "Admin" | "Member" | "Operator";
@@ -92,18 +93,6 @@ export type Ruling = {
   createdBy: string;
 };
 
-
-export type ReportData = {
-    id: string;
-    serialNo: string;
-    reelNo: string;
-    reelWeight: number;
-    sheetsRuled: number;
-    theoreticalSheets: number;
-    difference: number;
-    itemTypeId: string;
-    paperTypeId: string;
-};
 
 export type PlaceholderImage = {
   id: string;

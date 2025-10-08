@@ -64,6 +64,15 @@ const initialRulingEntry: RulingEntry = {
   status: 'In Progress',
 };
 
+// Formula: Sheets per kg = 1000 / (((length_cm * breadth_cm) / 10000) * GSM)
+const getSheetsPerKg = (length: number, breadth: number, gsm: number): number => {
+    if (length <= 0 || breadth <= 0 || gsm <= 0) return 0;
+    const areaM2 = (length * breadth) / 10000;
+    const weightPerSheetG = areaM2 * gsm;
+    if (weightPerSheetG <= 0) return 0;
+    return 1000 / weightPerSheetG;
+};
+
 
 const RulingForm = ({
     selectedReel,
@@ -119,23 +128,33 @@ const RulingForm = ({
   }, [rulingEntries]);
 
   const calculateRulingValues = (entry: Partial<RulingEntry>) => {
-    if (!selectedReel || !entry.cutoff || !entry.sheetsRuled || !entry.itemTypeId) {
-      return { theoreticalSheets: 0, difference: 0 };
+    if (!selectedReel || !entry.cutoff || !entry.sheetsRuled) {
+        return { theoreticalSheets: 0, difference: 0 };
     }
-    const { initialSheets, weight } = selectedReel;
-    if (initialSheets <= 0) return { theoreticalSheets: 0, difference: 0 };
-    
-    const weightPerSheet = weight / initialSheets;
-    const rulingWeight = (entry.sheetsRuled || 0) * weightPerSheet;
 
-    const { length, gsm } = selectedReel;
+    // New Formula Implementation
+    const { length, gsm, weight: reelWeight } = selectedReel;
+    const sheetsPerKg = getSheetsPerKg(length, entry.cutoff, gsm);
+    if (sheetsPerKg <= 0) return { theoreticalSheets: 0, difference: 0 };
+
+    const initialTotalSheets = reelWeight * sheetsPerKg;
+    if (initialTotalSheets <= 0) return { theoreticalSheets: 0, difference: 0 };
+
+    const weightPerRuledSheet = reelWeight / initialTotalSheets;
+    const rulingWeight = entry.sheetsRuled * weightPerRuledSheet;
+    
+    // Ream Weight = (Length × Cutoff × GSM) / 20000
     const reamWeight = (length * entry.cutoff * gsm) / 20000;
     if (reamWeight <= 0) return { theoreticalSheets: 0, difference: 0 };
 
+    // Theoretical Sheets = (Ruling Weight × 500) / Ream Weight
     const theoreticalSheets = (rulingWeight * 500) / reamWeight;
     const difference = entry.sheetsRuled - theoreticalSheets;
 
-    return { theoreticalSheets, difference };
+    return { 
+        theoreticalSheets: isNaN(theoreticalSheets) ? 0 : theoreticalSheets, 
+        difference: isNaN(difference) ? 0 : difference 
+    };
   };
 
   const remainingSheets = (selectedReel.availableSheets ?? selectedReel.initialSheets) - totalSheetsRuled;
@@ -225,13 +244,13 @@ const RulingForm = ({
                         </div>
                         <div className="space-y-2">
                             <Label>Cutoff (cm)</Label>
-                            <Input type="number" value={entry.cutoff || ''} onChange={e => handleRulingEntryChange(index, 'cutoff', parseFloat(e.target.value))} disabled={!!entry.programId || isRulingDisabled} className="h-11" />
+                            <Input type="number" value={entry.cutoff || ''} onChange={e => handleRulingEntryChange(index, 'cutoff', parseFloat(e.target.value) || 0)} disabled={!!entry.programId || isRulingDisabled} className="h-11" />
                         </div>
                     </div>
                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Sheets Ruled</Label>
-                            <Input type="number" value={entry.sheetsRuled || ''} onChange={e => handleRulingEntryChange(index, 'sheetsRuled', parseInt(e.target.value))} disabled={isRulingDisabled} className="h-11" />
+                            <Input type="number" value={entry.sheetsRuled || ''} onChange={e => handleRulingEntryChange(index, 'sheetsRuled', parseInt(e.target.value) || 0)} disabled={isRulingDisabled} className="h-11" />
                         </div>
                          <div className="space-y-2">
                             <Label>Status</Label>
@@ -310,24 +329,20 @@ export default function RulingPage() {
   };
   
   const handleReelSelect = (reel: Reel) => {
+    // If initial sheets are not calculated, do it now.
+    if (!reel.initialSheets || reel.initialSheets === 0) {
+        // Assume a default breadth/cutoff for initial calculation if not available.
+        // This is a fallback; a better approach would be a standard width on paperType.
+        const defaultBreadth = 80; 
+        const sheetsPerKg = getSheetsPerKg(reel.length, defaultBreadth, reel.gsm);
+        reel.initialSheets = reel.weight * sheetsPerKg;
+        reel.availableSheets = reel.initialSheets;
+    }
+    
     setSelectedReel(reel);
     setStep(3);
   };
 
-  const calculateInitialSheets = (reel: Reel): number => {
-    // This is a placeholder. A real calculation would be more complex.
-    // For now, let's assume a standard ream weight and calculate from there.
-    // A more accurate formula would need paper density, roll diameter etc.
-    // Ream Weight = (Length x Width x GSM) / 20000
-    // For a roll, it's more complex. We'll use a simplified version for now.
-    // Theoretical sheets = (Total Weight * 500) / Ream Weight
-    // Let's assume a standard width (cutoff) for this paper type if not available.
-    const standardCutoff = 80; // in cm, a guess
-    const reamWeight = (reel.length * standardCutoff * reel.gsm) / 20000;
-    if (reamWeight <= 0) return 0;
-    return Math.floor((reel.weight * 500) / reamWeight);
-  };
-  
   const handleSave = async (rulingEntries: Partial<RulingEntry>[]) => {
     if (!firestore || !user || !selectedReel) return;
     
@@ -337,6 +352,7 @@ export default function RulingPage() {
     }
     const totalSheetsRuled = rulingEntries.reduce((sum, entry) => sum + (entry.sheetsRuled || 0), 0);
     const availableSheets = selectedReel.availableSheets ?? selectedReel.initialSheets;
+    
     if (totalSheetsRuled > availableSheets) {
         toast({ variant: 'destructive', title: 'Insufficient Stock', description: `Cannot rule ${totalSheetsRuled.toLocaleString()} sheets. Only ${availableSheets.toLocaleString()} are available.`});
         return;
@@ -345,20 +361,22 @@ export default function RulingPage() {
     setIsSaving(true);
     try {
       const batch = writeBatch(firestore);
-      const initialSheets = selectedReel.initialSheets || calculateInitialSheets(selectedReel);
-      const weightPerSheet = selectedReel.weight / initialSheets;
+      const initialTotalSheets = selectedReel.weight * getSheetsPerKg(selectedReel.length, 80, selectedReel.gsm); // Fallback breadth
+      const weightPerSheet = initialTotalSheets > 0 ? selectedReel.weight / initialTotalSheets : 0;
       
       const finalRulingEntries = rulingEntries.map(entry => {
-        const rulingWeight = (entry.sheetsRuled || 0) * weightPerSheet;
-        const reamWeight = (selectedReel.length * (entry.cutoff || 0) * selectedReel.gsm) / 20000;
+        const { cutoff = 0, sheetsRuled = 0 } = entry;
+        const sheetsPerKg = getSheetsPerKg(selectedReel.length, cutoff, selectedReel.gsm);
+        const rulingWeight = weightPerSheet * sheetsRuled;
+        const reamWeight = (selectedReel.length * cutoff * selectedReel.gsm) / 20000;
         const theoreticalSheets = reamWeight > 0 ? (rulingWeight * 500) / reamWeight : 0;
-        const difference = (entry.sheetsRuled || 0) - theoreticalSheets;
+        const difference = sheetsRuled - theoreticalSheets;
 
         return {
           ...initialRulingEntry,
           ...entry,
-          theoreticalSheets,
-          difference,
+          theoreticalSheets: isNaN(theoreticalSheets) ? 0 : theoreticalSheets,
+          difference: isNaN(difference) ? 0 : difference,
         } as RulingEntry;
       });
 
@@ -367,7 +385,7 @@ export default function RulingPage() {
         reelId: selectedReel.id,
         reelNo: selectedReel.reelNo,
         paperTypeId: selectedReel.paperTypeId,
-        startWeight: selectedReel.weight,
+        startWeight: selectedReel.weight, // original weight
         rulingEntries: finalRulingEntries,
         totalSheetsRuled,
         createdBy: user.uid,
@@ -379,11 +397,17 @@ export default function RulingPage() {
       const reelDocRef = doc(firestore, 'reels', selectedReel.id);
       const newAvailableSheets = availableSheets - totalSheetsRuled;
       const newStatus: Reel['status'] = newAvailableSheets < 100 ? 'Finished' : 'In Use';
-      batch.update(reelDocRef, { 
-        availableSheets: newAvailableSheets, 
+      
+      const reelUpdate: Partial<Reel> = { 
+        availableSheets: newAvailableSheets,
         status: newStatus,
-        initialSheets: selectedReel.initialSheets || initialSheets, // Save initial sheets if not present
-      });
+      };
+      
+      if (!selectedReel.initialSheets || selectedReel.initialSheets === 0) {
+          reelUpdate.initialSheets = availableSheets;
+      }
+
+      batch.update(reelDocRef, reelUpdate);
       
       await batch.commit();
       

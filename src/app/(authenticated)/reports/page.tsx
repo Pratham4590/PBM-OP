@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -28,10 +29,20 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
-import { Ruling as RulingType, PaperType, ItemType } from '@/lib/types';
+import { collection, Timestamp } from 'firebase/firestore';
+import { Ruling as RulingType, PaperType, ItemType, RulingEntry } from '@/lib/types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+type FlattenedRuling = {
+    id: string;
+    date: Date | Timestamp;
+    reelId: string;
+    reelNo: string;
+    paperTypeId: string;
+    startWeight: number;
+    createdBy: string;
+} & RulingEntry;
 
 
 export default function ReportsPage() {
@@ -48,41 +59,52 @@ export default function ReportsPage() {
   const [paperFilter, setPaperFilter] = useState('all');
   const [itemFilter, setItemFilter] = useState('all');
   
-  const filteredData = useMemo(() => {
+  const flattenedData = useMemo(() => {
     if (!rulings) return [];
-    return rulings.filter(row => {
+    return rulings.flatMap(ruling => 
+        ruling.rulingEntries.map(entry => ({
+            ...ruling,
+            ...entry,
+            id: `${ruling.id}-${entry.itemTypeId}`, // create unique id for flattened row
+            rulingEntries: undefined, // remove nested array
+        }))
+    );
+  }, [rulings]);
+  
+  const filteredData = useMemo(() => {
+    if (!flattenedData) return [];
+    return flattenedData.filter(row => {
       const paperMatch = paperFilter === 'all' || row.paperTypeId === paperFilter;
       const itemMatch = itemFilter === 'all' || row.itemTypeId === itemFilter;
       return paperMatch && itemMatch;
     });
-  }, [rulings, paperFilter, itemFilter]);
+  }, [flattenedData, paperFilter, itemFilter]);
 
   const getPaperTypeName = (paperTypeId: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
   const getItemTypeName = (itemTypeId: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName || 'N/A';
 
   const handleExport = () => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const tableHead = [["Reel No.", "Paper", "Item", "Reel Wt.", "Ruled", "Theory", "Diff"]];
+    const tableHead = [["Reel No.", "Paper", "Item", "Cutoff", "Ruled", "Theory", "Diff"]];
     const tableBody = filteredData.map(row => {
       const difference = Math.round(row.difference);
       return [
         row.reelNo,
         getPaperTypeName(row.paperTypeId),
         getItemTypeName(row.itemTypeId),
-        row.startWeight.toLocaleString(),
+        row.cutoff.toString(),
         row.sheetsRuled.toLocaleString(),
         Math.round(row.theoreticalSheets).toLocaleString(),
         difference.toLocaleString()
       ];
     });
 
-    const totalReelWeight = filteredData.reduce((sum, row) => sum + row.startWeight, 0);
     const totalSheetsRuled = filteredData.reduce((sum, row) => sum + row.sheetsRuled, 0);
     const totalTheoreticalSheets = filteredData.reduce((sum, row) => sum + row.theoreticalSheets, 0);
     const totalDifference = totalSheetsRuled - totalTheoreticalSheets;
 
     const totalsBody = [
-        ['', '', 'TOTALS', totalReelWeight.toLocaleString(), totalSheetsRuled.toLocaleString(), Math.round(totalTheoreticalSheets).toLocaleString(), Math.round(totalDifference).toLocaleString()]
+        ['', '', '', 'TOTALS', totalSheetsRuled.toLocaleString(), Math.round(totalTheoreticalSheets).toLocaleString(), Math.round(totalDifference).toLocaleString()]
     ];
 
     autoTable(doc, {
@@ -90,10 +112,9 @@ export default function ReportsPage() {
         body: tableBody,
         startY: 25,
         margin: { top: 25, right: 10, bottom: 15, left: 10 },
-        headStyles: { fillColor: [34, 139, 34] }, // Forest Green
+        headStyles: { fillColor: [38, 86, 166] },
         didParseCell: (data) => {
-            // Align numeric columns to the right
-            if (data.column.index >= 3 && data.cell.section === 'body') {
+            if (data.column.index >= 4 && data.cell.section === 'body') {
                 data.cell.styles.halign = 'right';
             }
         },
@@ -105,28 +126,20 @@ export default function ReportsPage() {
                 }
             }
         },
-        willDrawCell: (data) => {
-            doc.setTextColor(0, 0, 0); // Reset text color
+        willDrawCell: () => {
+            doc.setTextColor(0, 0, 0);
         },
         didDrawPage: (data) => {
-            // Header
             doc.setFontSize(20);
             doc.text("Production Report", data.settings.margin.left, 15);
             doc.setFontSize(12);
             doc.text(`Date: ${new Date().toLocaleDateString()}`, data.settings.margin.left, 20);
-
-            // Footer (Page Number)
             const pageCount = doc.internal.getNumberOfPages();
             doc.setFontSize(10);
             doc.text(`Page ${doc.internal.pages.length - 1} of ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
-        
-            // Border
-            doc.setDrawColor(0, 0, 0); // Black
-            doc.rect(5, 5, doc.internal.pageSize.width - 10, doc.internal.pageSize.height - 10);
         },
     });
 
-    // Add the Totals table at the end
     const lastTable = (doc as any).lastAutoTable;
     autoTable(doc, {
         body: totalsBody,
@@ -135,7 +148,7 @@ export default function ReportsPage() {
         theme: 'grid',
         bodyStyles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] },
         didParseCell: (data) => {
-             if (data.column.index <= 1) {
+             if (data.column.index <= 2) {
                 data.cell.styles.halign = 'left';
             }
         }
@@ -192,7 +205,7 @@ export default function ReportsPage() {
                   <TableHead>Reel No.</TableHead>
                   <TableHead>Paper Type</TableHead>
                   <TableHead>Item Ruled</TableHead>
-                  <TableHead>Reel Wt.</TableHead>
+                  <TableHead>Cutoff</TableHead>
                   <TableHead className="text-right">Sheets Ruled</TableHead>
                   <TableHead className="text-right">Theoretical</TableHead>
                   <TableHead className="text-right">Difference</TableHead>
@@ -211,7 +224,7 @@ export default function ReportsPage() {
                       <TableCell className="font-medium whitespace-nowrap">{row.reelNo}</TableCell>                      
                       <TableCell className="whitespace-nowrap">{getPaperTypeName(row.paperTypeId)}</TableCell>
                       <TableCell className="whitespace-nowrap">{getItemTypeName(row.itemTypeId)}</TableCell>
-                      <TableCell>{row.startWeight.toLocaleString()} kg</TableCell>
+                       <TableCell>{row.cutoff} cm</TableCell>
                       <TableCell className="text-right">{row.sheetsRuled.toLocaleString()}</TableCell>
                       <TableCell className="text-right">{Math.round(row.theoreticalSheets).toLocaleString()}</TableCell>
                       <TableCell className="text-right">
