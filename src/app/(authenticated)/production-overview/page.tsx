@@ -68,10 +68,10 @@ export default function ProductionOverviewPage() {
     
     const stockByPaperType: { [key: string]: number } = {};
     stock.forEach(s => {
-        if (!stockByPaperType[s.paperTypeId]) {
-            stockByPaperType[s.paperTypeId] = 0;
+        if (!stockByPaperType[s.paperTypeId as string]) {
+            stockByPaperType[s.paperTypeId as string] = 0;
         }
-        stockByPaperType[s.paperTypeId] += s.numberOfReels;
+        stockByPaperType[s.paperTypeId as string] += s.numberOfReels ?? 0;
     });
 
     return Object.entries(stockByPaperType).map(([paperTypeId, reelCount]) => ({
@@ -104,7 +104,7 @@ export default function ProductionOverviewPage() {
 
   const stockSummary = useMemo(() => {
     if (loadingStock || isOperator || !stock) return { totalWeight: 0, paperTypes: [] };
-    const totalWeight = stock.reduce((acc, s) => acc + s.totalWeight, 0);
+    const totalWeight = stock.reduce((acc, s) => acc + (s.totalWeight ?? 0), 0);
     return { totalWeight, paperTypes: paperTypes || [] };
   }, [stock, paperTypes, isOperator, loadingStock, loadingPaperTypes]);
 
@@ -113,14 +113,14 @@ export default function ProductionOverviewPage() {
     const today = new Date().toDateString();
     
     const todayRulings = rulings.filter(r => {
-      const rulingDate = r.date instanceof Timestamp ? r.date.toDate() : new Date(r.date);
+      const rulingDate = r.date instanceof Timestamp ? r.date.toDate() : new Date(r.date as string);
       return rulingDate.toDateString() === today;
     });
     
-    const sheetsRuledToday = todayRulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    const sheetsRuledToday = (todayRulings.flatMap(r => r.entries) || []).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
 
-    const totalSheetsRuled = rulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
-    const totalTheoreticalSheets = rulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.theoreticalSheets, 0);
+    const totalSheetsRuled = (rulings.flatMap(r => r.entries) || []).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    const totalTheoreticalSheets = (rulings.flatMap(r => r.entries) || []).reduce((acc, entry) => acc + entry.theoreticalSheets, 0);
     const efficiency = totalTheoreticalSheets > 0 ? (totalSheetsRuled / totalTheoreticalSheets) * 100 : 0;
     
     return { sheetsRuledToday, rulingsToday: todayRulings.length, efficiency: efficiency.toFixed(1) };
@@ -265,7 +265,7 @@ export default function ProductionOverviewPage() {
                                     <TableRow key={program.id}>
                                         <TableCell className="font-medium">{program.brand}</TableCell>
                                         <TableCell>{itemType?.itemName || 'N/A'}</TableCell>
-                                        <TableCell>{program.totalSheetsRequired.toLocaleString()}</TableCell>
+                                        <TableCell>{(program.totalSheetsRequired ?? 0).toLocaleString()}</TableCell>
                                         <TableCell>{sheetsCompleted.toLocaleString()}</TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">

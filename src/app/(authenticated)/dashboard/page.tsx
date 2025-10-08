@@ -70,8 +70,8 @@ export default function DashboardPage() {
 
   const stockSummary = useMemo(() => {
     if (loadingStock || isOperator || !stock) return { totalWeight: 0, totalReels: 0 };
-    const totalWeight = stock.reduce((acc, item) => acc + item.totalWeight, 0);
-    const totalReels = stock.reduce((acc, item) => acc + item.numberOfReels, 0);
+    const totalWeight = stock.reduce((acc, item) => acc + (item.totalWeight ?? 0), 0);
+    const totalReels = stock.reduce((acc, item) => acc + (item.numberOfReels ?? 0), 0);
     return { totalWeight, totalReels };
   }, [stock, isOperator, loadingStock]);
 
@@ -80,14 +80,14 @@ export default function DashboardPage() {
     const today = new Date().toDateString();
 
     const todayRulings = rulings.filter(r => {
-      const rulingDate = r.date instanceof Timestamp ? r.date.toDate() : new Date(r.date);
+      const rulingDate = r.date instanceof Timestamp ? r.date.toDate() : new Date(r.date as string);
       return rulingDate.toDateString() === today;
     });
 
-    const sheetsRuledToday = todayRulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    const sheetsRuledToday = (todayRulings.flatMap(r => r.entries) || []).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
     
-    const totalSheetsRuled = rulings.flatMap(r => r.entries).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
-    const totalTheoreticalSheets = rulings.flatMap(r => r.entries).reduce((acc, entry) => acc + (entry.theoreticalSheets || 0), 0);
+    const totalSheetsRuled = (rulings.flatMap(r => r.entries) || []).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    const totalTheoreticalSheets = (rulings.flatMap(r => r.entries) || []).reduce((acc, entry) => acc + (entry.theoreticalSheets || 0), 0);
     const efficiency = totalTheoreticalSheets > 0 ? (totalSheetsRuled / totalTheoreticalSheets) * 100 : 0;
 
     return { sheetsRuledToday, rulingsToday: todayRulings.length, efficiency: efficiency.toFixed(1) };
@@ -98,8 +98,8 @@ export default function DashboardPage() {
     return rulings
       .flatMap(r => (r.entries || []).map(e => ({ ...e, reelNo: r.reelNo, serialNo: r.serialNo, date: r.date })))
       .sort((a, b) => {
-        const dateA = a.date instanceof Timestamp ? a.date.toMillis() : new Date(a.date).getTime();
-        const dateB = b.date instanceof Timestamp ? b.date.toMillis() : new Date(b.date).getTime();
+        const dateA = a.date instanceof Timestamp ? a.date.toMillis() : new Date(a.date as string).getTime();
+        const dateB = b.date instanceof Timestamp ? b.date.toMillis() : new Date(b.date as string).getTime();
         return dateB - dateA;
       })
       .slice(0, 5);
