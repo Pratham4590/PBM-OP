@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useState, useMemo, useEffect } from 'react';
-import { Program, PaperType, ItemType } from '@/lib/types';
+import { Program, PaperType, ItemType, User as AppUser } from '@/lib/types';
 import {
   Table,
   TableBody,
@@ -39,8 +39,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from '@/firebase';
+import { collection, serverTimestamp, doc } from 'firebase/firestore';
 import {
   Accordion,
   AccordionContent,
@@ -53,8 +53,12 @@ import { addDoc } from 'firebase/firestore';
 
 export default function ProgramPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const isMobile = useIsMobile();
   const { toast } = useToast();
+
+  const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
+  const { data: currentUser } = useDoc<AppUser>(currentUserDocRef);
 
   const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
@@ -121,16 +125,31 @@ export default function ProgramPage() {
       gsm = 0,
     } = newProgram;
 
-    const counting = notebookPages > 0 && ups > 0 ? (notebookPages - coverIndex) / ups : 0;
-    const sheetsPerBundle = piecesPerBundle > 0 && ups > 0 ? (piecesPerBundle / ups) * counting : 0;
+    const netPages = notebookPages > 0 ? notebookPages - coverIndex : 0;
+    const sheetsPerNotebook = netPages > 0 && ups > 0 ? netPages / ups : 0;
+    const sheetsPerBundle = piecesPerBundle > 0 && ups > 0 ? (piecesPerBundle / ups) * sheetsPerNotebook : 0;
     const totalSheetsRequired = bundlesRequired * sheetsPerBundle;
     const reamWeight = length > 0 && cutoff > 0 && gsm > 0 ? (length * cutoff * gsm * 500) / 10000 : 0;
     
-    return { reamWeight, totalSheetsRequired: Math.ceil(totalSheetsRequired), counting, sheetsPerBundle };
+    return { reamWeight, totalSheetsRequired: Math.ceil(totalSheetsRequired), counting: sheetsPerNotebook, sheetsPerBundle };
   }, [newProgram]);
 
   const handleCreateProgram = async () => {
     if (!firestore) return;
+    
+    // Basic validation
+    const requiredFields: (keyof Program)[] = ['brand', 'paperTypeId', 'itemTypeId', 'cutoff', 'notebookPages', 'ups', 'piecesPerBundle', 'bundlesRequired'];
+    const isFormValid = requiredFields.every(field => newProgram[field] !== undefined && newProgram[field] !== '' && newProgram[field] !== 0);
+
+    if (!isFormValid) {
+        toast({
+            variant: 'destructive',
+            title: 'Missing Fields',
+            description: 'Please fill out all required fields.',
+        });
+        return;
+    }
+
     setIsSaving(true);
     
     const programToAdd = {
@@ -172,6 +191,8 @@ export default function ProgramPage() {
   const getPaperTypeName = (paperTypeId?: string) => paperTypes?.find(p => p.id === paperTypeId)?.name;
   const getItemTypeName = (itemTypeId?: string) => itemTypes?.find(i => i.id === itemTypeId)?.name;
   
+  const canEdit = currentUser?.role === 'Admin' || currentUser?.role === 'Member';
+
   const renderProgramList = () => {
     if (loadingPrograms) {
       return <div className="p-4 text-center text-muted-foreground">Loading programs...</div>;
@@ -193,11 +214,12 @@ export default function ProgramPage() {
               </AccordionTrigger>
               <AccordionContent>
                 <div className="space-y-2 text-sm">
-                  <p><strong>Paper:</strong> {getPaperTypeName(program.paperTypeId)}</p>
+                  <p><strong>Paper:</strong> {getPaperTypeName(program.paperTypeId)} ({program.gsm}gsm, {program.length}cm)</p>
                   <p><strong>Sheets Required:</strong> {program.totalSheetsRequired.toLocaleString()}</p>
                   <p><strong>Ream Weight:</strong> {program.reamWeight.toFixed(2)} kg</p>
                   <p><strong>Cutoff:</strong> {program.cutoff} cm</p>
                   <p><strong>UPS:</strong> {program.ups}</p>
+                  <p><strong>Counting:</strong> {program.counting.toFixed(2)}</p>
                 </div>
               </AccordionContent>
             </AccordionItem>
@@ -250,6 +272,7 @@ export default function ProgramPage() {
         title="Production Program"
         description="Create and manage production programs with detailed calculations."
       >
+        {canEdit && (
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -257,7 +280,7 @@ export default function ProgramPage() {
               Create Program
             </Button>
           </DialogTrigger>
-          <DialogContent className="p-0 flex flex-col max-w-4xl h-full md:h-auto md:max-h-[90vh]">
+          <DialogContent className="p-0 flex flex-col max-w-4xl h-full sm:h-auto sm:max-h-[90vh]">
             <DialogHeader className="p-4 border-b sticky top-0 bg-background z-10">
               <DialogTitle>Create New Production Program</DialogTitle>
               <DialogDescription>
@@ -283,6 +306,7 @@ export default function ProgramPage() {
                         handleSelectChange('paperTypeId', value)
                       }
                       disabled={loadingPaperTypes}
+                      value={newProgram.paperTypeId}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select paper" />
@@ -298,7 +322,7 @@ export default function ProgramPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="itemTypeId">Item Type</Label>
-                     <Select onValueChange={(value) => handleSelectChange('itemTypeId', value)} disabled={loadingItemTypes}>
+                     <Select onValueChange={(value) => handleSelectChange('itemTypeId', value)} disabled={loadingItemTypes} value={newProgram.itemTypeId}>
                        <SelectTrigger>
                          <SelectValue placeholder="Select item type" />
                        </SelectTrigger>
@@ -365,11 +389,21 @@ export default function ProgramPage() {
                       onChange={(e) => handleInputChange('ups', parseInt(e.target.value) || 0)}
                     />
                   </div>
+                   <div className="space-y-2 sm:col-span-2 grid grid-cols-2 gap-4">
+                     <div>
+                      <Label htmlFor="gsm-readonly">GSM</Label>
+                      <Input id="gsm-readonly" value={newProgram.gsm || ''} readOnly disabled />
+                     </div>
+                     <div>
+                      <Label htmlFor="length-readonly">Size (cm)</Label>
+                      <Input id="length-readonly" value={newProgram.length || ''} readOnly disabled />
+                     </div>
+                   </div>
                 </div>
-                <div className="space-y-4 rounded-md bg-muted p-4 h-fit md:sticky md:top-0">
+                <div className="space-y-4 rounded-md bg-muted p-4 h-fit md:sticky md:top-4">
                   <h3 className="font-semibold text-lg">Calculations</h3>
                    <div className="space-y-2">
-                    <Label>Counting</Label>
+                    <Label>Sheets per Notebook (Counting)</Label>
                     <Input value={calculatedValues.counting.toFixed(2)} readOnly disabled />
                   </div>
                   <div className="space-y-2">
@@ -406,6 +440,7 @@ export default function ProgramPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        )}
       </PageHeader>
       <div className="mt-6">
         <Card>
