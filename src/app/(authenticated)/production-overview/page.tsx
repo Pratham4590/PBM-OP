@@ -29,7 +29,7 @@ import {
   Bar,
   Legend,
 } from 'recharts';
-import { Program, ItemType, Stock, PaperType, Ruling as RulingType, User as AppUser } from '@/lib/types';
+import { Program, ItemType, Reel, PaperType, Ruling, User as AppUser } from '@/lib/types';
 import { useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, Timestamp, doc } from 'firebase/firestore';
@@ -47,52 +47,43 @@ export default function ProductionOverviewPage() {
   const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
-  const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
-
-  const stockQuery = useMemoFirebase(() => {
-    if (!firestore || isLoadingCurrentUser || !currentUser || !['Admin', 'Member'].includes(currentUser.role)) {
-      return null;
-    }
-    return collection(firestore, 'stock');
-  }, [firestore, currentUser, isLoadingCurrentUser]);
-
+  const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'rulings') : null, [firestore]);
+  const reelsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
 
   const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
-  const { data: stock, isLoading: loadingStock } = useCollection<Stock>(stockQuery);
+  const { data: reels, isLoading: loadingReelsData } = useCollection<Reel>(reelsQuery);
   const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
-  const { data: rulings, isLoading: loadingRulings } = useCollection<RulingType>(rulingsQuery);
+  const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
 
-   const stockDistribution = useMemo(() => {
-    if (!stock || !paperTypes) return [];
+   const reelDistribution = useMemo(() => {
+    if (!reels || !paperTypes) return [];
     
-    const stockByPaperType: { [key: string]: number } = {};
-    stock.forEach(s => {
-        if (!stockByPaperType[s.paperTypeId as string]) {
-            stockByPaperType[s.paperTypeId as string] = 0;
+    const reelsByPaperType: { [key: string]: number } = {};
+    reels.forEach(s => {
+        if (!reelsByPaperType[s.paperTypeId as string]) {
+            reelsByPaperType[s.paperTypeId as string] = 0;
         }
-        stockByPaperType[s.paperTypeId as string] += s.numberOfReels ?? 0;
+        reelsByPaperType[s.paperTypeId as string] += 1;
     });
 
-    return Object.entries(stockByPaperType).map(([paperTypeId, reelCount]) => ({
+    return Object.entries(reelsByPaperType).map(([paperTypeId, reelCount]) => ({
         name: paperTypes.find(pt => pt.id === paperTypeId)?.paperName || 'Unknown',
         value: reelCount,
     }));
-   }, [stock, paperTypes]);
+   }, [reels, paperTypes]);
    
    const rulingSummary = useMemo(() => {
     if (!rulings || !itemTypes) return [];
     
     const summary: { [key: string]: { ruled: number, theoretical: number } } = {};
     rulings.forEach(ruling => {
-      ruling.entries.forEach(entry => {
-        const itemTypeName = itemTypes.find(it => it.id === entry.itemTypeId)?.itemName || 'Unknown';
+        const itemTypeName = itemTypes.find(it => it.id === ruling.itemTypeId)?.itemName || 'Unknown';
         if (!summary[itemTypeName]) {
           summary[itemTypeName] = { ruled: 0, theoretical: 0 };
         }
-        summary[itemTypeName].ruled += entry.sheetsRuled;
-        summary[itemTypeName].theoretical += entry.theoreticalSheets;
-      });
+        summary[itemTypeName].ruled += ruling.sheetsRuled;
+        summary[itemTypeName].theoretical += ruling.theoreticalSheets;
     });
 
     return Object.entries(summary).map(([name, data]) => ({
@@ -103,10 +94,10 @@ export default function ProductionOverviewPage() {
   }, [rulings, itemTypes]);
 
   const stockSummary = useMemo(() => {
-    if (!stock || !paperTypes) return { totalWeight: 0, paperTypesCount: 0 };
-    const totalWeight = stock.reduce((acc, s) => acc + (s.totalWeight ?? 0), 0);
+    if (!reels || !paperTypes) return { totalWeight: 0, paperTypesCount: 0 };
+    const totalWeight = reels.reduce((acc, s) => acc + (s.weight ?? 0), 0);
     return { totalWeight, paperTypesCount: paperTypes?.length || 0 };
-  }, [stock, paperTypes]);
+  }, [reels, paperTypes]);
 
   const productionSummary = useMemo(() => {
     if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: '0.0' };
@@ -117,10 +108,10 @@ export default function ProductionOverviewPage() {
       return rulingDate.toDateString() === today;
     });
     
-    const sheetsRuledToday = (todayRulings.flatMap(r => r.entries) || []).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    const sheetsRuledToday = todayRulings.reduce((acc, entry) => acc + entry.sheetsRuled, 0);
 
-    const totalSheetsRuled = (rulings.flatMap(r => r.entries) || []).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
-    const totalTheoreticalSheets = (rulings.flatMap(r => r.entries) || []).reduce((acc, entry) => acc + entry.theoreticalSheets, 0);
+    const totalSheetsRuled = rulings.reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    const totalTheoreticalSheets = rulings.reduce((acc, entry) => acc + entry.theoreticalSheets, 0);
     const efficiency = totalTheoreticalSheets > 0 ? (totalSheetsRuled / totalTheoreticalSheets) * 100 : 0;
     
     return { sheetsRuledToday, rulingsToday: todayRulings.length, efficiency: efficiency.toFixed(1) };
@@ -130,7 +121,7 @@ export default function ProductionOverviewPage() {
     if (!programs || !rulings) return {};
     const progress: { [key: string]: number } = {};
     programs.forEach(p => {
-        const sheetsCompleted = rulings.flatMap(r => r.entries)
+        const sheetsCompleted = rulings
             .filter(e => e.programId === p.id)
             .reduce((sum, e) => sum + e.sheetsRuled, 0);
         progress[p.id] = sheetsCompleted;
@@ -147,7 +138,7 @@ export default function ProductionOverviewPage() {
   }
 
   const isOperator = currentUser?.role === 'Operator';
-  const isLoadingData = loadingPrograms || loadingItemTypes || loadingRulings || loadingPaperTypes || (loadingStock && !isOperator);
+  const isLoadingData = loadingPrograms || loadingItemTypes || loadingRulings || loadingPaperTypes || (loadingReelsData && !isOperator);
 
   return (
     <>
@@ -162,8 +153,8 @@ export default function ProductionOverviewPage() {
                 <CardTitle className="text-sm font-medium">Total Stock Weight</CardTitle>
             </CardHeader>
             <CardContent>
-                {loadingStock || isLoadingCurrentUser ? <Skeleton className="h-8 w-3/4" /> : <div className="text-2xl font-bold">{`${stockSummary.totalWeight.toLocaleString()} kg`}</div>}
-                {loadingStock || loadingPaperTypes || isLoadingCurrentUser ? <Skeleton className="h-4 w-1/2 mt-1" /> : <p className="text-xs text-muted-foreground">Across {stockSummary.paperTypesCount} paper types</p>}
+                {loadingReelsData || isLoadingCurrentUser ? <Skeleton className="h-8 w-3/4" /> : <div className="text-2xl font-bold">{`${stockSummary.totalWeight.toLocaleString()} kg`}</div>}
+                {loadingReelsData || loadingPaperTypes || isLoadingCurrentUser ? <Skeleton className="h-4 w-1/2 mt-1" /> : <p className="text-xs text-muted-foreground">Across {stockSummary.paperTypesCount} paper types</p>}
             </CardContent>
             </Card>
         )}
@@ -202,17 +193,17 @@ export default function ProductionOverviewPage() {
         {!isOperator && (
             <Card className="lg:col-span-2">
             <CardHeader>
-                <CardTitle>Stock Distribution by Reels</CardTitle>
+                <CardTitle>Reel Distribution by Paper Type</CardTitle>
                 <CardDescription>A breakdown of paper types in stock.</CardDescription>
             </CardHeader>
             <CardContent>
-                 {loadingStock || loadingPaperTypes || isLoadingCurrentUser ? (
+                 {loadingReelsData || loadingPaperTypes || isLoadingCurrentUser ? (
                     <div className="flex items-center justify-center h-[250px] text-muted-foreground">Loading chart...</div>
-                ) : stock && stock.length > 0 ? (
+                ) : reels && reels.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
-                        <Pie data={stockDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                        {stockDistribution.map((entry, index) => (
+                        <Pie data={reelDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                        {reelDistribution.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                         </Pie>

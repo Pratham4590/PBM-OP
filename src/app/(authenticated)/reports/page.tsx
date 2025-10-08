@@ -29,22 +29,15 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import { Ruling as RulingType, PaperType, ItemType, RulingEntry } from '@/lib/types';
+import { Ruling as RulingType, PaperType, ItemType } from '@/lib/types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 
-type ReportRow = RulingEntry & {
-  reelNo: string;
-  serialNo: string;
-  paperTypeId: string;
-  reelWeight: number;
-};
-
 export default function ReportsPage() {
   const firestore = useFirestore();
 
-  const rulingsQuery = useMemoFirebase(() => firestore && collection(firestore, 'reels'), [firestore]);
+  const rulingsQuery = useMemoFirebase(() => firestore && collection(firestore, 'rulings'), [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore && collection(firestore, 'paperTypes'), [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore && collection(firestore, 'itemTypes'), [firestore]);
 
@@ -55,26 +48,14 @@ export default function ReportsPage() {
   const [paperFilter, setPaperFilter] = useState('all');
   const [itemFilter, setItemFilter] = useState('all');
   
-  const reportData = useMemo((): ReportRow[] => {
-    if (!rulings) return [];
-    return rulings.flatMap(ruling => 
-      ruling.entries.map(entry => ({
-        ...entry,
-        reelNo: ruling.reelNo,
-        serialNo: ruling.serialNo,
-        paperTypeId: ruling.paperTypeId,
-        reelWeight: ruling.reelWeight,
-      }))
-    );
-  }, [rulings]);
-
   const filteredData = useMemo(() => {
-    return reportData.filter(row => {
+    if (!rulings) return [];
+    return rulings.filter(row => {
       const paperMatch = paperFilter === 'all' || row.paperTypeId === paperFilter;
       const itemMatch = itemFilter === 'all' || row.itemTypeId === itemFilter;
       return paperMatch && itemMatch;
     });
-  }, [reportData, paperFilter, itemFilter]);
+  }, [rulings, paperFilter, itemFilter]);
 
   const getPaperTypeName = (paperTypeId: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
   const getItemTypeName = (itemTypeId: string) => itemTypes?.find(i => i.id === itemTypeId)?.itemName || 'N/A';
@@ -88,14 +69,14 @@ export default function ReportsPage() {
         row.reelNo,
         getPaperTypeName(row.paperTypeId),
         getItemTypeName(row.itemTypeId),
-        row.reelWeight.toLocaleString(),
+        row.startWeight.toLocaleString(),
         row.sheetsRuled.toLocaleString(),
         Math.round(row.theoreticalSheets).toLocaleString(),
         difference.toLocaleString()
       ];
     });
 
-    const totalReelWeight = filteredData.reduce((sum, row) => sum + row.reelWeight, 0);
+    const totalReelWeight = filteredData.reduce((sum, row) => sum + row.startWeight, 0);
     const totalSheetsRuled = filteredData.reduce((sum, row) => sum + row.sheetsRuled, 0);
     const totalTheoreticalSheets = filteredData.reduce((sum, row) => sum + row.theoreticalSheets, 0);
     const totalDifference = totalSheetsRuled - totalTheoreticalSheets;
@@ -225,12 +206,12 @@ export default function ReportsPage() {
                     </TableCell>
                   </TableRow>
                 ) : filteredData.length > 0 ? (
-                  filteredData.map((row, index) => (
-                    <TableRow key={`${row.serialNo}-${row.id}-${index}`}>
+                  filteredData.map((row) => (
+                    <TableRow key={row.id}>
                       <TableCell className="font-medium whitespace-nowrap">{row.reelNo}</TableCell>                      
                       <TableCell className="whitespace-nowrap">{getPaperTypeName(row.paperTypeId)}</TableCell>
                       <TableCell className="whitespace-nowrap">{getItemTypeName(row.itemTypeId)}</TableCell>
-                      <TableCell>{row.reelWeight.toLocaleString()} kg</TableCell>
+                      <TableCell>{row.startWeight.toLocaleString()} kg</TableCell>
                       <TableCell className="text-right">{row.sheetsRuled.toLocaleString()}</TableCell>
                       <TableCell className="text-right">{Math.round(row.theoreticalSheets).toLocaleString()}</TableCell>
                       <TableCell className="text-right">

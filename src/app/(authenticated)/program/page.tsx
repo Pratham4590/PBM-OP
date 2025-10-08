@@ -294,7 +294,7 @@ export default function ProgramPage() {
   const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
-  const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
+  const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'rulings') : null, [firestore]);
 
 
   const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
@@ -316,12 +316,12 @@ export default function ProgramPage() {
     const progress: { [key: string]: { sheetsCompleted: number, status: 'Completed' | 'In Progress' | 'Yet to Start' } } = {};
     
     programs.forEach(p => {
-        const sheetsCompleted = rulings.flatMap(r => r.entries)
-            .filter(e => e.programId === p.id)
-            .reduce((sum, e) => sum + e.sheetsRuled, 0);
+        const sheetsCompleted = rulings
+            .filter(r => r.programId === p.id)
+            .reduce((sum, r) => sum + r.sheetsRuled, 0);
 
         let status: 'Completed' | 'In Progress' | 'Yet to Start' = 'Yet to Start';
-        if (sheetsCompleted >= p.totalSheetsRequired) {
+        if (p.totalSheetsRequired > 0 && sheetsCompleted >= p.totalSheetsRequired) {
             status = 'Completed';
         } else if (sheetsCompleted > 0) {
             status = 'In Progress';

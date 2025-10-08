@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, Timestamp, doc } from 'firebase/firestore';
-import { ItemType, Ruling as RulingType, Stock, User as AppUser } from '@/lib/types';
+import { ItemType, Ruling, Reel, User as AppUser } from '@/lib/types';
 import { useMemo } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -54,26 +54,25 @@ export default function DashboardPage() {
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
   
-  const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
+  const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'rulings') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
   
-  const stockQuery = useMemoFirebase(() => {
+  const reelsQuery = useMemoFirebase(() => {
     if (!firestore || isLoadingCurrentUser || !currentUser || !['Admin', 'Member'].includes(currentUser.role)) {
       return null;
     }
-    return collection(firestore, 'stock');
+    return collection(firestore, 'reels');
   }, [firestore, currentUser, isLoadingCurrentUser]);
   
-  const { data: rulings, isLoading: loadingRulings } = useCollection<RulingType>(rulingsQuery);
-  const { data: stock, isLoading: loadingStock } = useCollection<Stock>(stockQuery);
+  const { data: rulings, isLoading: loadingRulings } = useCollection<Ruling>(rulingsQuery);
+  const { data: reels, isLoading: loadingReels } = useCollection<Reel>(reelsQuery);
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
 
   const stockSummary = useMemo(() => {
-    if (!stock) return { totalWeight: 0, totalReels: 0 };
-    const totalWeight = stock.reduce((acc, item) => acc + (item.totalWeight ?? 0), 0);
-    const totalReels = stock.reduce((acc, item) => acc + (item.numberOfReels ?? 0), 0);
-    return { totalWeight, totalReels };
-  }, [stock]);
+    if (!reels) return { totalWeight: 0, totalReels: 0 };
+    const totalWeight = reels.reduce((acc, item) => acc + (item.weight ?? 0), 0);
+    return { totalWeight, totalReels: reels.length };
+  }, [reels]);
 
   const productionSummary = useMemo(() => {
     if (!rulings) return { sheetsRuledToday: 0, rulingsToday: 0, efficiency: '0.0' };
@@ -84,10 +83,10 @@ export default function DashboardPage() {
       return rulingDate.toDateString() === today;
     });
 
-    const sheetsRuledToday = (todayRulings.flatMap(r => r.entries) || []).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    const sheetsRuledToday = todayRulings.reduce((acc, entry) => acc + entry.sheetsRuled, 0);
     
-    const totalSheetsRuled = (rulings.flatMap(r => r.entries) || []).reduce((acc, entry) => acc + entry.sheetsRuled, 0);
-    const totalTheoreticalSheets = (rulings.flatMap(r => r.entries) || []).reduce((acc, entry) => acc + (entry.theoreticalSheets || 0), 0);
+    const totalSheetsRuled = rulings.reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    const totalTheoreticalSheets = rulings.reduce((acc, entry) => acc + (entry.theoreticalSheets || 0), 0);
     const efficiency = totalTheoreticalSheets > 0 ? (totalSheetsRuled / totalTheoreticalSheets) * 100 : 0;
 
     return { sheetsRuledToday, rulingsToday: todayRulings.length, efficiency: efficiency.toFixed(1) };
@@ -96,7 +95,6 @@ export default function DashboardPage() {
   const recentRulings = useMemo(() => {
     if (!rulings) return [];
     return rulings
-      .flatMap(r => (r.entries || []).map(e => ({ ...e, reelNo: r.reelNo, serialNo: r.serialNo, date: r.date })))
       .sort((a, b) => {
         const dateA = a.date instanceof Timestamp ? a.date.toMillis() : new Date(a.date as string).getTime();
         const dateB = b.date instanceof Timestamp ? b.date.toMillis() : new Date(b.date as string).getTime();
@@ -120,7 +118,7 @@ export default function DashboardPage() {
   const renderStockCards = () => {
     if (isOperator) return null;
 
-    if (loadingStock || isLoadingCurrentUser) {
+    if (loadingReels || isLoadingCurrentUser) {
       return (
         <>
           <Card>
@@ -290,9 +288,6 @@ export default function DashboardPage() {
                     <TableRow key={index}>
                       <TableCell>
                         <div className="font-medium">{ruling.reelNo}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {ruling.serialNo}
-                        </div>
                       </TableCell>
                       <TableCell>{getItemTypeName(ruling.itemTypeId)}</TableCell>
                       <TableCell className="text-right">

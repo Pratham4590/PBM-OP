@@ -34,6 +34,18 @@ export type Stock = {
   numberOfReels: number;
 };
 
+export type Reel = {
+  id: string;
+  reelNo: string;
+  paperTypeId: string;
+  length: number;
+  gsm: number;
+  weight: number;
+  status: 'Available' | 'Partially Used' | 'Finished';
+  createdAt: Timestamp;
+  createdBy: string;
+};
+
 export type Program = {
   id: string;
   date: Date | Timestamp;
@@ -57,23 +69,20 @@ export type Program = {
 export type Ruling = {
   id: string;
   date: Date | Timestamp;
-  serialNo: string;
-  reelNo: string;
-  paperTypeId: string;
-  reelWeight: number; // in kg
-  status: "Partially Used" | "Finished";
-  entries: RulingEntry[];
-};
-
-export type RulingEntry = {
-  id: string;
-  itemTypeId: string;
+  reelId: string;
+  reelNo: string; // denormalized for easier display
+  paperTypeId: string; // denormalized
+  startWeight: number;
+  endWeight: number;
   sheetsRuled: number;
   programId?: string;
-  cutoff: number; // Stored here for both program/non-program ruling for consistency
+  itemTypeId: string;
+  cutoff: number;
   theoreticalSheets: number;
   difference: number;
+  createdBy: string;
 };
+
 
 export type ReportData = {
     id: string;
