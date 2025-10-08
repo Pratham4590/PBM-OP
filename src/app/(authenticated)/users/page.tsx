@@ -35,8 +35,7 @@ export default function UsersPage() {
   const { toast } = useToast();
   
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
-
+  
   const currentUserDocRef = useMemoFirebase(
     () => (firestore && currentUserAuth ? doc(firestore, 'users', currentUserAuth.uid) : null),
     [firestore, currentUserAuth]
@@ -45,20 +44,23 @@ export default function UsersPage() {
   const { data: currentUserData, isLoading: isLoadingCurrentUserDoc } = useDoc<User>(currentUserDocRef);
 
   useEffect(() => {
-    // We only stop checking for admin status once we have finished loading the current user's document.
-    if (!isLoadingCurrentUserDoc) {
-      if (currentUserData?.role === 'Admin') {
-        setIsAdmin(true);
-      }
-      setIsCheckingAdmin(false);
+    if (!isLoadingCurrentUserDoc && currentUserData) {
+      setIsAdmin(currentUserData.role === 'Admin');
     }
   }, [currentUserData, isLoadingCurrentUserDoc]);
   
-  // Only define the query if the user is a confirmed admin
+  // The query is only defined if the user is a confirmed admin and all loading is complete.
   const allUsersQuery = useMemoFirebase(
-    () => (firestore && isAdmin ? collection(firestore, 'users') : null),
-    [firestore, isAdmin]
+    () => {
+      // Don't run the query until we have confirmed the user is an admin.
+      if (!firestore || isLoadingCurrentUserDoc || !isAdmin) {
+        return null;
+      }
+      return collection(firestore, 'users');
+    },
+    [firestore, isAdmin, isLoadingCurrentUserDoc]
   );
+
   const { data: users, isLoading: isLoadingAllUsers } = useCollection<User>(allUsersQuery);
 
   const handleRoleChange = (userId: string, newRole: UserRole) => {
@@ -72,7 +74,7 @@ export default function UsersPage() {
     });
   };
 
-  const isLoading = isAuthLoading || isCheckingAdmin;
+  const isLoading = isAuthLoading || isLoadingCurrentUserDoc;
   
   if (isLoading) {
      return (
