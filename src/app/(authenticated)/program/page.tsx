@@ -15,6 +15,16 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+  SheetClose,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import {
   Card,
   CardContent,
   CardHeader,
@@ -30,7 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Program, PaperType, ItemType, User as AppUser } from '@/lib/types';
 import {
   Table,
@@ -51,23 +61,24 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
 
-export default function ProgramPage() {
-  const firestore = useFirestore();
-  const { user } = useUser();
-  const isMobile = useIsMobile();
-  const { toast } = useToast();
 
-  const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
-  const { data: currentUser } = useDoc<AppUser>(currentUserDocRef);
-
-  const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
-  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
-  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
-
-  const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
-  const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
-  const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
-
+const ProgramForm = ({
+  paperTypes,
+  itemTypes,
+  loadingPaperTypes,
+  loadingItemTypes,
+  onSave,
+  onClose,
+  isSaving
+}: {
+  paperTypes: PaperType[] | null,
+  itemTypes: ItemType[] | null,
+  loadingPaperTypes: boolean,
+  loadingItemTypes: boolean,
+  onSave: (program: Omit<Program, 'id' | 'date'>) => void,
+  onClose: () => void,
+  isSaving: boolean
+}) => {
   const [newProgram, setNewProgram] = useState<Partial<Program>>({
     brand: '',
     bundlesRequired: 0,
@@ -77,23 +88,8 @@ export default function ProgramPage() {
     ups: 0,
     coverIndex: 0,
   });
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    if (isModalOpen) {
-      document.body.classList.add('overflow-hidden');
-    } else {
-      document.body.classList.remove('overflow-hidden');
-    }
-    return () => document.body.classList.remove('overflow-hidden');
-  }, [isModalOpen]);
-
-
-  const handleInputChange = (
-    field: keyof Program,
-    value: string | number
-  ) => {
+  const handleInputChange = (field: keyof Program, value: string | number) => {
     setNewProgram((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -112,6 +108,8 @@ export default function ProgramPage() {
       setNewProgram((prev) => ({ ...prev, [field]: value }));
     }
   };
+  
+  const { toast } = useToast();
 
   const calculatedValues = useMemo(() => {
     const {
@@ -134,9 +132,8 @@ export default function ProgramPage() {
     return { reamWeight, totalSheetsRequired: Math.ceil(totalSheetsRequired), counting: sheetsPerNotebook, sheetsPerBundle };
   }, [newProgram]);
 
-  const handleCreateProgram = async () => {
-    if (!firestore) return;
-    
+
+  const handleCreateProgram = () => {
     const requiredFields: (keyof Program)[] = ['brand', 'paperTypeId', 'itemTypeId', 'cutoff', 'notebookPages', 'ups', 'piecesPerBundle', 'bundlesRequired'];
     const isFormValid = requiredFields.every(field => {
       const value = newProgram[field as keyof typeof newProgram];
@@ -152,8 +149,6 @@ export default function ProgramPage() {
         return;
     }
 
-    setIsSaving(true);
-    
     const programToAdd = {
       brand: newProgram.brand!,
       paperTypeId: newProgram.paperTypeId!,
@@ -169,6 +164,148 @@ export default function ProgramPage() {
       reamWeight: calculatedValues.reamWeight,
       totalSheetsRequired: calculatedValues.totalSheetsRequired,
       counting: calculatedValues.counting,
+    };
+    
+    onSave(programToAdd);
+  }
+
+  return (
+    <>
+    <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="brand">Brand Name</Label>
+              <Input id="brand" value={newProgram.brand || ''} onChange={(e) => handleInputChange('brand', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="paperTypeId">Paper Type</Label>
+              <Select onValueChange={(value) => handleSelectChange('paperTypeId', value)} disabled={loadingPaperTypes} value={newProgram.paperTypeId}>
+                <SelectTrigger><SelectValue placeholder="Select paper" /></SelectTrigger>
+                <SelectContent>
+                  {paperTypes?.map((paper) => (<SelectItem key={paper.id} value={paper.id}>{paper.name}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="itemTypeId">Item Type</Label>
+                <Select onValueChange={(value) => handleSelectChange('itemTypeId', value)} disabled={loadingItemTypes} value={newProgram.itemTypeId}>
+                  <SelectTrigger><SelectValue placeholder="Select item type" /></SelectTrigger>
+                  <SelectContent>
+                    {itemTypes?.map((item) => (<SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cutoff">Cutoff (cm)</Label>
+              <Input id="cutoff" type="number" value={newProgram.cutoff || ''} onChange={(e) => handleInputChange('cutoff', parseFloat(e.target.value) || 0)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="notebookPages">Notebook Pages</Label>
+              <Input id="notebookPages" type="number" value={newProgram.notebookPages || ''} onChange={(e) => handleInputChange('notebookPages', parseInt(e.target.value) || 0)} />
+            </div>
+              <div className="space-y-2">
+              <Label htmlFor="coverIndex">Cover &amp; Index Pages</Label>
+              <Input id="coverIndex" type="number" value={newProgram.coverIndex || ''} onChange={(e) => handleInputChange('coverIndex', parseInt(e.target.value) || 0)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="piecesPerBundle">Pieces per Bundle</Label>
+              <Input id="piecesPerBundle" type="number" value={newProgram.piecesPerBundle || ''} onChange={(e) => handleInputChange('piecesPerBundle', parseInt(e.target.value) || 0)} />
+            </div>
+              <div className="space-y-2">
+              <Label htmlFor="bundlesRequired">Bundles Required</Label>
+              <Input id="bundlesRequired" type="number" value={newProgram.bundlesRequired || ''} onChange={(e) => handleInputChange('bundlesRequired', parseInt(e.target.value) || 0)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ups">UPS</Label>
+              <Input id="ups" type="number" value={newProgram.ups || ''} onChange={(e) => handleInputChange('ups', parseInt(e.target.value) || 0)} />
+            </div>
+              <div className="space-y-2 sm:col-span-2 grid grid-cols-2 gap-4">
+                <div>
+                <Label htmlFor="gsm-readonly">GSM</Label>
+                <Input id="gsm-readonly" value={newProgram.gsm || ''} readOnly disabled />
+                </div>
+                <div>
+                <Label htmlFor="length-readonly">Size (cm)</Label>
+                <Input id="length-readonly" value={newProgram.length || ''} readOnly disabled />
+                </div>
+              </div>
+        </div>
+
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="item-1">
+            <AccordionTrigger className="text-base">View Calculations</AccordionTrigger>
+            <AccordionContent>
+                <div className="space-y-4 rounded-md bg-muted p-4">
+                  <h3 className="font-semibold text-lg">Calculations</h3>
+                  <div className="space-y-2">
+                    <Label>Sheets per Notebook (Counting)</Label>
+                    <Input value={calculatedValues.counting.toFixed(2)} readOnly disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Sheets per Bundle</Label>
+                    <Input value={calculatedValues.sheetsPerBundle.toFixed(2)} readOnly disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Total Sheets Required</Label>
+                    <Input value={calculatedValues.totalSheetsRequired.toLocaleString()} readOnly disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Ream Weight (kg)</Label>
+                    <Input value={calculatedValues.reamWeight.toFixed(2)} readOnly disabled />
+                  </div>
+                </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+
+      </div>
+
+      <div className="p-4 border-t sticky bottom-0 bg-background z-10 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2 w-full">
+        <Button variant="outline" disabled={isSaving} onClick={onClose} className="w-full sm:w-auto">Cancel</Button>
+        <Button onClick={handleCreateProgram} disabled={isSaving} className="w-full sm:w-auto">
+          {isSaving ? 'Saving...' : 'Create Program'}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+
+export default function ProgramPage() {
+  const firestore = useFirestore();
+  const { user } = useUser();
+  const isMobile = useIsMobile();
+  const { toast } = useToast();
+
+  const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
+  const { data: currentUser } = useDoc<AppUser>(currentUserDocRef);
+
+  const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
+  const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
+  const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
+
+  const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
+  const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
+  const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.classList.add('overflow-hidden');
+    } else {
+      document.body.classList.remove('overflow-hidden');
+    }
+    return () => document.body.classList.remove('overflow-hidden');
+  }, [isModalOpen]);
+
+  const handleCreateProgram = async (programData: Omit<Program, 'id' | 'date'>) => {
+    if (!firestore) return;
+    setIsSaving(true);
+    
+    const programToAdd = {
+      ...programData,
       date: serverTimestamp(),
     };
     
@@ -178,21 +315,7 @@ export default function ProgramPage() {
       
       toast({
         title: 'Program Created',
-        description: `${newProgram.brand} has been successfully created.`,
-      });
-
-      setNewProgram({
-        brand: '',
-        bundlesRequired: 0,
-        cutoff: 0,
-        notebookPages: 0,
-        piecesPerBundle: 0,
-        ups: 0,
-        coverIndex: 0,
-        paperTypeId: undefined,
-        itemTypeId: undefined,
-        gsm: 0,
-        length: 0,
+        description: `${programData.brand} has been successfully created.`,
       });
       setIsModalOpen(false);
     } catch(error) {
@@ -284,6 +407,23 @@ export default function ProgramPage() {
         </div>
     );
   };
+  
+  const renderTrigger = () => (
+     <Button onClick={() => setIsModalOpen(true)}>
+        <PlusCircle className="mr-2 h-4 w-4" />
+        Create Program
+    </Button>
+  );
+
+  const formProps = {
+    paperTypes,
+    itemTypes,
+    loadingPaperTypes,
+    loadingItemTypes,
+    onSave: handleCreateProgram,
+    onClose: () => setIsModalOpen(false),
+    isSaving,
+  };
 
   return (
     <>
@@ -292,181 +432,33 @@ export default function ProgramPage() {
         description="Create and manage production programs with detailed calculations."
       >
         {canEdit && (
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Create Program
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="p-0 flex flex-col sm:max-w-3xl h-full sm:h-auto sm:max-h-[90vh]">
-            <DialogHeader className="p-4 border-b sticky top-0 bg-background z-10">
-              <DialogTitle>Create New Production Program</DialogTitle>
-              <DialogDescription>
-                Fill in the details to create a new program. Calculated values
-                will update automatically.
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="brand">Brand Name</Label>
-                    <Input
-                      id="brand"
-                      value={newProgram.brand || ''}
-                      onChange={(e) => handleInputChange('brand', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="paperTypeId">Paper Type</Label>
-                    <Select
-                      onValueChange={(value) =>
-                        handleSelectChange('paperTypeId', value)
-                      }
-                      disabled={loadingPaperTypes}
-                      value={newProgram.paperTypeId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select paper" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {paperTypes?.map((paper) => (
-                          <SelectItem key={paper.id} value={paper.id}>
-                            {paper.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="itemTypeId">Item Type</Label>
-                     <Select onValueChange={(value) => handleSelectChange('itemTypeId', value)} disabled={loadingItemTypes} value={newProgram.itemTypeId}>
-                       <SelectTrigger>
-                         <SelectValue placeholder="Select item type" />
-                       </SelectTrigger>
-                       <SelectContent>
-                         {itemTypes?.map((item) => (
-                           <SelectItem key={item.id} value={item.id}>
-                             {item.name}
-                           </SelectItem>
-                         ))}
-                       </SelectContent>
-                     </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="cutoff">Cutoff (cm)</Label>
-                    <Input
-                      id="cutoff"
-                      type="number"
-                      value={newProgram.cutoff || ''}
-                      onChange={(e) => handleInputChange('cutoff', parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="notebookPages">Notebook Pages</Label>
-                    <Input
-                      id="notebookPages"
-                      type="number"
-                      value={newProgram.notebookPages || ''}
-                      onChange={(e) => handleInputChange('notebookPages', parseInt(e.target.value) || 0)}
-                    />
-                  </div>
-                   <div className="space-y-2">
-                    <Label htmlFor="coverIndex">Cover &amp; Index Pages</Label>
-                    <Input
-                      id="coverIndex"
-                      type="number"
-                      value={newProgram.coverIndex || ''}
-                      onChange={(e) => handleInputChange('coverIndex', parseInt(e.target.value) || 0)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="piecesPerBundle">Pieces per Bundle</Label>
-                    <Input
-                      id="piecesPerBundle"
-                      type="number"
-                      value={newProgram.piecesPerBundle || ''}
-                      onChange={(e) => handleInputChange('piecesPerBundle', parseInt(e.target.value) || 0)}
-                    />
-                  </div>
-                   <div className="space-y-2">
-                    <Label htmlFor="bundlesRequired">Bundles Required</Label>
-                    <Input
-                      id="bundlesRequired"
-                      type="number"
-                      value={newProgram.bundlesRequired || ''}
-                      onChange={(e) => handleInputChange('bundlesRequired', parseInt(e.target.value) || 0)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="ups">UPS</Label>
-                    <Input
-                      id="ups"
-                      type="number"
-                      value={newProgram.ups || ''}
-                      onChange={(e) => handleInputChange('ups', parseInt(e.target.value) || 0)}
-                    />
-                  </div>
-                   <div className="space-y-2 sm:col-span-2 grid grid-cols-2 gap-4">
-                     <div>
-                      <Label htmlFor="gsm-readonly">GSM</Label>
-                      <Input id="gsm-readonly" value={newProgram.gsm || ''} readOnly disabled />
-                     </div>
-                     <div>
-                      <Label htmlFor="length-readonly">Size (cm)</Label>
-                      <Input id="length-readonly" value={newProgram.length || ''} readOnly disabled />
-                     </div>
-                   </div>
-              </div>
-
-              <Accordion type="single" collapsible className="w-full">
-                <AccordionItem value="item-1">
-                  <AccordionTrigger className="text-base">View Calculations</AccordionTrigger>
-                  <AccordionContent>
-                      <div className="space-y-4 rounded-md bg-muted p-4">
-                        <h3 className="font-semibold text-lg">Calculations</h3>
-                        <div className="space-y-2">
-                          <Label>Sheets per Notebook (Counting)</Label>
-                          <Input value={calculatedValues.counting.toFixed(2)} readOnly disabled />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Sheets per Bundle</Label>
-                          <Input value={calculatedValues.sheetsPerBundle.toFixed(2)} readOnly disabled />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Total Sheets Required</Label>
-                          <Input
-                            value={calculatedValues.totalSheetsRequired.toLocaleString()}
-                            readOnly
-                            disabled
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Ream Weight (kg)</Label>
-                          <Input
-                            value={calculatedValues.reamWeight.toFixed(2)}
-                            readOnly
-                            disabled
-                          />
-                        </div>
-                      </div>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-
-            </div>
-
-            <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2 w-full">
-              <DialogClose asChild>
-                <Button variant="outline" disabled={isSaving} className="w-full sm:w-auto">Cancel</Button>
-              </DialogClose>
-              <Button onClick={handleCreateProgram} disabled={isSaving} className="w-full sm:w-auto">
-                {isSaving ? 'Saving...' : 'Create Program'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          isMobile ? (
+             <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
+              <SheetTrigger asChild>{renderTrigger()}</SheetTrigger>
+              <SheetContent side="bottom" className="p-0 flex flex-col h-[90vh]">
+                 <SheetHeader className="p-4 border-b">
+                    <SheetTitle>Create New Production Program</SheetTitle>
+                    <SheetDescription>
+                      Fill in the details to create a new program. Calculated values update automatically.
+                    </SheetDescription>
+                  </SheetHeader>
+                  <ProgramForm {...formProps} />
+              </SheetContent>
+            </Sheet>
+          ) : (
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+              <DialogTrigger asChild>{renderTrigger()}</DialogTrigger>
+              <DialogContent className="p-0 flex flex-col sm:max-w-3xl h-full sm:h-auto sm:max-h-[90vh]">
+                <DialogHeader className="p-4 border-b">
+                  <DialogTitle>Create New Production Program</DialogTitle>
+                  <DialogDescription>
+                    Fill in the details to create a new program. Calculated values will update automatically.
+                  </DialogDescription>
+                </DialogHeader>
+                <ProgramForm {...formProps} />
+              </DialogContent>
+            </Dialog>
+          )
         )}
       </PageHeader>
       <div className="mt-6">
