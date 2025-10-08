@@ -13,123 +13,150 @@
  *
  * Key Security Decisions:
  * - User listing is disabled for security.
- * - Data validation is limited to relational integrity and authorization fields for rapid prototyping.
- * - Read access is generally open to authenticated users unless restricted by role.
- * - Write access is restricted based on roles or ownership.
- * - The stock collection is only accessible by admins.
+ * - Read-only collections (paperTypes, itemTypes) are publicly readable.
+ * - The default security posture for ambiguous relationships is strict owner-only access.
+ * - Stock collection access is restricted to admin users.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages user profiles, ensuring users can only access their own data.
+     * @description Enforces user-ownership for user profiles.
      * @path /users/{userId}
-     * @allow (create) - User 'sq8MkzlQN2XSZrly4WRplcUfno72' can create their own profile if request.auth.uid == userId.
-     * @allow (get, update, delete) - User 'sq8MkzlQN2XSZrly4WRplcUfno72' can access their own profile.
-     * @deny (create) - User 'sq8MkzlQN2XSZrly4WRplcUfno72' cannot create a profile with a different userId.
-     * @deny (get, update, delete) - User 'otherUserId' cannot access user 'sq8MkzlQN2XSZrly4WRplcUfno72' profile.
-     * @principle Enforces document ownership for user profiles.
+     * @allow (create) User with UID 'user123' can create their own profile.
+     * @allow (get) User with UID 'user123' can read their own profile.
+     * @allow (update) User with UID 'user123' can update their own profile.
+     * @allow (delete) User with UID 'user123' can delete their own profile.
+     * @deny (create) User with UID 'user123' cannot create a profile with a different ID ('user456').
+     * @deny (get) User with UID 'user123' cannot read another user's profile ('user456').
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
       function isOwner(userId) {
         return request.auth != null && request.auth.uid == userId;
       }
-
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isOwner(userId) && resource.data.id == request.resource.data.id;
-      allow delete: if isOwner(userId) && resource != null;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Manages paper type master data.
+     * @description Allows public read access to paper types, with no write access.
      * @path /paperTypes/{paperTypeId}
-     * @allow (get, list) - All authenticated users can read paper type data.
-     * @allow (create, update, delete) - No one can create, update, or delete paper types in this prototype.
-     * @deny (create, update, delete) - No one can create, update, or delete paper types in this prototype.
-     * @principle Public read access for paper type master data.
+     * @allow (get) Any user can read a paper type.
+     * @allow (list) Any user can list paper types.
+     * @deny (create) No user can create paper types through client-side rules (creation should be done via backend).
+     * @deny (update) No user can update paper types through client-side rules (updates should be done via backend).
+     * @deny (delete) No user can delete paper types through client-side rules (deletion should be done via backend).
+     * @principle Provides public read access to read-only master data.
      */
     match /paperTypes/{paperTypeId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if true;
       allow create, update, delete: if false;
     }
 
     /**
-     * @description Manages item type master data.
+     * @description Allows public read access to item types, with no write access.
      * @path /itemTypes/{itemTypeId}
-     * @allow (get, list) - All authenticated users can read item type data.
-     * @allow (create, update, delete) - No one can create, update, or delete item types in this prototype.
-     * @deny (create, update, delete) - No one can create, update, or delete item types in this prototype.
-     * @principle Public read access for item type master data.
+     * @allow (get) Any user can read an item type.
+     * @allow (list) Any user can list item types.
+     * @deny (create) No user can create item types through client-side rules (creation should be done via backend).
+     * @deny (update) No user can update item types through client-side rules (updates should be done via backend).
+     * @deny (delete) No user can delete item types through client-side rules (deletion should be done via backend).
+     * @principle Provides public read access to read-only master data.
      */
     match /itemTypes/{itemTypeId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if true;
       allow create, update, delete: if false;
     }
 
     /**
-     * @description Manages stock information; only accessible and modifiable by admin users.
+     * @description Restricts stock access to admin users only.
      * @path /stock/{stockId}
-     * @allow (get, list) - Admins can read stock data.
-     * @allow (create, update, delete) - Admins can modify stock data.
-     * @deny (get, list) - Non-admins cannot read stock data.
-     * @deny (create, update, delete) - Non-admins cannot modify stock data.
-     * @principle Restricts stock data access to admin users.
+     * @allow (get) Admin users can read stock information.
+     * @allow (list) Admin users can list stock information.
+     * @allow (create) Admin users can create stock information.
+     * @allow (update) Admin users can update stock information.
+     * @allow (delete) Admin users can delete stock information.
+     * @deny (get) Non-admin users cannot read stock information.
+     * @deny (list) Non-admin users cannot list stock information.
+     * @principle Enforces role-based access control for sensitive data.
      */
     match /stock/{stockId} {
       function isAdmin() {
         return request.auth != null && request.auth.token.role == 'Admin';
       }
-
-      allow get, list: if isAdmin();
+      allow get: if isAdmin();
+      allow list: if isAdmin();
       allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Manages program information.
+     * @description Allows access to program information for authenticated users.
      * @path /programs/{programId}
-     * @allow (get, list) - All authenticated users can read program data.
-     * @allow (create, update, delete) - No one can create, update, or delete programs in this prototype.
-     * @deny (create, update, delete) - No one can create, update, or delete programs in this prototype.
-     * @principle Public read access for program data.
+     * @allow (get) Any authenticated user can read program information.
+     * @allow (list) Any authenticated user can list program information.
+     * @allow (create) Any authenticated user can create program information.
+     * @allow (update) Any authenticated user can update program information.
+     * @allow (delete) Any authenticated user can delete program information.
+     * @principle Allows authenticated users to manage program information.
      */
     match /programs/{programId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+      function isSignedIn() {
+        return request.auth != null;
+      }
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
 
     /**
-     * @description Manages reel ruling entries.
+     * @description Allows access to reel ruling entries for authenticated users.
      * @path /reels/{reelRulingId}
-     * @allow (get, list) - All authenticated users can read reel ruling data.
-     * @allow (create, update, delete) - No one can create, update, or delete reel rulings in this prototype.
-     * @deny (create, update, delete) - No one can create, update, or delete reel rulings in this prototype.
-     * @principle Public read access for reel ruling data.
+     * @allow (get) Any authenticated user can read reel ruling entries.
+     * @allow (list) Any authenticated user can list reel ruling entries.
+     * @allow (create) Any authenticated user can create reel ruling entries.
+     * @allow (update) Any authenticated user can update reel ruling entries.
+     * @allow (delete) Any authenticated user can delete reel ruling entries.
+     * @principle Allows authenticated users to manage reel ruling entries.
      */
     match /reels/{reelRulingId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+      function isSignedIn() {
+        return request.auth != null;
+      }
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
 
     /**
-     * @description Manages generated reports.
+     * @description Allows access to generated reports for authenticated users.
      * @path /reports/{reportId}
-     * @allow (get, list) - All authenticated users can read report data.
-     * @allow (create, update, delete) - No one can create, update, or delete reports in this prototype.
-     * @deny (create, update, delete) - No one can create, update, or delete reports in this prototype.
-     * @principle Public read access for report data.
+     * @allow (get) Any authenticated user can read generated reports.
+     * @allow (list) Any authenticated user can list generated reports.
+     * @allow (create) Any authenticated user can create generated reports.
+     * @allow (update) Any authenticated user can update generated reports.
+     * @allow (delete) Any authenticated user can delete generated reports.
+     * @principle Allows authenticated users to manage generated reports.
      */
     match /reports/{reportId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
-    }
-
-    function isSignedIn() {
-      return request.auth != null;
+      function isSignedIn() {
+        return request.auth != null;
+      }
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
   }
 }
