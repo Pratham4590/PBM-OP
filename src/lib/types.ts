@@ -41,9 +41,11 @@ export type Reel = {
   length: number;
   gsm: number;
   weight: number;
-  status: 'Available' | 'In Use' | 'Finished';
+  status: 'Available' | 'In Use' | 'Finished' | 'Hold';
   createdAt: Timestamp;
   createdBy: string;
+  initialSheets: number;
+  availableSheets: number;
   notes?: string;
   imageUrl?: string;
 };
@@ -85,7 +87,6 @@ export type Ruling = {
   reelNo: string; // denormalized
   paperTypeId: string; // denormalized
   startWeight: number;
-  endWeight: number;
   rulingEntries: RulingEntry[];
   totalSheetsRuled: number;
   createdBy: string;
@@ -109,4 +110,13 @@ export type PlaceholderImage = {
   description: string;
   imageUrl: string;
   imageHint: string;
+};
+
+export type StatusLog = {
+  id: string;
+  reelId: string;
+  oldStatus: Reel['status'];
+  newStatus: Reel['status'];
+  changedBy: string; // UID of the admin
+  timestamp: Timestamp;
 };

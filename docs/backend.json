@@ -49,11 +49,13 @@
         "length": { "type": "number", "description": "The length of the paper on the reel." },
         "gsm": { "type": "number", "description": "The grammage of the paper." },
         "weight": { "type": "number", "description": "The current weight of the reel." },
-        "status": { "type": "string", "description": "The status of the reel.", "enum": ["Available", "In Use", "Finished"] },
+        "status": { "type": "string", "description": "The status of the reel.", "enum": ["Available", "In Use", "Finished", "Hold"] },
         "createdAt": { "type": "string", "description": "The timestamp when the reel was created.", "format": "date-time" },
-        "createdBy": { "type": "string", "description": "The UID of the user who created the reel." }
+        "createdBy": { "type": "string", "description": "The UID of the user who created the reel." },
+        "initialSheets": { "type": "number", "description": "The initial theoretical number of sheets on the reel."},
+        "availableSheets": { "type": "number", "description": "The current available number of sheets on the reel."}
       },
-      "required": ["reelNo", "paperTypeId", "length", "gsm", "weight", "status", "createdAt", "createdBy"]
+      "required": ["reelNo", "paperTypeId", "length", "gsm", "weight", "status", "createdAt", "createdBy", "initialSheets", "availableSheets"]
     },
     "Program": {
       "title": "Program",
@@ -105,7 +107,6 @@
         "reelNo": { "type": "string", "description": "Denormalized reel number for display." },
         "paperTypeId": { "type": "string", "description": "Denormalized reference to PaperType." },
         "startWeight": { "type": "number", "description": "The weight of the reel before ruling." },
-        "endWeight": { "type": "number", "description": "The weight of the reel after ruling." },
         "rulingEntries": {
             "type": "array",
             "description": "An array of individual ruling actions performed on the reel.",
@@ -114,7 +115,7 @@
         "totalSheetsRuled": { "type": "number", "description": "The sum of all sheets ruled in the entries." },
         "createdBy": { "type": "string", "description": "The UID of the user who created the ruling." }
       },
-      "required": ["date", "reelId", "reelNo", "paperTypeId", "startWeight", "endWeight", "rulingEntries", "totalSheetsRuled", "createdBy"]
+      "required": ["date", "reelId", "reelNo", "paperTypeId", "startWeight", "rulingEntries", "totalSheetsRuled", "createdBy"]
     },
     "Stock": {
       "title": "Stock",
@@ -130,6 +131,20 @@
         "numberOfReels": { "type": "number", "description": "The total number of reels of this type." }
       },
       "required": ["paperTypeId", "length", "gsm", "totalWeight", "numberOfReels", "date"]
+    },
+    "StatusLog": {
+      "title": "Status Log",
+      "type": "object",
+      "description": "Logs manual changes to a reel's status by an admin.",
+      "properties": {
+        "id": { "type": "string" },
+        "reelId": { "type": "string", "description": "Reference to the Reel." },
+        "oldStatus": { "type": "string", "description": "The status before the change." },
+        "newStatus": { "type": "string", "description": "The status after the change." },
+        "changedBy": { "type": "string", "description": "The UID of the admin who made the change." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the change occurred." }
+      },
+      "required": ["reelId", "oldStatus", "newStatus", "changedBy", "timestamp"]
     }
   },
   "auth": {
@@ -163,6 +178,10 @@
     "/stock/{stockId}": {
       "schema": { "$ref": "#/entities/Stock" },
       "description": "Aggregated stock levels for each paper type."
+    },
+    "/statusLogs/{statusLogId}": {
+      "schema": { "$ref": "#/entities/StatusLog" },
+      "description": "Log of manual reel status changes by admins."
     }
   }
 }
