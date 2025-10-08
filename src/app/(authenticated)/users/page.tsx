@@ -45,6 +45,7 @@ export default function UsersPage() {
   const { data: currentUserData, isLoading: isLoadingCurrentUserDoc } = useDoc<User>(currentUserDocRef);
 
   useEffect(() => {
+    // We only stop checking for admin status once we have finished loading the current user's document.
     if (!isLoadingCurrentUserDoc) {
       if (currentUserData?.role === 'Admin') {
         setIsAdmin(true);
