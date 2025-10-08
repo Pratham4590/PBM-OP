@@ -1,163 +1,169 @@
 /**
- * @file Firestore Security Rules
- * @core_philosophy This ruleset enforces a user-ownership model for user profiles and creator-ownership for reels and rulings.
- * Master data collections like `paperTypes` and `itemTypes` are publicly readable.
- * @data_structure
- * - /users/{userId}: User profile information, owned by the user.
- * - /paperTypes/{paperTypeId}: Master data for paper types. Publicly readable.
- * - /itemTypes/{itemTypeId}: Master data for item types. Publicly readable.
- * - /reels/{reelId}: Individual reel stock information, owned by the creator.
- * - /programs/{programId}: Production program definitions.
- * - /rulings/{rulingId}: Ruling entries for each reel, owned by the creator.
- * @key_security_decisions
- * - Users can only read and write their own profile data.
- * - Master data (paperTypes, itemTypes) is publicly readable but not writable (create, update, delete are denied).
- * - Reels and Rulings are protected by creator-ownership: only the user who created the document can update or delete it.
+ * @fileoverview Firestore Security Rules for Production Monitoring Application
+ *
+ * Core Philosophy:
+ * This ruleset enforces a user-ownership model for user profiles and allows public read access to master data while restricting modifications to authorized users.
+ *
+ * Data Structure:
+ * - Users: Each user has a profile stored under `/users/{userId}`.
+ * - Master Data: Paper types and item types are stored under `/paperTypes/{paperTypeId}` and `/itemTypes/{itemTypeId}`, respectively.  These are readable by all but only writable by authorized users (currently everyone who is signed in).
+ * - Production Data: Reels, programs, rulings, and stock information are stored under `/reels/{reelId}`, `/programs/{programId}`, `/rulings/{rulingId}`, and `/stock/{stockId}`, respectively, and are writable by authorized users.
+ * - Status Logs: Status logs are stored under `/statusLogs/{statusLogId}` and are writable by authorized users.
+ *
+ * Key Security Decisions:
+ * - Users can only read/write their own user document.
+ * - Listing of users is disallowed.
+ * - Master data (paperTypes, itemTypes) is publicly readable but only writable by authenticated users.
+ * - Production data (reels, programs, rulings) is writable by authenticated users.
+ *
+ * Denormalization for Authorization: N/A
+ * No denormalization is explicitly used in this ruleset. More sophisticated access control might require denormalization.
+ *
+ * Structural Segregation: N/A
+ * There is no segregation of public/private data in this data model.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Secure user profiles; only the user can read/write their own profile.
+     * @description Controls access to user profile information.
      * @path /users/{userId}
-     * @allow (create) User with UID 'user123' can create a profile with id 'user123'.
-     * @allow (get) User with UID 'user123' can read their own profile at /users/user123.
-     * @allow (update) User with UID 'user123' can update their own profile at /users/user123.
-     * @allow (delete) User with UID 'user123' can delete their own profile at /users/user123.
-     * @deny (create) User with UID 'user456' cannot create a profile with id 'user123'.
-     * @deny (get) User with UID 'user456' cannot read the profile at /users/user123.
-     * @deny (update) User with UID 'user456' cannot update the profile at /users/user123.
-     * @deny (delete) User with UID 'user456' cannot delete the profile at /users/user123.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) - User can create their own profile if the userId matches their auth UID.
+     * @allow (get, update, delete) - User can only access their own profile.
+     * @deny (create) - User cannot create a profile with an ID that doesn't match their auth UID.
+     * @deny (list) - Listing users is not allowed.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
+      // Helper function to check if the user is signed in and owns the document.
       function isOwner(userId) {
         return request.auth != null && request.auth.uid == userId;
       }
-        function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
 
-      allow get: if isOwner(userId);
-      allow list: if false;
+      // Allow the user to create their own profile if the userId matches their auth UID.
       allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      // Allow the user to get their own profile.
+      allow get: if isOwner(userId);
+      // Allow the user to update their own profile, ensuring the ID remains consistent.
+      allow update: if isOwner(userId) && resource.data.id == request.resource.data.id && resource != null;
+      // Allow the user to delete their own profile if it exists.
+      allow delete: if isOwner(userId) && resource != null;
+      // Do not allow listing of users.
+      allow list: if false;
     }
 
     /**
-     * @description Make paperTypes publicly readable, but prevent any writes.
+     * @description Controls access to paper type master data.
      * @path /paperTypes/{paperTypeId}
-     * @allow (get) Any user can read paper type data.
-     * @allow (list) Any user can list paper types.
-     * @deny (create) No one can create paper type data.
-     * @deny (update) No one can update paper type data.
-     * @deny (delete) No one can delete paper type data.
-     * @principle Public read access with no write access.
+     * @allow (get, list) - Anyone can read paper type information.
+     * @allow (create, update, delete) - Only authenticated users can modify paper type information.
+     * @deny (create, update, delete) - Unauthenticated users cannot modify paper type information.
+     * @principle Allows public read access to master data with restricted write access.
      */
     match /paperTypes/{paperTypeId} {
+      // Allow anyone to read paper type information.
       allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      // Allow only authenticated users to create, update, or delete paper types.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Make itemTypes publicly readable, but prevent any writes.
+     * @description Controls access to item type master data.
      * @path /itemTypes/{itemTypeId}
-     * @allow (get) Any user can read item type data.
-     * @allow (list) Any user can list item types.
-     * @deny (create) No one can create item type data.
-     * @deny (update) No one can update item type data.
-     * @deny (delete) No one can delete item type data.
-     * @principle Public read access with no write access.
+     * @allow (get, list) - Anyone can read item type information.
+     * @allow (create, update, delete) - Only authenticated users can modify item type information.
+     * @deny (create, update, delete) - Unauthenticated users cannot modify item type information.
+     * @principle Allows public read access to master data with restricted write access.
      */
     match /itemTypes/{itemTypeId} {
+      // Allow anyone to read item type information.
       allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      // Allow only authenticated users to create, update, or delete item types.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Enforce creator-ownership for reels: only the creator can update or delete.
+     * @description Controls access to reel stock information.
      * @path /reels/{reelId}
-     * @allow (create) User with UID 'user123' can create a reel if createdBy is 'user123'.
-     * @allow (get) Any user can read reel data.
-     * @allow (list) Any user can list reel data.
-     * @allow (update) User with UID 'user123' can update a reel if they created it.
-     * @allow (delete) User with UID 'user123' can delete a reel if they created it.
-     * @deny (create) User with UID 'user456' cannot create a reel with createdBy 'user123'.
-     * @deny (update) User with UID 'user456' cannot update a reel created by 'user123'.
-     * @deny (delete) User with UID 'user456' cannot delete a reel created by 'user123'.
-     * @principle Enforces creator-ownership for writes.
+     * @allow (get, list) - Anyone can read reel stock information.
+     * @allow (create, update, delete) - Only authenticated users can modify reel stock information.
+     * @deny (create, update, delete) - Unauthenticated users cannot modify reel stock information.
+     * @principle Allows public read access to reel data with restricted write access.
      */
     match /reels/{reelId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
-
-      function isOwner(userId) {
-        return request.auth != null && userId == request.auth.uid;
-      }
-        function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
+      // Allow anyone to read reel stock information.
       allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.createdBy);
-      allow delete: if isExistingOwner(resource.data.createdBy);
+      // Allow only authenticated users to create, update, or delete reels.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allow all reads, but restrict writes to authorized users.  No ownership is enforced on Program.
+     * @description Controls access to production program definitions.
      * @path /programs/{programId}
-     * @allow (get) Any user can read program data.
-     * @allow (list) Any user can list program data.
-     * @allow (create) Signed in user can create program data.
-     * @allow (update) Signed in user can update program data.
-     * @allow (delete) Signed in user can delete program data.
-     * @principle Public read access with restricted write access based on authentication.
+     * @allow (get, list) - Anyone can read program definitions.
+     * @allow (create, update, delete) - Only authenticated users can modify program definitions.
+     * @deny (create, update, delete) - Unauthenticated users cannot modify program definitions.
+     * @principle Allows public read access to program data with restricted write access.
      */
     match /programs/{programId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
+      // Allow anyone to read program definitions.
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
+      // Allow only authenticated users to create, update, or delete programs.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Enforce creator-ownership for rulings: only the creator can update or delete.
+     * @description Controls access to ruling entries for each reel.
      * @path /rulings/{rulingId}
-     * @allow (create) User with UID 'user123' can create a ruling if createdBy is 'user123'.
-     * @allow (get) Any user can read ruling data.
-     * @allow (list) Any user can list ruling data.
-     * @allow (update) User with UID 'user123' can update a ruling if they created it.
-     * @allow (delete) User with UID 'user123' can delete a ruling if they created it.
-     * @deny (create) User with UID 'user456' cannot create a ruling with createdBy 'user123'.
-     * @deny (update) User with UID 'user456' cannot update a ruling created by 'user123'.
-     * @deny (delete) User with UID 'user456' cannot delete a ruling created by 'user123'.
-     * @principle Enforces creator-ownership for writes.
+     * @allow (get, list) - Anyone can read ruling entries.
+     * @allow (create, update, delete) - Only authenticated users can modify ruling entries.
+     * @deny (create, update, delete) - Unauthenticated users cannot modify ruling entries.
+     * @principle Allows public read access to ruling data with restricted write access.
      */
     match /rulings/{rulingId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
-      function isOwner(userId) {
-        return request.auth != null && userId == request.auth.uid;
-      }
-        function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
+      // Allow anyone to read ruling entries.
       allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.createdBy);
-      allow delete: if isExistingOwner(resource.data.createdBy);
+      // Allow only authenticated users to create, update, or delete rulings.
+      allow create, update, delete: if isSignedIn();
+    }
+
+    /**
+     * @description Controls access to aggregated stock levels for each paper type.
+     * @path /stock/{stockId}
+     * @allow (get, list) - Anyone can read stock levels.
+     * @allow (create, update, delete) - Only authenticated users can modify stock levels.
+     * @deny (create, update, delete) - Unauthenticated users cannot modify stock levels.
+     * @principle Allows public read access to stock data with restricted write access.
+     */
+    match /stock/{stockId} {
+      // Allow anyone to read stock levels.
+      allow get, list: if true;
+      // Allow only authenticated users to create, update, or delete stock information.
+      allow create, update, delete: if isSignedIn();
+    }
+
+    /**
+     * @description Controls access to the log of manual reel status changes by admins.
+     * @path /statusLogs/{statusLogId}
+     * @allow (get, list) - Anyone can read the status logs.
+     * @allow (create, update, delete) - Only authenticated users can create status logs. Updates and deletes are disallowed, as logs should be immutable.
+     * @deny (update, delete) - Status logs should not be updated or deleted.
+     * @deny (create, update, delete) - Unauthenticated users cannot modify status logs.
+     * @principle Allows public read access to status log data with restricted write access, while preventing modification of existing logs.
+     */
+    match /statusLogs/{statusLogId} {
+      // Allow anyone to read status logs.
+      allow get, list: if true;
+      // Allow only authenticated users to create status logs.
+      allow create: if isSignedIn();
+      // Prevent updating or deleting status logs.
+      allow update, delete: if false;
+    }
+
+    // Helper function to check if the user is signed in.
+    function isSignedIn() {
+      return request.auth != null;
     }
   }
 }
