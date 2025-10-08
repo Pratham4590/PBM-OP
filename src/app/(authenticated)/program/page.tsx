@@ -54,7 +54,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Program, PaperType, ItemType, User as AppUser } from '@/lib/types';
+import { Program, PaperType, ItemType, User as AppUser, Ruling } from '@/lib/types';
 import {
   Table,
   TableBody,
@@ -64,14 +64,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, addDocumentNonBlocking, deleteDocumentNonBlockingById, updateDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp, doc, addDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, addDoc, updateDoc } from 'firebase/firestore';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { Badge } from '@/components/ui/badge';
+import { useIsMobile } from '@/hooks/use-is-mobile';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -293,10 +294,13 @@ export default function ProgramPage() {
   const programsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'programs') : null, [firestore]);
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
   const itemTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'itemTypes') : null, [firestore]);
+  const rulingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reels') : null, [firestore]);
+
 
   const { data: programs, isLoading: loadingPrograms } = useCollection<Program>(programsQuery);
   const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
   const { data: itemTypes, isLoading: loadingItemTypes } = useCollection<ItemType>(itemTypesQuery);
+  const { data: rulings } = useCollection<Ruling>(rulingsQuery);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -307,6 +311,26 @@ export default function ProgramPage() {
     return currentUser.role === 'Admin' || currentUser.role === 'Member';
   }, [currentUser, isLoadingCurrentUser]);
 
+  const programProgress = useMemo(() => {
+    if (!programs || !rulings) return {};
+    const progress: { [key: string]: { sheetsCompleted: number, status: 'Completed' | 'In Progress' | 'Yet to Start' } } = {};
+    
+    programs.forEach(p => {
+        const sheetsCompleted = rulings.flatMap(r => r.entries)
+            .filter(e => e.programId === p.id)
+            .reduce((sum, e) => sum + e.sheetsRuled, 0);
+
+        let status: 'Completed' | 'In Progress' | 'Yet to Start' = 'Yet to Start';
+        if (sheetsCompleted >= p.totalSheetsRequired) {
+            status = 'Completed';
+        } else if (sheetsCompleted > 0) {
+            status = 'In Progress';
+        }
+        
+        progress[p.id] = { sheetsCompleted, status };
+    });
+    return progress;
+  }, [programs, rulings]);
 
   const openModal = (program?: Program) => {
     setEditingProgram(program || null);
@@ -364,13 +388,23 @@ export default function ProgramPage() {
     if (isMobile) {
       return (
         <Accordion type="single" collapsible className="w-full">
-          {programs.map(program => (
+          {programs.map(program => {
+            const progress = programProgress[program.id];
+            return (
             <AccordionItem value={program.id} key={program.id}>
               <div className="flex items-center w-full">
                 <AccordionTrigger className="flex-1 py-4">
                   <div className="flex flex-col text-left">
                     <span className="font-semibold">{program.brand}</span>
                     <span className="text-sm text-muted-foreground">{getItemTypeName(program.itemTypeId)}</span>
+                     {progress && (
+                       <Badge
+                         variant={progress.status === 'Completed' ? 'default' : 'secondary'}
+                         className={`w-fit mt-1 ${progress.status === 'Completed' ? 'bg-green-600' : progress.status === 'In Progress' ? 'bg-blue-500' : ''}`}
+                       >
+                         {progress.status}
+                       </Badge>
+                     )}
                   </div>
                 </AccordionTrigger>
                 {canEdit && (
@@ -408,7 +442,7 @@ export default function ProgramPage() {
                 </div>
               </AccordionContent>
             </AccordionItem>
-          ))}
+          )})}
         </Accordion>
       );
     }
@@ -419,21 +453,32 @@ export default function ProgramPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Brand</TableHead>
-                <TableHead>Paper</TableHead>
                 <TableHead>Item</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Sheets Req.</TableHead>
-                <TableHead>Ream Wt. (kg)</TableHead>
+                <TableHead>Paper</TableHead>
                 {canEdit && <TableHead className="w-[50px] text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {programs.map((program) => (
+              {programs.map((program) => {
+                const progress = programProgress[program.id];
+                return (
                 <TableRow key={program.id}>
                   <TableCell className="font-medium whitespace-nowrap">{program.brand}</TableCell>
-                  <TableCell className="whitespace-nowrap">{getPaperTypeName(program.paperTypeId)}</TableCell>
                   <TableCell className="whitespace-nowrap">{getItemTypeName(program.itemTypeId)}</TableCell>
+                  <TableCell>
+                    {progress && (
+                       <Badge
+                         variant={progress.status === 'Completed' ? 'default' : 'secondary'}
+                         className={progress.status === 'Completed' ? 'bg-green-600' : progress.status === 'In Progress' ? 'bg-blue-500' : ''}
+                       >
+                         {progress.status}
+                       </Badge>
+                     )}
+                  </TableCell>
                   <TableCell>{program.totalSheetsRequired?.toLocaleString()}</TableCell>
-                  <TableCell>{program.reamWeight?.toFixed(2)}</TableCell>
+                  <TableCell className="whitespace-nowrap">{getPaperTypeName(program.paperTypeId)}</TableCell>
                   {canEdit && (
                       <TableCell className="text-right">
                           <DropdownMenu>
@@ -460,7 +505,7 @@ export default function ProgramPage() {
                       </TableCell>
                   )}
                 </TableRow>
-              ))}
+              )})}
             </TableBody>
           </Table>
         </div>

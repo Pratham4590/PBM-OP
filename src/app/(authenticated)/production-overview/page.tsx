@@ -208,7 +208,7 @@ export default function ProductionOverviewPage() {
             <CardContent>
                  {loadingStock || loadingPaperTypes || isLoadingCurrentUser ? (
                     <div className="flex items-center justify-center h-[250px] text-muted-foreground">Loading chart...</div>
-                ) : (
+                ) : stock && stock.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
                         <Pie data={stockDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
@@ -220,6 +220,8 @@ export default function ProductionOverviewPage() {
                         <Legend wrapperStyle={{fontSize: "0.875rem"}}/>
                     </PieChart>
                 </ResponsiveContainer>
+                ): (
+                  <div className="flex items-center justify-center h-[250px] text-muted-foreground">No stock data available.</div>
                 )}
             </CardContent>
             </Card>
