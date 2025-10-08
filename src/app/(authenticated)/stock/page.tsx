@@ -72,11 +72,9 @@ export default function StockPage() {
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
   
   const stockQuery = useMemoFirebase(() => {
-    // IMPORTANT: Wait for user data to load and check the role before creating the query.
     if (!firestore || isLoadingCurrentUser || !currentUser || !['Admin', 'Member'].includes(currentUser.role)) {
       return null;
     }
-    // Only create the query if the user has the correct role.
     return collection(firestore, 'stock');
   }, [firestore, currentUser, isLoadingCurrentUser]);
   
