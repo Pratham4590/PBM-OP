@@ -51,8 +51,15 @@ export default function StockPage() {
   
   const currentUserDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
   const { data: currentUser, isLoading: isLoadingCurrentUser } = useDoc<AppUser>(currentUserDocRef);
+  const isOperator = currentUser?.role === 'Operator';
 
-  const stockQuery = useMemoFirebase(() => firestore ? collection(firestore, 'stock') : null, [firestore]);
+  const stockQuery = useMemoFirebase(() => {
+    if (isLoadingCurrentUser || isOperator || !firestore) {
+      return null;
+    }
+    return collection(firestore, 'stock');
+  }, [firestore, isLoadingCurrentUser, isOperator]);
+  
   const paperTypesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'paperTypes') : null, [firestore]);
 
   const { data: stock, isLoading: loadingStock } = useCollection<Stock>(stockQuery);
@@ -128,6 +135,36 @@ export default function StockPage() {
   }
   
   const canEdit = !isLoadingCurrentUser && (currentUser?.role === 'Admin' || currentUser?.role === 'Member');
+
+  if (isLoadingCurrentUser) {
+    return (
+        <div className="flex h-full w-full items-center justify-center">
+            <div className="text-lg text-muted-foreground">Loading Stock...</div>
+        </div>
+    )
+  }
+
+  if (isOperator) {
+      return (
+        <>
+            <PageHeader
+                title="Stock Management"
+                description="Track and manage your paper stock in real-time."
+            />
+            <Card>
+                <CardHeader>
+                    <CardTitle>Access Denied</CardTitle>
+                    <CardDescription>
+                        You do not have permission to view this page.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p>Only Admins and Members can manage stock.</p>
+                </CardContent>
+            </Card>
+        </>
+      )
+  }
 
   return (
     <>
@@ -327,3 +364,5 @@ export default function StockPage() {
     </>
   );
 }
+
+    
