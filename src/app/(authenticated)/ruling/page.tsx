@@ -73,6 +73,7 @@ const RulingForm = ({
     isSaving,
     onStatusChange,
     canChangeStatus,
+    paperType
 }: {
     selectedReel: Reel,
     itemTypes: ItemType[] | null,
@@ -82,6 +83,7 @@ const RulingForm = ({
     isSaving: boolean,
     onStatusChange: (newStatus: Reel['status']) => void,
     canChangeStatus: boolean,
+    paperType: PaperType | undefined,
 }) => {
   const [rulingEntries, setRulingEntries] = useState<Partial<RulingEntry>[]>([{}]);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -118,21 +120,38 @@ const RulingForm = ({
   }, [rulingEntries]);
 
   const calculateRulingValues = (entry: Partial<RulingEntry>) => {
-    if (!selectedReel || !entry.cutoff || !entry.sheetsRuled || !entry.itemTypeId || !selectedReel.initialSheets || selectedReel.initialSheets === 0) {
-      return { theoreticalSheets: 0, difference: 0 };
+    if (!selectedReel || !paperType || !entry.cutoff) {
+        return { theoreticalSheets: 0, difference: 0, theoreticalSheetsPerKg: 0 };
+    }
+
+    const areaPerSheetM2 = (paperType.length * paperType.breadth) / 10000;
+    if (areaPerSheetM2 <= 0) return { theoreticalSheets: 0, difference: 0, theoreticalSheetsPerKg: 0 };
+    
+    const weightPerSheetG = areaPerSheetM2 * paperType.gsm;
+    if (weightPerSheetG <= 0) return { theoreticalSheets: 0, difference: 0, theoreticalSheetsPerKg: 0 };
+
+    const sheetsPerKg = 1000 / weightPerSheetG;
+
+    // Estimate based on cutoff
+    const reamWeightForCutoff = (paperType.length * entry.cutoff * paperType.gsm) / 20000;
+    if (reamWeightForCutoff <= 0) return { theoreticalSheets: 0, difference: 0, theoreticalSheetsPerKg: 0 };
+    
+    const theoreticalSheetsPerKg = (1 * 500) / reamWeightForCutoff;
+    
+    // Final calculation if sheetsRuled is available
+    if (!entry.sheetsRuled || !selectedReel.initialSheets || selectedReel.initialSheets === 0) {
+      return { theoreticalSheets: 0, difference: 0, theoreticalSheetsPerKg: theoreticalSheetsPerKg };
     }
     
     const weightPerSheet = selectedReel.weight / selectedReel.initialSheets;
     const rulingWeight = (entry.sheetsRuled || 0) * weightPerSheet;
 
-    const reamWeight = (selectedReel.length * entry.cutoff * selectedReel.gsm) / 20000;
-    if (reamWeight <= 0) return { theoreticalSheets: 0, difference: 0 };
-
-    const theoreticalSheets = (rulingWeight * 500) / reamWeight;
+    const theoreticalSheets = (rulingWeight * 500) / reamWeightForCutoff;
     const difference = (entry.sheetsRuled || 0) - theoreticalSheets;
 
-    return { theoreticalSheets, difference };
+    return { theoreticalSheets, difference, theoreticalSheetsPerKg };
   };
+
 
   const remainingSheets = (selectedReel.availableSheets ?? selectedReel.initialSheets) - totalSheetsRuled;
   const isRulingDisabled = selectedReel.status === 'Finished' || selectedReel.status === 'Hold';
@@ -260,12 +279,15 @@ const RulingForm = ({
                         </div>
                     </div>
                      <div className="p-3 bg-muted/50 rounded-md text-sm grid grid-cols-2 gap-x-4 gap-y-1">
-                        <span>Theoretical Sheets:</span> <span className="text-right font-medium">{calculation.theoreticalSheets.toFixed(0)}</span>
+                        <span>Theoretical Sheets / kg:</span> <span className="text-right font-medium">{calculation.theoreticalSheetsPerKg > 0 ? calculation.theoreticalSheetsPerKg.toFixed(2) : 'N/A'}</span>
+                        <span>Theoretical Sheets:</span> <span className="text-right font-medium">{calculation.theoreticalSheets > 0 ? calculation.theoreticalSheets.toFixed(0) : 'N/A'}</span>
                         <span>Difference:</span> 
                         <span className="text-right font-medium">
-                            <Badge variant={calculation.difference >= 0 ? 'default' : 'destructive'} className={calculation.difference >= 0 ? 'bg-green-600' : ''}>
+                           {calculation.theoreticalSheets > 0 && (
+                             <Badge variant={calculation.difference >= 0 ? 'default' : 'destructive'} className={calculation.difference >= 0 ? 'bg-green-600' : ''}>
                                 {Math.round(calculation.difference || 0).toLocaleString()}
                             </Badge>
+                           )}
                         </span>
                     </div>
                 </AccordionContent>
@@ -317,6 +339,8 @@ export default function RulingPage() {
     if (!reels || !selectedPaperTypeId) return [];
     return reels.filter(r => r.paperTypeId === selectedPaperTypeId && r.status !== 'Finished');
   }, [reels, selectedPaperTypeId]);
+
+  const selectedPaperType = useMemo(() => paperTypes?.find(p => p.id === selectedPaperTypeId), [paperTypes, selectedPaperTypeId]);
   
   const handlePaperTypeSelect = (paperTypeId: string) => {
     setSelectedPaperTypeId(paperTypeId);
@@ -330,6 +354,8 @@ export default function RulingPage() {
     if (!length || !breadth || !gsm) return 0;
     
     const areaPerSheetM2 = (length * breadth) / 10000;
+    if (areaPerSheetM2 <= 0) return 0;
+
     const weightPerSheetG = areaPerSheetM2 * gsm;
     if (weightPerSheetG <= 0) return 0;
 
@@ -353,7 +379,7 @@ export default function RulingPage() {
   };
   
   const handleSave = async (rulingEntries: Partial<RulingEntry>[]) => {
-    if (!firestore || !user || !selectedReel) return;
+    if (!firestore || !user || !selectedReel || !paperType) return;
     
     if (rulingEntries.some(e => !e.itemTypeId || !e.cutoff || e.sheetsRuled == null)) {
       toast({ variant: 'destructive', title: 'Missing Fields', description: 'Please fill out all required fields for each ruling entry.' });
@@ -384,7 +410,7 @@ export default function RulingPage() {
 
         const weightPerSheet = selectedReel.weight / initialSheets;
         const rulingWeight = (entry.sheetsRuled || 0) * weightPerSheet;
-        const reamWeight = (selectedReel.length * (entry.cutoff || 0) * selectedReel.gsm) / 20000;
+        const reamWeight = (paperType.length * (entry.cutoff || 0) * paperType.gsm) / 20000;
         const theoreticalSheets = reamWeight > 0 ? (rulingWeight * 500) / reamWeight : 0;
         const difference = (entry.sheetsRuled || 0) - theoreticalSheets;
 
@@ -472,6 +498,9 @@ export default function RulingPage() {
     setIsSaving(false);
   }
 
+  const paperType = useMemo(() => paperTypes?.find(p => p.id === selectedPaperTypeId), [paperTypes, selectedPaperTypeId]);
+
+
   const renderStep1 = () => (
     <Card>
       <CardHeader>
@@ -541,6 +570,7 @@ export default function RulingPage() {
             isSaving={isSaving}
             onStatusChange={handleManualStatusChange}
             canChangeStatus={canChangeStatus || false}
+            paperType={selectedPaperType}
           />
         )}
       </div>
