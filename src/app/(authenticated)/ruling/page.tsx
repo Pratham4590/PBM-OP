@@ -335,6 +335,13 @@ export default function RulingPage() {
     setIsSaving(true);
     try {
       const batch = writeBatch(firestore);
+
+      // Recalculate theoretical sheets for just the first entry to get sheet weight
+      const firstEntry = rulingEntries[0];
+      const reamWeightForCalc = (paperType.length * (firstEntry.cutoff || 0) * paperType.gsm) / 20000;
+      const theoreticalSheetsForCalc = reamWeightForCalc > 0 ? (selectedReel.weight * 500) / reamWeightForCalc : 0;
+      const weightPerSheet = theoreticalSheetsForCalc > 0 ? selectedReel.weight / theoreticalSheetsForCalc : 0;
+      const weightUsed = totalSheetsRuled * weightPerSheet;
       
       const finalRulingEntries = rulingEntries.map(entry => {
         const reamWeight = (paperType.length * (entry.cutoff || 0) * paperType.gsm) / 20000;
@@ -373,10 +380,12 @@ export default function RulingPage() {
       const reelDocRef = doc(firestore, 'reels', selectedReel.id);
       
       const isAnyEntryFinished = rulingEntries.some(e => e.status === 'Finished');
-      const newStatus: Reel['status'] = isAnyEntryFinished ? 'Finished' : 'In Use';
+      const newWeight = selectedReel.weight - weightUsed;
+      const newStatus: Reel['status'] = newWeight <= 0 ? 'Finished' : (isAnyEntryFinished ? 'Finished' : 'In Use');
       
       const reelUpdateData: Partial<Reel> = { 
         status: newStatus,
+        weight: newWeight < 0 ? 0 : newWeight,
       };
       
       batch.update(reelDocRef, reelUpdateData as any);
