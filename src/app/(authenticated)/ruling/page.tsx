@@ -51,7 +51,6 @@ import { collection, serverTimestamp, doc, writeBatch, updateDoc } from 'firebas
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 
 const initialRulingEntry: RulingEntry = {
@@ -121,35 +120,20 @@ const RulingForm = ({
 
   const calculateRulingValues = (entry: Partial<RulingEntry>) => {
     if (!selectedReel || !paperType || !entry.cutoff) {
-        return { theoreticalSheets: 0, difference: 0, theoreticalSheetsPerKg: 0 };
+      return { theoreticalSheets: 0, difference: 0 };
     }
-
-    const areaPerSheetM2 = (paperType.length * paperType.breadth) / 10000;
-    if (areaPerSheetM2 <= 0) return { theoreticalSheets: 0, difference: 0, theoreticalSheetsPerKg: 0 };
+  
+    // Ream weight for the specific cutoff of this ruling entry
+    const reamWeight = (paperType.length * entry.cutoff * paperType.gsm) / 20000;
+    if (reamWeight <= 0) return { theoreticalSheets: 0, difference: 0 };
+  
+    // Theoretical sheets for the entire reel based on its total weight and this specific cutoff
+    const theoreticalSheetsForReel = (selectedReel.weight * 500) / reamWeight;
     
-    const weightPerSheetG = areaPerSheetM2 * paperType.gsm;
-    if (weightPerSheetG <= 0) return { theoreticalSheets: 0, difference: 0, theoreticalSheetsPerKg: 0 };
-
-    const sheetsPerKg = 1000 / weightPerSheetG;
-
-    // Estimate based on cutoff
-    const reamWeightForCutoff = (paperType.length * entry.cutoff * paperType.gsm) / 20000;
-    if (reamWeightForCutoff <= 0) return { theoreticalSheets: 0, difference: 0, theoreticalSheetsPerKg: 0 };
-    
-    const theoreticalSheetsPerKg = (1 * 500) / reamWeightForCutoff;
-    
-    // Final calculation if sheetsRuled is available
-    if (!entry.sheetsRuled || !selectedReel.initialSheets || selectedReel.initialSheets === 0) {
-      return { theoreticalSheets: 0, difference: 0, theoreticalSheetsPerKg: theoreticalSheetsPerKg };
-    }
-    
-    const weightPerSheet = selectedReel.weight / selectedReel.initialSheets;
-    const rulingWeight = (entry.sheetsRuled || 0) * weightPerSheet;
-
-    const theoreticalSheets = (rulingWeight * 500) / reamWeightForCutoff;
-    const difference = (entry.sheetsRuled || 0) - theoreticalSheets;
-
-    return { theoreticalSheets, difference, theoreticalSheetsPerKg };
+    // Difference is calculated against the sheets ruled in this specific entry
+    const difference = (entry.sheetsRuled || 0) - theoreticalSheetsForReel;
+  
+    return { theoreticalSheets: theoreticalSheetsForReel, difference };
   };
 
 
@@ -279,11 +263,10 @@ const RulingForm = ({
                         </div>
                     </div>
                      <div className="p-3 bg-muted/50 rounded-md text-sm grid grid-cols-2 gap-x-4 gap-y-1">
-                        <span>Theoretical Sheets / kg:</span> <span className="text-right font-medium">{calculation.theoreticalSheetsPerKg > 0 ? calculation.theoreticalSheetsPerKg.toFixed(2) : 'N/A'}</span>
                         <span>Theoretical Sheets:</span> <span className="text-right font-medium">{calculation.theoreticalSheets > 0 ? calculation.theoreticalSheets.toFixed(0) : 'N/A'}</span>
                         <span>Difference:</span> 
                         <span className="text-right font-medium">
-                           {calculation.theoreticalSheets > 0 && (
+                           {(entry.sheetsRuled || 0) > 0 && calculation.theoreticalSheets > 0 && (
                              <Badge variant={calculation.difference >= 0 ? 'default' : 'destructive'} className={calculation.difference >= 0 ? 'bg-green-600' : ''}>
                                 {Math.round(calculation.difference || 0).toLocaleString()}
                             </Badge>
@@ -339,8 +322,6 @@ export default function RulingPage() {
     if (!reels || !selectedPaperTypeId) return [];
     return reels.filter(r => r.paperTypeId === selectedPaperTypeId && r.status !== 'Finished');
   }, [reels, selectedPaperTypeId]);
-
-  const selectedPaperType = useMemo(() => paperTypes?.find(p => p.id === selectedPaperTypeId), [paperTypes, selectedPaperTypeId]);
   
   const handlePaperTypeSelect = (paperTypeId: string) => {
     setSelectedPaperTypeId(paperTypeId);
@@ -408,11 +389,10 @@ export default function RulingPage() {
             } as RulingEntry;
         }
 
-        const weightPerSheet = selectedReel.weight / initialSheets;
-        const rulingWeight = (entry.sheetsRuled || 0) * weightPerSheet;
         const reamWeight = (paperType.length * (entry.cutoff || 0) * paperType.gsm) / 20000;
-        const theoreticalSheets = reamWeight > 0 ? (rulingWeight * 500) / reamWeight : 0;
+        const theoreticalSheets = reamWeight > 0 ? (selectedReel.weight * 500) / reamWeight : 0;
         const difference = (entry.sheetsRuled || 0) - theoreticalSheets;
+
 
         return {
           ...initialRulingEntry,
@@ -570,7 +550,7 @@ export default function RulingPage() {
             isSaving={isSaving}
             onStatusChange={handleManualStatusChange}
             canChangeStatus={canChangeStatus || false}
-            paperType={selectedPaperType}
+            paperType={paperType}
           />
         )}
       </div>
