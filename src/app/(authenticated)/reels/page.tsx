@@ -475,7 +475,7 @@ export default function ReelsPage() {
                         <CardContent className="space-y-2 flex-grow">
                              <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">Weight:</span>
-                                <span className="font-medium">{reel.weight.toFixed(2)} kg</span>
+                                <span className="font-medium">{(reel.weight || 0).toFixed(2)} kg</span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">GSM:</span>
