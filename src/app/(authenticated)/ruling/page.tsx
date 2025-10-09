@@ -119,21 +119,17 @@ const RulingForm = ({
   }, [rulingEntries]);
 
   const calculateRulingValues = (entry: Partial<RulingEntry>) => {
-    if (!selectedReel || !paperType || !entry.cutoff || !selectedReel.initialSheets) {
-      return { theoreticalSheets: 0, difference: 0 };
+    if (!selectedReel || !paperType || !entry.cutoff) {
+        return { theoreticalSheets: 0, difference: 0 };
     }
 
-    // This is the ream weight for this specific ruling entry's cutoff
     const reamWeight = (paperType.length * entry.cutoff * paperType.gsm) / 20000;
     if (reamWeight <= 0) return { theoreticalSheets: 0, difference: 0 };
 
-    // Theoretical sheets for the entire reel based on its total weight and this specific cutoff
-    const theoreticalSheetsForReel = (selectedReel.weight * 500) / reamWeight;
-    
-    // Difference is calculated against the sheets ruled in this specific entry vs the reel's potential
-    const difference = (entry.sheetsRuled || 0) - theoreticalSheetsForReel;
+    const theoreticalSheets = (selectedReel.weight * 500) / reamWeight;
+    const difference = (entry.sheetsRuled || 0) - theoreticalSheets;
   
-    return { theoreticalSheets: theoreticalSheetsForReel, difference };
+    return { theoreticalSheets, difference };
   };
 
 
@@ -201,8 +197,6 @@ const RulingForm = ({
         </div>
          <div className="p-4 bg-muted/50 rounded-lg mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <div className="flex justify-between"><span>Status:</span> <Badge variant={statusVariant(selectedReel.status)} className={statusColor(selectedReel.status)}>{selectedReel.status}</Badge></div>
-            <div className="flex justify-between"><span>Start Sheets:</span> <span className="font-bold">{selectedReel.initialSheets?.toLocaleString() || 'N/A'}</span></div>
-            <div className="flex justify-between col-span-2 sm:col-span-1"><span>Available Sheets:</span> <span className="font-bold">{remainingSheets.toLocaleString()}</span></div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -373,7 +367,7 @@ export default function RulingPage() {
     const initialSheets = selectedReel.initialSheets;
     const availableSheets = selectedReel.availableSheets ?? initialSheets;
     
-    if (totalSheetsRuled > availableSheets) {
+    if (totalSheetsRuled > availableSheets && availableSheets > 0) {
         toast({ variant: 'destructive', title: 'Insufficient Stock', description: `Cannot rule ${totalSheetsRuled.toLocaleString()} sheets. Only ${availableSheets.toLocaleString()} are available.`});
         return;
     }
