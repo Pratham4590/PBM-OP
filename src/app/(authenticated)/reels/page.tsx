@@ -22,6 +22,14 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -50,8 +58,9 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Image from 'next/image';
 import { extractReelsFromImage } from '@/ai/flows/extract-reels-flow';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useIsMobile } from '@/hooks/use-mobile';
 
-const BulkAddReelsModal = ({
+const BulkAddReelsContent = ({
   paperTypes,
   onSave,
   onClose,
@@ -191,132 +200,124 @@ const BulkAddReelsModal = ({
     onClose();
   }
 
+  const step1 = (
+    <>
+        <div className="p-4 sm:p-6 pb-6 space-y-4">
+            <div className="space-y-2">
+                <Label htmlFor="paper-type">Paper Type</Label>
+                <Select value={selectedPaperTypeId} onValueChange={setSelectedPaperTypeId}>
+                    <SelectTrigger id="paper-type" className="h-11"><SelectValue placeholder="Select paper" /></SelectTrigger>
+                    <SelectContent>
+                        {paperTypes?.map(p => <SelectItem key={p.id} value={p.id}>{p.paperName} ({p.gsm}gsm, {p.length}cm)</SelectItem>)}
+                    </SelectContent>
+                </Select>
+            </div>
+            {selectedPaper && (
+                <div className="p-3 bg-muted/50 rounded-md text-sm grid grid-cols-2 gap-x-4 gap-y-1">
+                    <span>GSM:</span> <span className="text-right font-medium">{selectedPaper.gsm}</span>
+                    <span>Size:</span> <span className="text-right font-medium">{selectedPaper.length}cm x {selectedPaper.breadth}cm</span>
+                </div>
+            )}
+        </div>
+        <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full flex-row sm:justify-end gap-2">
+            <Button variant="outline" onClick={reset} className="w-full sm:w-auto h-11">Cancel</Button>
+            <Button onClick={() => setStep(2)} disabled={!selectedPaperTypeId} className="w-full sm:w-auto h-11">Next <ArrowRight className="ml-2 h-4 w-4" /></Button>
+        </DialogFooter>
+    </>
+  );
+
+  const step2 = (
+     <>
+        <div className="p-4 sm:p-6 pb-6 flex flex-col items-center justify-center gap-4">
+             <div className="w-full aspect-video rounded-md bg-muted relative overflow-hidden">
+                {isCameraView ? (
+                     <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                ) : image ? (
+                    <Image src={image} alt="Reel list preview" layout="fill" className="object-contain" />
+                ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                        <Camera className="h-12 w-12 mb-2"/>
+                        <p>Image preview will appear here</p>
+                    </div>
+                )}
+                {image && <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 z-10" onClick={() => setImage(null)}><X className="h-4 w-4"/></Button>}
+             </div>
+             {hasCameraPermission === false && isCameraView && (
+                <Alert variant="destructive">
+                    <AlertTitle>Camera Access Denied</AlertTitle>
+                    <AlertDescription>Please allow camera access to use this feature.</AlertDescription>
+                </Alert>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+                <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*" className="hidden"/>
+                <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="h-11">
+                    <Upload className="mr-2 h-4 w-4" /> Upload from Gallery
+                </Button>
+                <Button variant="outline" onClick={() => setIsCameraView(!isCameraView)} className="h-11">
+                    <Camera className="mr-2 h-4 w-4" /> {isCameraView ? 'Close Camera' : 'Open Camera'}
+                </Button>
+            </div>
+             {isCameraView && <Button onClick={handleCaptureFromVideo} className="w-full h-11" disabled={hasCameraPermission === false}>Capture Photo</Button>}
+        </div>
+        <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full flex-row sm:justify-between gap-2">
+            <Button variant="outline" onClick={() => setStep(1)} className="w-full sm:w-auto h-11"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+            <Button onClick={handleProcessImage} disabled={!image || isProcessing} className="w-full sm:w-auto h-11">
+                {isProcessing ? 'Extracting Data...' : 'Extract & Preview'}
+            </Button>
+        </DialogFooter>
+     </>
+  );
+
+  const step3 = (
+    <>
+        <div className="p-4 sm:p-6 pb-6">
+            <div className="p-3 bg-muted/50 rounded-md text-sm mb-4">
+                <strong>Paper:</strong> {selectedPaper?.paperName} ({selectedPaper?.gsm}gsm, {selectedPaper?.length}cm x {selectedPaper?.breadth}cm)
+            </div>
+            <div className="overflow-auto max-h-96">
+                <Table>
+                    <TableHeader className="sticky top-0 bg-background">
+                        <TableRow>
+                            <TableHead className="w-16">Sr No</TableHead>
+                            <TableHead>Reel No</TableHead>
+                            <TableHead>Weight (kg)</TableHead>
+                            <TableHead className="w-12"></TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {extractedReels.map((reel, index) => (
+                            <TableRow key={index}>
+                                <TableCell>{index + 1}</TableCell>
+                                <TableCell>
+                                    <Input value={reel.reelNumber} onChange={(e) => handleReelDataChange(index, 'reelNumber', e.target.value)} className="h-9"/>
+                                </TableCell>
+                                <TableCell>
+                                    <Input type="number" value={reel.reelWeight} onChange={(e) => handleReelDataChange(index, 'reelWeight', e.target.value)} className="h-9" />
+                                </TableCell>
+                                <TableCell>
+                                    <Button variant="ghost" size="icon" onClick={() => deleteReelRow(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
+        <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full flex-row sm:justify-between gap-2">
+             <Button variant="outline" onClick={() => setStep(2)} className="w-full sm:w-auto h-11"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+             <Button onClick={handleSave} disabled={isSaving || extractedReels.length === 0} className="w-full sm:w-auto h-11">
+                {isSaving ? 'Saving...' : `Save ${extractedReels.length} Reels`}
+             </Button>
+        </DialogFooter>
+    </>
+  );
+
   return (
     <>
-    <canvas ref={canvasRef} className="hidden"></canvas>
-    <DialogContent className="max-w-4xl p-0" onPointerDownOutside={(e) => e.preventDefault()}>
-        {step === 1 && (
-            <>
-                <DialogHeader className="p-6">
-                    <DialogTitle>Step 1: Select Paper Details</DialogTitle>
-                    <DialogDescription>These details will be applied to all reels extracted from the image.</DialogDescription>
-                </DialogHeader>
-                <div className="px-6 pb-6 space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="paper-type">Paper Type</Label>
-                        <Select value={selectedPaperTypeId} onValueChange={setSelectedPaperTypeId}>
-                            <SelectTrigger id="paper-type" className="h-11"><SelectValue placeholder="Select paper" /></SelectTrigger>
-                            <SelectContent>
-                                {paperTypes?.map(p => <SelectItem key={p.id} value={p.id}>{p.paperName} ({p.gsm}gsm, {p.length}cm)</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    {selectedPaper && (
-                        <div className="p-3 bg-muted/50 rounded-md text-sm grid grid-cols-2 gap-x-4 gap-y-1">
-                            <span>GSM:</span> <span className="text-right font-medium">{selectedPaper.gsm}</span>
-                            <span>Size:</span> <span className="text-right font-medium">{selectedPaper.length}cm x {selectedPaper.breadth}cm</span>
-                        </div>
-                    )}
-                </div>
-                <DialogFooter className="p-4 border-t">
-                    <Button variant="outline" onClick={reset}>Cancel</Button>
-                    <Button onClick={() => setStep(2)} disabled={!selectedPaperTypeId}>Next <ArrowRight className="ml-2 h-4 w-4" /></Button>
-                </DialogFooter>
-            </>
-        )}
-        {step === 2 && (
-             <>
-                <DialogHeader className="p-6">
-                    <DialogTitle>Step 2: Scan or Upload Reel List</DialogTitle>
-                     <DialogDescription>Take a clear photo of the reel list or upload an existing image.</DialogDescription>
-                </DialogHeader>
-                <div className="px-6 pb-6 flex flex-col items-center justify-center gap-4">
-                     <div className="w-full aspect-video rounded-md bg-muted relative overflow-hidden">
-                        {isCameraView ? (
-                             <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                        ) : image ? (
-                            <Image src={image} alt="Reel list preview" layout="fill" className="object-contain" />
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                                <Camera className="h-12 w-12 mb-2"/>
-                                <p>Image preview will appear here</p>
-                            </div>
-                        )}
-                        {image && <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 z-10" onClick={() => setImage(null)}><X className="h-4 w-4"/></Button>}
-                     </div>
-                     {hasCameraPermission === false && isCameraView && (
-                        <Alert variant="destructive">
-                            <AlertTitle>Camera Access Denied</AlertTitle>
-                            <AlertDescription>Please allow camera access to use this feature.</AlertDescription>
-                        </Alert>
-                    )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
-                        <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*" className="hidden"/>
-                        <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="h-11">
-                            <Upload className="mr-2 h-4 w-4" /> Upload from Gallery
-                        </Button>
-                        <Button variant="outline" onClick={() => setIsCameraView(!isCameraView)} className="h-11">
-                            <Camera className="mr-2 h-4 w-4" /> {isCameraView ? 'Close Camera' : 'Open Camera'}
-                        </Button>
-                    </div>
-                     {isCameraView && <Button onClick={handleCaptureFromVideo} className="w-full h-11" disabled={hasCameraPermission === false}>Capture Photo</Button>}
-                </div>
-                <DialogFooter className="p-4 border-t">
-                    <Button variant="outline" onClick={() => setStep(1)}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-                    <Button onClick={handleProcessImage} disabled={!image || isProcessing}>
-                        {isProcessing ? 'Extracting Data...' : 'Extract & Preview'}
-                    </Button>
-                </DialogFooter>
-             </>
-        )}
-        {step === 3 && (
-            <>
-                <DialogHeader className="p-6">
-                    <DialogTitle>Step 3: Preview & Confirm</DialogTitle>
-                    <DialogDescription>Review the extracted reel data. Edit any incorrect values before saving.</DialogDescription>
-                </DialogHeader>
-                <div className="px-6 pb-6">
-                    <div className="p-3 bg-muted/50 rounded-md text-sm mb-4">
-                        <strong>Paper:</strong> {selectedPaper?.paperName} ({selectedPaper?.gsm}gsm, {selectedPaper?.length}cm x {selectedPaper?.breadth}cm)
-                    </div>
-                    <div className="overflow-auto max-h-96">
-                        <Table>
-                            <TableHeader className="sticky top-0 bg-background">
-                                <TableRow>
-                                    <TableHead className="w-16">Sr No</TableHead>
-                                    <TableHead>Reel No</TableHead>
-                                    <TableHead>Weight (kg)</TableHead>
-                                    <TableHead className="w-12"></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {extractedReels.map((reel, index) => (
-                                    <TableRow key={index}>
-                                        <TableCell>{index + 1}</TableCell>
-                                        <TableCell>
-                                            <Input value={reel.reelNumber} onChange={(e) => handleReelDataChange(index, 'reelNumber', e.target.value)} className="h-9"/>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Input type="number" value={reel.reelWeight} onChange={(e) => handleReelDataChange(index, 'reelWeight', e.target.value)} className="h-9" />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Button variant="ghost" size="icon" onClick={() => deleteReelRow(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </div>
-                <DialogFooter className="p-4 border-t">
-                     <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-                     <Button onClick={handleSave} disabled={isSaving || extractedReels.length === 0}>
-                        {isSaving ? 'Saving...' : `Save ${extractedReels.length} Reels`}
-                     </Button>
-                </DialogFooter>
-            </>
-        )}
-    </DialogContent>
+      <canvas ref={canvasRef} className="hidden"></canvas>
+      {step === 1 && step1}
+      {step === 2 && step2}
+      {step === 3 && step3}
     </>
   )
 }
@@ -325,11 +326,11 @@ export default function ReelsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [editingReel, setEditingReel] = useState<Reel | null>(null);
   
   const [searchFilter, setSearchFilter] = useState('');
 
@@ -414,6 +415,20 @@ export default function ReelsPage() {
   };
 
   const isLoading = loadingReels || loadingPaperTypes;
+
+  const renderTrigger = () => (
+    <Button className="fixed bottom-6 right-6 h-14 rounded-full shadow-lg z-20 flex items-center gap-2" size="lg">
+        <Camera className="h-5 w-5" />
+        <span className="hidden sm:inline">Add Reels via Camera</span>
+    </Button>
+  );
+
+  const bulkAddProps = {
+    paperTypes,
+    onSave: handleBulkSaveReels,
+    onClose: () => setIsBulkModalOpen(false),
+    isSaving: isSaving,
+  };
   
   return (
     <div className="flex flex-col h-[calc(100vh-5rem)] sm:h-screen">
@@ -472,9 +487,6 @@ export default function ReelsPage() {
                             <Badge variant={statusVariant(reel.status)} className={statusColor(reel.status)}>{reel.status}</Badge>
                             {canEdit && (
                                 <div className="flex items-center gap-1">
-                                    {/* <Button variant="ghost" size="icon" onClick={() => openSheet(reel)}>
-                                        <Edit className="h-4 w-4"/>
-                                    </Button> */}
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
                                             <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
@@ -506,22 +518,26 @@ export default function ReelsPage() {
       </main>
 
        {canEdit && (
-        <Dialog open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
+        isMobile ? (
+          <Sheet open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
+            <SheetTrigger asChild>
+                {renderTrigger()}
+            </SheetTrigger>
+            <SheetContent side="bottom" className="p-0 flex flex-col h-auto max-h-[90svh]">
+              <BulkAddReelsContent {...bulkAddProps} />
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Dialog open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
             <DialogTrigger asChild>
-                <Button className="fixed bottom-6 right-6 h-14 rounded-full shadow-lg z-20 flex items-center gap-2" size="lg">
-                    <Camera className="h-5 w-5" />
-                    <span className="hidden sm:inline">Add Reels via Camera</span>
-                </Button>
+                {renderTrigger()}
             </DialogTrigger>
-            <BulkAddReelsModal
-                paperTypes={paperTypes}
-                onSave={handleBulkSaveReels}
-                onClose={() => setIsBulkModalOpen(false)}
-                isSaving={isSaving}
-            />
-        </Dialog>
+            <DialogContent className="max-w-4xl p-0" onPointerDownOutside={(e) => e.preventDefault()}>
+                <BulkAddReelsContent {...bulkAddProps} />
+            </DialogContent>
+          </Dialog>
+        )
       )}
     </div>
   );
 }
-    
