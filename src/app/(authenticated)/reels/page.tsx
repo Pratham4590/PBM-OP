@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Plus, Edit, Trash2, Camera, X, Upload } from 'lucide-react';
+import { Plus, Edit, Trash2, Camera, X, Upload, ArrowRight, ArrowLeft } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,15 +13,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTrigger,
-  SheetTitle,
-  SheetFooter,
-  SheetClose,
-} from '@/components/ui/sheet';
 import {
   Dialog,
   DialogContent,
@@ -41,7 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Reel, PaperType, User as AppUser } from '@/lib/types';
+import { Reel, PaperType, User as AppUser, ExtractedReel } from '@/lib/types';
 import {
   Card,
   CardContent,
@@ -51,58 +42,43 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Image from 'next/image';
+import { extractReelsFromImage } from '@/ai/flows/extract-reels-flow';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-
-const ReelForm = ({
+const BulkAddReelsModal = ({
   paperTypes,
   onSave,
   onClose,
   isSaving,
-  editingReel
 }: {
   paperTypes: PaperType[] | null,
-  onSave: (reel: Partial<Reel>) => void,
+  onSave: (reelsToSave: Partial<Reel>[]) => void,
   onClose: () => void,
   isSaving: boolean,
-  editingReel: Partial<Reel> | null
 }) => {
-  const [reelData, setReelData] = useState<Partial<Reel>>({});
-  const { toast } = useToast();
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [step, setStep] = useState(1);
+  const [selectedPaperTypeId, setSelectedPaperTypeId] = useState<string>('');
+  const [image, setImage] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [extractedReels, setExtractedReels] = useState<ExtractedReel[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  useEffect(() => {
-    if (editingReel) {
-      setReelData(editingReel);
-    } else {
-      setReelData({ weight: undefined, reelNo: '', paperTypeId: '', status: 'Available' });
-    }
-  }, [editingReel]);
+  const [isCameraView, setIsCameraView] = useState(false);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean|null>(null);
+  const { toast } = useToast();
 
-  const selectedPaper = useMemo(() => paperTypes?.find(p => p.id === reelData.paperTypeId), [reelData.paperTypeId, paperTypes]);
-  
-  useEffect(() => {
-    if (selectedPaper) {
-      setReelData(prev => ({ ...prev, gsm: selectedPaper.gsm, length: selectedPaper.length }));
-    }
-  }, [selectedPaper]);
-
+  const selectedPaper = useMemo(() => paperTypes?.find(p => p.id === selectedPaperTypeId), [selectedPaperTypeId, paperTypes]);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
-    if (isCameraOpen) {
-        setImagePreview(null);
+    if (isCameraView) {
         const getCameraPermission = async () => {
           try {
             stream = await navigator.mediaDevices.getUserMedia({video: true});
@@ -132,165 +108,215 @@ const ReelForm = ({
         videoRef.current.srcObject = null;
       }
     }
-  }, [isCameraOpen, toast]);
+  }, [isCameraView, toast]);
   
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-        if (videoRef.current?.srcObject) {
-            (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-        }
-        if (videoRef.current) {
-            videoRef.current.srcObject = null;
-        }
-        setHasCameraPermission(true); // Allow capture from gallery
+        setImage(reader.result as string);
+        setIsCameraView(false);
       };
       reader.readAsDataURL(file);
     }
   };
-
-  const handleCapture = () => {
-    if (imagePreview) {
-        // We already have an image from the gallery
-        console.log("Analyze from gallery:", imagePreview.substring(0, 50) + "...");
-        // TODO: Call AI flow with imagePreview
-        toast({ title: "Image Ready", description: "Ready to be analyzed."});
-        setReelData(prev => ({...prev, imageUrl: imagePreview}));
-        setIsCameraOpen(false);
-        return;
-    }
-    
-    if (videoRef.current && canvasRef.current && hasCameraPermission) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const context = canvas.getContext('2d');
-      if (context) {
-        context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-        const dataUri = canvas.toDataURL('image/jpeg');
-        setImagePreview(dataUri);
-        // Stop camera tracks after capture
-        if (video.srcObject) {
-          (video.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+  
+  const handleCaptureFromVideo = () => {
+    if (videoRef.current && canvasRef.current) {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext('2d');
+        if (context) {
+            context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+            const dataUri = canvas.toDataURL('image/jpeg');
+            setImage(dataUri);
+            setIsCameraView(false);
         }
-        video.srcObject = null;
-        
-        console.log("Analyze from camera:", dataUri.substring(0, 50) + "...");
-        // TODO: Call AI flow
-        toast({ title: "Image Captured", description: "Ready to be analyzed."});
-        setReelData(prev => ({...prev, imageUrl: dataUri}));
-        setIsCameraOpen(false);
-      }
-    } else {
-        toast({ variant: 'destructive', title: 'Capture Failed', description: 'No video feed available or permissions denied.'});
     }
   }
+  
+  const handleProcessImage = async () => {
+      if (!image) {
+          toast({ variant: 'destructive', title: 'No image selected' });
+          return;
+      }
+      setIsProcessing(true);
+      try {
+          const result = await extractReelsFromImage({ photoDataUri: image });
+          setExtractedReels(result.reels);
+          setStep(3);
+      } catch (error) {
+          console.error(error);
+          toast({ variant: 'destructive', title: 'Extraction Failed', description: 'Could not extract reel data from the image.'});
+      } finally {
+          setIsProcessing(false);
+      }
+  }
+  
+  const handleReelDataChange = (index: number, field: keyof ExtractedReel, value: string | number) => {
+    const updatedReels = [...extractedReels];
+    (updatedReels[index] as any)[field] = value;
+    setExtractedReels(updatedReels);
+  };
 
+  const deleteReelRow = (index: number) => {
+    setExtractedReels(extractedReels.filter((_, i) => i !== index));
+  }
 
   const handleSave = () => {
-    if (!reelData.paperTypeId || !reelData.reelNo || reelData.weight === undefined || reelData.weight <= 0) {
-      toast({ variant: "destructive", title: "Error", description: "Paper Type, Reel No. and a valid Weight are required."});
-      return;
-    }
-    const dataToSave: Partial<Reel> = {
-      ...reelData,
-      gsm: selectedPaper!.gsm,
-      length: selectedPaper!.length,
-      status: reelData.weight > 0 ? (reelData.status === 'Finished' ? 'Available' : reelData.status) : 'Finished',
-    };
-    onSave(dataToSave);
-  };
-  
+    if (!selectedPaper) return;
+
+    const reelsToSave: Partial<Reel>[] = extractedReels.map(er => ({
+      paperTypeId: selectedPaper.id,
+      gsm: selectedPaper.gsm,
+      length: selectedPaper.length,
+      reelNo: er.reelNumber,
+      weight: Number(er.reelWeight),
+      status: 'Available'
+    }));
+
+    onSave(reelsToSave);
+  }
+
+  const reset = () => {
+    setStep(1);
+    setSelectedPaperTypeId('');
+    setImage(null);
+    setExtractedReels([]);
+    setIsCameraView(false);
+    setIsProcessing(false);
+    onClose();
+  }
+
   return (
     <>
-      <canvas ref={canvasRef} className="hidden"></canvas>
-      <div className="p-4 space-y-4 overflow-y-auto">
-        {reelData.imageUrl && (
-            <div className="relative w-full aspect-video rounded-lg overflow-hidden">
-                <Image src={reelData.imageUrl} alt="Reel image" layout="fill" className="object-contain"/>
-                <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 z-10" onClick={() => setReelData(prev => ({...prev, imageUrl: undefined}))}>
-                    <X className="h-4 w-4"/>
-                </Button>
-            </div>
-        )}
-        <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
-            <DialogTrigger asChild>
-                <Button variant="outline" className="w-full h-11">
-                    <Camera className="mr-2 h-4 w-4" /> Scan Reel with AI
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Scan Reel</DialogTitle>
-                    <DialogDescription>Point the camera at the reel's label or upload an image.</DialogDescription>
+    <canvas ref={canvasRef} className="hidden"></canvas>
+    <DialogContent className="max-w-4xl p-0" onPointerDownOutside={(e) => e.preventDefault()}>
+        {step === 1 && (
+            <>
+                <DialogHeader className="p-6">
+                    <DialogTitle>Step 1: Select Paper Details</DialogTitle>
+                    <DialogDescription>These details will be applied to all reels extracted from the image.</DialogDescription>
                 </DialogHeader>
-                <div className="flex flex-col items-center justify-center p-4">
-                   <div className="w-full aspect-video rounded-md bg-muted relative">
-                        <video ref={videoRef} className={`w-full h-full object-cover rounded-md ${imagePreview ? 'hidden' : ''}`} autoPlay muted playsInline />
-                        {imagePreview && !videoRef.current?.srcObject && <Image src={imagePreview} alt="Reel preview" layout="fill" className="object-contain rounded-md" />}
-                   </div>
-                   {hasCameraPermission === false && !imagePreview && (
-                        <Alert variant="destructive" className="mt-4">
-                            <AlertTitle>Camera Access Denied</AlertTitle>
-                            <AlertDescription>
-                                Please allow camera access in your browser to use this feature.
-                            </AlertDescription>
-                        </Alert>
-                   )}
+                <div className="px-6 pb-6 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="paper-type">Paper Type</Label>
+                        <Select value={selectedPaperTypeId} onValueChange={setSelectedPaperTypeId}>
+                            <SelectTrigger id="paper-type" className="h-11"><SelectValue placeholder="Select paper" /></SelectTrigger>
+                            <SelectContent>
+                                {paperTypes?.map(p => <SelectItem key={p.id} value={p.id}>{p.paperName} ({p.gsm}gsm, {p.length}cm)</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {selectedPaper && (
+                        <div className="p-3 bg-muted/50 rounded-md text-sm grid grid-cols-2 gap-x-4 gap-y-1">
+                            <span>GSM:</span> <span className="text-right font-medium">{selectedPaper.gsm}</span>
+                            <span>Size:</span> <span className="text-right font-medium">{selectedPaper.length}cm x {selectedPaper.breadth}cm</span>
+                        </div>
+                    )}
                 </div>
-                 <DialogFooter className="grid grid-cols-2 gap-2 sm:flex">
-                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*" className="hidden"/>
-                    <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full">
-                       <Upload className="mr-2 h-4 w-4" /> Gallery
-                    </Button>
-                    <Button className="w-full" onClick={handleCapture} disabled={hasCameraPermission === false && !imagePreview}>Capture & Analyze</Button>
-                 </DialogFooter>
-            </DialogContent>
-        </Dialog>
-
-        <div className="space-y-2">
-          <Label htmlFor="paper-type">Paper Type</Label>
-          <Select
-            value={reelData.paperTypeId}
-            onValueChange={(value) => setReelData(prev => ({...prev, paperTypeId: value}))}
-          >
-            <SelectTrigger id="paper-type" className="h-11"><SelectValue placeholder="Select paper" /></SelectTrigger>
-            <SelectContent>
-              {paperTypes?.map(p => <SelectItem key={p.id} value={p.id}>{p.paperName} ({p.gsm}gsm, {p.length}cm)</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-         {selectedPaper && (
-          <div className="p-3 bg-muted/50 rounded-md text-sm grid grid-cols-2 gap-x-4 gap-y-1">
-                <span>GSM:</span> <span className="text-right font-medium">{selectedPaper.gsm}</span>
-                <span>Length:</span> <span className="text-right font-medium">{selectedPaper.length} cm</span>
-          </div>
+                <DialogFooter className="p-4 border-t">
+                    <Button variant="outline" onClick={reset}>Cancel</Button>
+                    <Button onClick={() => setStep(2)} disabled={!selectedPaperTypeId}>Next <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                </DialogFooter>
+            </>
         )}
-        <div className="space-y-2">
-            <Label htmlFor="reel-no">Reel Number</Label>
-            <Input id="reel-no" value={reelData.reelNo || ''} onChange={(e) => setReelData(prev => ({...prev, reelNo: e.target.value}))} placeholder="e.g., R-101" className="h-11" />
-        </div>
-        
-        <div className="space-y-2">
-          <Label htmlFor="weight">Weight (kg)</Label>
-          <Input id="weight" type="number" inputMode="decimal" value={reelData.weight || ''} onChange={(e) => setReelData(prev => ({...prev, weight: parseFloat(e.target.value) || 0}))} className="h-11"/>
-        </div>
-        
-         <div className="space-y-2">
-            <Label htmlFor="notes">Remarks (optional)</Label>
-            <Textarea id="notes" placeholder="Any notes about this reel..." value={reelData.notes || ''} onChange={(e) => setReelData(prev => ({...prev, notes: e.target.value}))} />
-        </div>
-      </div>
-       <SheetFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full flex-row gap-2">
-        <SheetClose asChild>
-            <Button variant="outline" className="w-full h-11">Cancel</Button>
-        </SheetClose>
-        <Button onClick={handleSave} disabled={isSaving} className="w-full h-11">{isSaving ? "Saving..." : (editingReel ? "Save Changes" : "Add Reel")}</Button>
-      </SheetFooter>
+        {step === 2 && (
+             <>
+                <DialogHeader className="p-6">
+                    <DialogTitle>Step 2: Scan or Upload Reel List</DialogTitle>
+                     <DialogDescription>Take a clear photo of the reel list or upload an existing image.</DialogDescription>
+                </DialogHeader>
+                <div className="px-6 pb-6 flex flex-col items-center justify-center gap-4">
+                     <div className="w-full aspect-video rounded-md bg-muted relative overflow-hidden">
+                        {isCameraView ? (
+                             <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                        ) : image ? (
+                            <Image src={image} alt="Reel list preview" layout="fill" className="object-contain" />
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                                <Camera className="h-12 w-12 mb-2"/>
+                                <p>Image preview will appear here</p>
+                            </div>
+                        )}
+                        {image && <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 z-10" onClick={() => setImage(null)}><X className="h-4 w-4"/></Button>}
+                     </div>
+                     {hasCameraPermission === false && isCameraView && (
+                        <Alert variant="destructive">
+                            <AlertTitle>Camera Access Denied</AlertTitle>
+                            <AlertDescription>Please allow camera access to use this feature.</AlertDescription>
+                        </Alert>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+                        <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*" className="hidden"/>
+                        <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="h-11">
+                            <Upload className="mr-2 h-4 w-4" /> Upload from Gallery
+                        </Button>
+                        <Button variant="outline" onClick={() => setIsCameraView(!isCameraView)} className="h-11">
+                            <Camera className="mr-2 h-4 w-4" /> {isCameraView ? 'Close Camera' : 'Open Camera'}
+                        </Button>
+                    </div>
+                     {isCameraView && <Button onClick={handleCaptureFromVideo} className="w-full h-11" disabled={hasCameraPermission === false}>Capture Photo</Button>}
+                </div>
+                <DialogFooter className="p-4 border-t">
+                    <Button variant="outline" onClick={() => setStep(1)}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+                    <Button onClick={handleProcessImage} disabled={!image || isProcessing}>
+                        {isProcessing ? 'Extracting Data...' : 'Extract & Preview'}
+                    </Button>
+                </DialogFooter>
+             </>
+        )}
+        {step === 3 && (
+            <>
+                <DialogHeader className="p-6">
+                    <DialogTitle>Step 3: Preview & Confirm</DialogTitle>
+                    <DialogDescription>Review the extracted reel data. Edit any incorrect values before saving.</DialogDescription>
+                </DialogHeader>
+                <div className="px-6 pb-6">
+                    <div className="p-3 bg-muted/50 rounded-md text-sm mb-4">
+                        <strong>Paper:</strong> {selectedPaper?.paperName} ({selectedPaper?.gsm}gsm, {selectedPaper?.length}cm x {selectedPaper?.breadth}cm)
+                    </div>
+                    <div className="overflow-auto max-h-96">
+                        <Table>
+                            <TableHeader className="sticky top-0 bg-background">
+                                <TableRow>
+                                    <TableHead className="w-16">Sr No</TableHead>
+                                    <TableHead>Reel No</TableHead>
+                                    <TableHead>Weight (kg)</TableHead>
+                                    <TableHead className="w-12"></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {extractedReels.map((reel, index) => (
+                                    <TableRow key={index}>
+                                        <TableCell>{index + 1}</TableCell>
+                                        <TableCell>
+                                            <Input value={reel.reelNumber} onChange={(e) => handleReelDataChange(index, 'reelNumber', e.target.value)} className="h-9"/>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input type="number" value={reel.reelWeight} onChange={(e) => handleReelDataChange(index, 'reelWeight', e.target.value)} className="h-9" />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Button variant="ghost" size="icon" onClick={() => deleteReelRow(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </div>
+                <DialogFooter className="p-4 border-t">
+                     <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+                     <Button onClick={handleSave} disabled={isSaving || extractedReels.length === 0}>
+                        {isSaving ? 'Saving...' : `Save ${extractedReels.length} Reels`}
+                     </Button>
+                </DialogFooter>
+            </>
+        )}
+    </DialogContent>
     </>
   )
 }
@@ -301,6 +327,7 @@ export default function ReelsPage() {
   const { toast } = useToast();
   
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingReel, setEditingReel] = useState<Reel | null>(null);
   
@@ -317,37 +344,30 @@ export default function ReelsPage() {
   
   const canEdit = useMemo(() => currentUser?.role === 'Admin' || currentUser?.role === 'Member', [currentUser]);
 
-  const openSheet = (reel?: Reel) => {
-    setEditingReel(reel || null);
-    setIsSheetOpen(true);
-  }
-
-  const closeSheet = useCallback(() => {
-    setIsSheetOpen(false);
-    setEditingReel(null);
-  }, []);
-
-  const handleSaveReel = (reelData: Partial<Reel>) => {
+  const handleBulkSaveReels = async (reelsToSave: Partial<Reel>[]) => {
     if (!firestore || !user || !canEdit) return;
     setIsSaving(true);
     
-    if (editingReel && editingReel.id) {
-       const docRef = doc(firestore, 'reels', editingReel.id);
-       updateDocumentNonBlocking(docRef, reelData);
-       toast({ title: 'Reel Updated' });
-    } else {
-        const dataWithMeta = {
-         ...reelData,
-         createdBy: user.uid,
-         createdAt: serverTimestamp()
-       }
-       const collectionRef = collection(firestore, 'reels');
-       addDocumentNonBlocking(collectionRef, dataWithMeta);
-       toast({ title: 'Reel Added' });
+    try {
+        const batch = writeBatch(firestore);
+        reelsToSave.forEach(reelData => {
+            const docRef = doc(collection(firestore, 'reels'));
+            const dataWithMeta = {
+                ...reelData,
+                createdBy: user.uid,
+                createdAt: serverTimestamp()
+            };
+            batch.set(docRef, dataWithMeta);
+        });
+        await batch.commit();
+        toast({ title: `${reelsToSave.length} Reels Added Successfully` });
+        setIsBulkModalOpen(false);
+    } catch(e: any) {
+        console.error(e);
+        toast({ variant: 'destructive', title: 'Save Failed', description: e.message });
+    } finally {
+        setIsSaving(false);
     }
-    
-    setIsSaving(false);
-    closeSheet();
   };
 
   const handleDeleteReel = (id: string) => {
@@ -452,9 +472,9 @@ export default function ReelsPage() {
                             <Badge variant={statusVariant(reel.status)} className={statusColor(reel.status)}>{reel.status}</Badge>
                             {canEdit && (
                                 <div className="flex items-center gap-1">
-                                    <Button variant="ghost" size="icon" onClick={() => openSheet(reel)}>
+                                    {/* <Button variant="ghost" size="icon" onClick={() => openSheet(reel)}>
                                         <Edit className="h-4 w-4"/>
-                                    </Button>
+                                    </Button> */}
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
                                             <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
@@ -486,26 +506,20 @@ export default function ReelsPage() {
       </main>
 
        {canEdit && (
-        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-          <SheetTrigger asChild>
-             <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-20" size="icon" onClick={() => openSheet()}>
-                <Plus className="h-6 w-6" />
-                <span className="sr-only">Add New Reel</span>
-             </Button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="p-0 flex flex-col h-auto max-h-[90svh]">
-            <SheetHeader className="p-4 border-b">
-              <SheetTitle>{editingReel ? 'Edit' : 'Add New'} Reel</SheetTitle>
-            </SheetHeader>
-            <ReelForm 
+        <Dialog open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
+            <DialogTrigger asChild>
+                <Button className="fixed bottom-6 right-6 h-14 rounded-full shadow-lg z-20 flex items-center gap-2" size="lg">
+                    <Camera className="h-5 w-5" />
+                    <span className="hidden sm:inline">Add Reels via Camera</span>
+                </Button>
+            </DialogTrigger>
+            <BulkAddReelsModal
                 paperTypes={paperTypes}
-                onSave={handleSaveReel}
-                onClose={closeSheet}
+                onSave={handleBulkSaveReels}
+                onClose={() => setIsBulkModalOpen(false)}
                 isSaving={isSaving}
-                editingReel={editingReel}
             />
-          </SheetContent>
-        </Sheet>
+        </Dialog>
       )}
     </div>
   );

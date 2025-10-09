@@ -45,8 +45,6 @@ export type Reel = {
   status: 'Available' | 'In Use' | 'Finished' | 'Hold';
   createdAt: Timestamp;
   createdBy: string;
-  initialSheets: number;
-  availableSheets: number;
   notes?: string;
   imageUrl?: string;
 };
@@ -108,5 +106,10 @@ export type StatusLog = {
   newStatus: Reel['status'];
   changedBy: string; // UID of the admin
   timestamp: Timestamp;
+};
+
+export type ExtractedReel = {
+  reelNumber: string;
+  reelWeight: number;
 };
     
