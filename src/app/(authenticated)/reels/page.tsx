@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Plus, Edit, Trash2, Camera, X, Upload, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Camera, X, Upload, ArrowRight, ArrowLeft } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,25 +11,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetTrigger,
-} from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -49,7 +39,7 @@ import {
   CardTitle,
   CardFooter,
 } from '@/components/ui/card';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, doc, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -58,7 +48,6 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Image from 'next/image';
 import { extractReelsFromImage } from '@/ai/flows/extract-reels-flow';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 const BulkAddReelsContent = ({
   paperTypes,
@@ -190,7 +179,7 @@ const BulkAddReelsContent = ({
     onSave(reelsToSave);
   }
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setStep(1);
     setSelectedPaperTypeId('');
     setImage(null);
@@ -198,11 +187,14 @@ const BulkAddReelsContent = ({
     setIsCameraView(false);
     setIsProcessing(false);
     onClose();
-  }
+  }, [onClose]);
 
   const step1 = (
     <>
-        <div className="p-4 sm:p-6 pb-6 space-y-4">
+        <DialogHeader>
+            <DialogTitle>Step 1: Select Paper Details</DialogTitle>
+        </DialogHeader>
+        <div className="py-4 space-y-4">
             <div className="space-y-2">
                 <Label htmlFor="paper-type">Paper Type</Label>
                 <Select value={selectedPaperTypeId} onValueChange={setSelectedPaperTypeId}>
@@ -219,16 +211,19 @@ const BulkAddReelsContent = ({
                 </div>
             )}
         </div>
-        <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full flex-row sm:justify-end gap-2">
-            <Button variant="outline" onClick={reset} className="w-full sm:w-auto h-11">Cancel</Button>
-            <Button onClick={() => setStep(2)} disabled={!selectedPaperTypeId} className="w-full sm:w-auto h-11">Next <ArrowRight className="ml-2 h-4 w-4" /></Button>
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <Button variant="outline" onClick={reset} className="w-full h-11">Cancel</Button>
+            <Button onClick={() => setStep(2)} disabled={!selectedPaperTypeId} className="w-full h-11">Next <ArrowRight className="ml-2 h-4 w-4" /></Button>
         </DialogFooter>
     </>
   );
 
   const step2 = (
      <>
-        <div className="p-4 sm:p-6 pb-6 flex flex-col items-center justify-center gap-4">
+        <DialogHeader>
+             <DialogTitle>Step 2: Upload or Scan Reel List</DialogTitle>
+        </DialogHeader>
+        <div className="py-4 flex flex-col items-center justify-center gap-4">
              <div className="w-full aspect-video rounded-md bg-muted relative overflow-hidden">
                 {isCameraView ? (
                      <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
@@ -251,30 +246,33 @@ const BulkAddReelsContent = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
                 <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*" className="hidden"/>
                 <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="h-11">
-                    <Upload className="mr-2 h-4 w-4" /> Upload from Gallery
+                    <Upload className="mr-2 h-4 w-4" /> Upload
                 </Button>
                 <Button variant="outline" onClick={() => setIsCameraView(!isCameraView)} className="h-11">
-                    <Camera className="mr-2 h-4 w-4" /> {isCameraView ? 'Close Camera' : 'Open Camera'}
+                    <Camera className="mr-2 h-4 w-4" /> {isCameraView ? 'Close Cam' : 'Open Cam'}
                 </Button>
             </div>
              {isCameraView && <Button onClick={handleCaptureFromVideo} className="w-full h-11" disabled={hasCameraPermission === false}>Capture Photo</Button>}
         </div>
-        <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full flex-row sm:justify-between gap-2">
-            <Button variant="outline" onClick={() => setStep(1)} className="w-full sm:w-auto h-11"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-            <Button onClick={handleProcessImage} disabled={!image || isProcessing} className="w-full sm:w-auto h-11">
+        <DialogFooter className="flex-col-reverse sm:flex-row-reverse sm:justify-start gap-2">
+            <Button onClick={handleProcessImage} disabled={!image || isProcessing} className="w-full h-11">
                 {isProcessing ? 'Extracting Data...' : 'Extract & Preview'}
             </Button>
+            <Button variant="outline" onClick={() => setStep(1)} className="w-full h-11"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
         </DialogFooter>
      </>
   );
 
   const step3 = (
     <>
-        <div className="p-4 sm:p-6 pb-6">
-            <div className="p-3 bg-muted/50 rounded-md text-sm mb-4">
+        <DialogHeader>
+            <DialogTitle>Step 3: Preview & Confirm</DialogTitle>
+        </DialogHeader>
+        <div className="py-4 space-y-4">
+            <div className="p-3 bg-muted/50 rounded-md text-sm">
                 <strong>Paper:</strong> {selectedPaper?.paperName} ({selectedPaper?.gsm}gsm, {selectedPaper?.length}cm x {selectedPaper?.breadth}cm)
             </div>
-            <div className="overflow-auto max-h-96">
+            <div className="overflow-auto max-h-60">
                 <Table>
                     <TableHeader className="sticky top-0 bg-background">
                         <TableRow>
@@ -303,11 +301,11 @@ const BulkAddReelsContent = ({
                 </Table>
             </div>
         </div>
-        <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full flex-row sm:justify-between gap-2">
-             <Button variant="outline" onClick={() => setStep(2)} className="w-full sm:w-auto h-11"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-             <Button onClick={handleSave} disabled={isSaving || extractedReels.length === 0} className="w-full sm:w-auto h-11">
+        <DialogFooter className="flex-col-reverse sm:flex-row-reverse sm:justify-start gap-2">
+             <Button onClick={handleSave} disabled={isSaving || extractedReels.length === 0} className="w-full h-11">
                 {isSaving ? 'Saving...' : `Save ${extractedReels.length} Reels`}
              </Button>
+             <Button variant="outline" onClick={() => setStep(2)} className="w-full h-11"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
         </DialogFooter>
     </>
   );
@@ -326,9 +324,7 @@ export default function ReelsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
-  const isMobile = useIsMobile();
   
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -361,7 +357,7 @@ export default function ReelsPage() {
             batch.set(docRef, dataWithMeta);
         });
         await batch.commit();
-        toast({ title: `${reelsToSave.length} Reels Added Successfully` });
+        toast({ title: `✅ ${reelsToSave.length} Reels Added Successfully` });
         setIsBulkModalOpen(false);
     } catch(e: any) {
         console.error(e);
@@ -416,13 +412,6 @@ export default function ReelsPage() {
 
   const isLoading = loadingReels || loadingPaperTypes;
 
-  const renderTrigger = () => (
-    <Button className="fixed bottom-6 right-6 h-14 rounded-full shadow-lg z-20 flex items-center gap-2" size="lg">
-        <Camera className="h-5 w-5" />
-        <span className="hidden sm:inline">Add Reels via Camera</span>
-    </Button>
-  );
-
   const bulkAddProps = {
     paperTypes,
     onSave: handleBulkSaveReels,
@@ -431,23 +420,37 @@ export default function ReelsPage() {
   };
   
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] sm:h-screen">
-      <header className="sticky top-0 bg-background/95 backdrop-blur z-10 p-4 border-b">
-         <h1 className="text-2xl font-bold text-center mb-4">🧾 Reels</h1>
-         <div className="relative">
+    <div className="flex flex-col p-4 space-y-4">
+        <div className="space-y-1">
+            <h1 className="text-2xl font-bold">Reel Management</h1>
+            <p className="text-muted-foreground">Detailed view of all individual reels.</p>
+        </div>
+        
+        {canEdit && (
+            <Dialog open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
+                <DialogTrigger asChild>
+                    <Button className="w-full h-12 text-base font-medium">
+                        <Camera className="mr-2 h-5 w-5" /> Add Reels via Camera
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md w-[95vw] rounded-2xl p-4" onPointerDownOutside={(e) => e.preventDefault()}>
+                    <BulkAddReelsContent {...bulkAddProps} />
+                </DialogContent>
+            </Dialog>
+        )}
+      
+        <div className="relative">
             <Input 
                 value={searchFilter} 
                 onChange={(e) => setSearchFilter(e.target.value)} 
                 placeholder="Search paper, reel no, size..." 
                 className="h-11 w-full"
             />
-         </div>
-      </header>
+        </div>
 
-      <main className="flex-1 overflow-y-auto p-4">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <main className="flex-1 space-y-4">
             {isLoading ? (
-                Array.from({ length: 8 }).map((_, i) => (
+                Array.from({ length: 4 }).map((_, i) => (
                     <Card key={i} className="flex flex-col">
                         <CardHeader>
                             <Skeleton className="h-6 w-3/4" />
@@ -486,58 +489,33 @@ export default function ReelsPage() {
                         <CardFooter className="flex justify-between items-center">
                             <Badge variant={statusVariant(reel.status)} className={statusColor(reel.status)}>{reel.status}</Badge>
                             {canEdit && (
-                                <div className="flex items-center gap-1">
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                                <Trash2 className="h-4 w-4"/>
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                <AlertDialogDescription>This will permanently delete reel <strong>{reel.reelNo}</strong>.</AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteReel(reel.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </div>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive h-8 w-8">
+                                            <Trash2 className="h-4 w-4"/>
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>This will permanently delete reel <strong>{reel.reelNo}</strong>.</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteReel(reel.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             )}
                         </CardFooter>
                     </Card>
                 ))
             ) : (
-                <div className="md:col-span-2 lg:col-span-3 xl:col-span-4 text-center py-16">
+                <div className="text-center py-16">
                     <p className="text-muted-foreground">No reels found. { searchFilter ? "Try a different search." : "Add a reel to get started."}</p>
                 </div>
             )}
-        </div>
-      </main>
-
-       {canEdit && (
-        isMobile ? (
-          <Sheet open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
-            <SheetTrigger asChild>
-                {renderTrigger()}
-            </SheetTrigger>
-            <SheetContent side="bottom" className="p-0 flex flex-col h-auto max-h-[90svh]">
-              <BulkAddReelsContent {...bulkAddProps} />
-            </SheetContent>
-          </Sheet>
-        ) : (
-          <Dialog open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
-            <DialogTrigger asChild>
-                {renderTrigger()}
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl p-0" onPointerDownOutside={(e) => e.preventDefault()}>
-                <BulkAddReelsContent {...bulkAddProps} />
-            </DialogContent>
-          </Dialog>
-        )
-      )}
+        </main>
     </div>
   );
 }
