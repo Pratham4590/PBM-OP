@@ -114,10 +114,6 @@ const RulingForm = ({
     setRulingEntries(newEntries);
   };
 
-  const totalSheetsRuled = useMemo(() => {
-    return rulingEntries.reduce((acc, entry) => acc + (entry.sheetsRuled || 0), 0);
-  }, [rulingEntries]);
-
   const calculateRulingValues = (entry: Partial<RulingEntry>) => {
     if (!selectedReel || !paperType || !entry.cutoff) {
         return { theoreticalSheets: 0, difference: 0 };
@@ -133,7 +129,6 @@ const RulingForm = ({
   };
 
 
-  const remainingSheets = (selectedReel.availableSheets ?? selectedReel.initialSheets) - totalSheetsRuled;
   const isRulingDisabled = selectedReel.status === 'Finished' || selectedReel.status === 'Hold';
 
   const handleStatusSave = () => {
@@ -322,37 +317,9 @@ export default function RulingPage() {
     setStep(2);
   };
   
-  const calculateInitialSheets = (reel: Reel, paper: PaperType): number => {
-    if (reel.initialSheets && reel.initialSheets > 0) return reel.initialSheets;
-    
-    // Fallback if breadth is not available, use length. This prevents calculation failure for old data.
-    const breadth = paper.breadth || paper.length;
-    const { length, gsm } = paper;
-
-    if (!length || !breadth || !gsm) return 0;
-    
-    const areaPerSheetM2 = (length * breadth) / 10000;
-    if (areaPerSheetM2 <= 0) return 0;
-
-    const weightPerSheetG = areaPerSheetM2 * gsm;
-    if (weightPerSheetG <= 0) return 0;
-
-    const sheetsPerKg = 1000 / weightPerSheetG;
-    return Math.floor(reel.weight * sheetsPerKg);
-  };
   
   const handleReelSelect = (reel: Reel) => {
-    const paper = paperTypes?.find(p => p.id === reel.paperTypeId);
-    if (!paper) {
-        toast({variant: 'destructive', title: 'Error', description: 'Could not find paper type for the selected reel.'});
-        return;
-    }
-    const initialSheets = calculateInitialSheets(reel, paper);
-    setSelectedReel({
-        ...reel,
-        initialSheets,
-        availableSheets: reel.availableSheets ?? initialSheets,
-    });
+    setSelectedReel(reel);
     setStep(3);
   };
   
@@ -364,32 +331,15 @@ export default function RulingPage() {
       return;
     }
     const totalSheetsRuled = rulingEntries.reduce((sum, entry) => sum + (entry.sheetsRuled || 0), 0);
-    const initialSheets = selectedReel.initialSheets;
-    const availableSheets = selectedReel.availableSheets ?? initialSheets;
-    
-    if (totalSheetsRuled > availableSheets && availableSheets > 0) {
-        toast({ variant: 'destructive', title: 'Insufficient Stock', description: `Cannot rule ${totalSheetsRuled.toLocaleString()} sheets. Only ${availableSheets.toLocaleString()} are available.`});
-        return;
-    }
 
     setIsSaving(true);
     try {
       const batch = writeBatch(firestore);
       
       const finalRulingEntries = rulingEntries.map(entry => {
-        if (!initialSheets || initialSheets === 0) {
-            return {
-              ...initialRulingEntry,
-              ...entry,
-              theoreticalSheets: 0,
-              difference: 0,
-            } as RulingEntry;
-        }
-
         const reamWeight = (paperType.length * (entry.cutoff || 0) * paperType.gsm) / 20000;
         const theoreticalSheets = reamWeight > 0 ? (selectedReel.weight * 500) / reamWeight : 0;
         const difference = (entry.sheetsRuled || 0) - theoreticalSheets;
-
 
         return {
           ...initialRulingEntry,
@@ -414,19 +364,14 @@ export default function RulingPage() {
       batch.set(rulingDocRef, rulingData);
 
       const reelDocRef = doc(firestore, 'reels', selectedReel.id);
-      const newAvailableSheets = availableSheets - totalSheetsRuled;
-      const newStatus: Reel['status'] = newAvailableSheets < 100 ? 'Finished' : 'In Use';
+      
+      const isAnyEntryFinished = rulingEntries.some(e => e.status === 'Finished');
+      const newStatus: Reel['status'] = isAnyEntryFinished ? 'Finished' : 'In Use';
       
       const reelUpdateData: Partial<Reel> = { 
-        availableSheets: newAvailableSheets,
         status: newStatus,
       };
       
-      // Persist initialSheets if it was calculated for the first time
-      if (!selectedReel.initialSheets || selectedReel.initialSheets === 0) {
-          reelUpdateData.initialSheets = initialSheets;
-      }
-
       batch.update(reelDocRef, reelUpdateData as any);
       
       await batch.commit();
