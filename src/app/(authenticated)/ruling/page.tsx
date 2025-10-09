@@ -46,11 +46,12 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, addDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp, doc, writeBatch, updateDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, writeBatch, updateDoc, deleteDoc } from 'firebase/firestore';
 
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useStock } from '@/hooks/use-stock';
 
 
 const initialRulingEntry: RulingEntry = {
@@ -286,6 +287,7 @@ export default function RulingPage() {
   const { user } = useUser();
   const { toast } = useToast();
   const router = useRouter();
+  const { updateStockOnRuling } = useStock();
 
   const [step, setStep] = useState(1);
   const [selectedPaperTypeId, setSelectedPaperTypeId] = useState<string | null>(null);
@@ -330,70 +332,78 @@ export default function RulingPage() {
       toast({ variant: 'destructive', title: 'Missing Fields', description: 'Please fill out all required fields for each ruling entry.' });
       return;
     }
-    const totalSheetsRuled = rulingEntries.reduce((sum, entry) => sum + (entry.sheetsRuled || 0), 0);
-
+    
     setIsSaving(true);
     try {
-      const batch = writeBatch(firestore);
+        const totalSheetsRuled = rulingEntries.reduce((sum, entry) => sum + (entry.sheetsRuled || 0), 0);
+        
+        // --- Weight Calculation ---
+        const firstEntry = rulingEntries[0];
+        const reamWeightForCalc = (paperType.length * (firstEntry.cutoff || 0) * paperType.gsm) / 20000;
+        const theoreticalSheetsForCalc = reamWeightForCalc > 0 ? (selectedReel.weight * 500) / reamWeightForCalc : 0;
+        const weightPerSheet = theoreticalSheetsForCalc > 0 ? selectedReel.weight / theoreticalSheetsForCalc : 0;
+        const weightUsed = totalSheetsRuled * weightPerSheet;
 
-      // Recalculate theoretical sheets for just the first entry to get sheet weight
-      const firstEntry = rulingEntries[0];
-      const reamWeightForCalc = (paperType.length * (firstEntry.cutoff || 0) * paperType.gsm) / 20000;
-      const theoreticalSheetsForCalc = reamWeightForCalc > 0 ? (selectedReel.weight * 500) / reamWeightForCalc : 0;
-      const weightPerSheet = theoreticalSheetsForCalc > 0 ? selectedReel.weight / theoreticalSheetsForCalc : 0;
-      const weightUsed = totalSheetsRuled * weightPerSheet;
-      
-      const finalRulingEntries = rulingEntries.map(entry => {
-        const reamWeight = (paperType.length * (entry.cutoff || 0) * paperType.gsm) / 20000;
-        const theoreticalSheets = reamWeight > 0 ? (selectedReel.weight * 500) / reamWeight : 0;
-        const difference = (entry.sheetsRuled || 0) - theoreticalSheets;
+        const isAnyEntryFinished = rulingEntries.some(e => e.status === 'Finished');
+        const newWeight = selectedReel.weight - weightUsed;
+        const isFinished = newWeight <= 0 || isAnyEntryFinished;
+        const newStatus: Reel['status'] = isFinished ? 'Finished' : 'In Use';
 
-        const rulingEntryData: RulingEntry = {
-          ...initialRulingEntry,
-          ...entry,
-          theoreticalSheets: isNaN(theoreticalSheets) ? 0 : theoreticalSheets,
-          difference: isNaN(difference) ? 0 : difference,
+        // --- Finalize Data for Firestore ---
+        const finalRulingEntries = rulingEntries.map(entry => {
+            const reamWeight = (paperType.length * (entry.cutoff || 0) * paperType.gsm) / 20000;
+            const theoreticalSheets = reamWeight > 0 ? (selectedReel.weight * 500) / reamWeight : 0;
+            const difference = (entry.sheetsRuled || 0) - theoreticalSheets;
+
+            const rulingEntryData: RulingEntry = {
+            ...initialRulingEntry,
+            ...entry,
+            theoreticalSheets: isNaN(theoreticalSheets) ? 0 : theoreticalSheets,
+            difference: isNaN(difference) ? 0 : difference,
+            };
+            if (!rulingEntryData.programId) {
+                delete (rulingEntryData as Partial<RulingEntry>).programId;
+            }
+            return rulingEntryData;
+        });
+
+        const rulingData = {
+            date: serverTimestamp(),
+            reelId: selectedReel.id,
+            reelNo: selectedReel.reelNo,
+            paperTypeId: selectedReel.paperTypeId,
+            startWeight: selectedReel.weight,
+            rulingEntries: finalRulingEntries,
+            totalSheetsRuled,
+            createdBy: user.uid,
         };
 
-        // Ensure optional fields are not undefined
-        if (!rulingEntryData.programId) {
-          delete (rulingEntryData as Partial<RulingEntry>).programId;
+        // --- Create Firestore Batch ---
+        const batch = writeBatch(firestore);
+        
+        // 1. Create Ruling Document
+        const rulingDocRef = doc(collection(firestore, 'rulings'));
+        batch.set(rulingDocRef, rulingData);
+
+        // 2. Update or Delete Reel Document
+        const reelDocRef = doc(firestore, 'reels', selectedReel.id);
+        if (isFinished) {
+            batch.delete(reelDocRef);
+        } else {
+            const reelUpdateData: Partial<Reel> = { 
+                status: newStatus,
+                weight: newWeight < 0 ? 0 : newWeight,
+            };
+            batch.update(reelDocRef, reelUpdateData as any);
         }
-
-        return rulingEntryData;
-      });
-
-      const rulingData = {
-        date: serverTimestamp(),
-        reelId: selectedReel.id,
-        reelNo: selectedReel.reelNo,
-        paperTypeId: selectedReel.paperTypeId,
-        startWeight: selectedReel.weight,
-        rulingEntries: finalRulingEntries,
-        totalSheetsRuled,
-        createdBy: user.uid,
-      };
-
-      const rulingDocRef = doc(collection(firestore, 'rulings'));
-      batch.set(rulingDocRef, rulingData);
-
-      const reelDocRef = doc(firestore, 'reels', selectedReel.id);
+        
+        // This function will handle the stock update transactionally
+        await updateStockOnRuling(selectedReel, weightUsed, isFinished);
+        
+        await batch.commit();
       
-      const isAnyEntryFinished = rulingEntries.some(e => e.status === 'Finished');
-      const newWeight = selectedReel.weight - weightUsed;
-      const newStatus: Reel['status'] = newWeight <= 0 ? 'Finished' : (isAnyEntryFinished ? 'Finished' : 'In Use');
-      
-      const reelUpdateData: Partial<Reel> = { 
-        status: newStatus,
-        weight: newWeight < 0 ? 0 : newWeight,
-      };
-      
-      batch.update(reelDocRef, reelUpdateData as any);
-      
-      await batch.commit();
-      
-      toast({ title: "Ruling Saved Successfully", description: `Reel ${selectedReel.reelNo} has been updated.` });
-      router.push('/dashboard');
+        toast({ title: "Ruling Saved Successfully", description: `Reel ${selectedReel.reelNo} has been updated.` });
+        router.push('/dashboard');
 
     } catch (e: any) {
       console.error(e);
