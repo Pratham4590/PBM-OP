@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -46,7 +47,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, addDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp, doc, writeBatch, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, writeBatch, updateDoc } from 'firebase/firestore';
 
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -337,19 +338,18 @@ export default function RulingPage() {
     try {
         const totalSheetsRuled = rulingEntries.reduce((sum, entry) => sum + (entry.sheetsRuled || 0), 0);
         
-        // --- Weight Calculation ---
+        const isAnyEntryFinished = rulingEntries.some(e => e.status === 'Finished');
+        
         const firstEntry = rulingEntries[0];
         const reamWeightForCalc = (paperType.length * (firstEntry.cutoff || 0) * paperType.gsm) / 20000;
         const theoreticalSheetsForCalc = reamWeightForCalc > 0 ? (selectedReel.weight * 500) / reamWeightForCalc : 0;
         const weightPerSheet = theoreticalSheetsForCalc > 0 ? selectedReel.weight / theoreticalSheetsForCalc : 0;
         const weightUsed = totalSheetsRuled * weightPerSheet;
 
-        const isAnyEntryFinished = rulingEntries.some(e => e.status === 'Finished');
         const newWeight = selectedReel.weight - weightUsed;
         const isFinished = newWeight <= 0 || isAnyEntryFinished;
         const newStatus: Reel['status'] = isFinished ? 'Finished' : 'In Use';
 
-        // --- Finalize Data for Firestore ---
         const finalRulingEntries = rulingEntries.map(entry => {
             const reamWeight = (paperType.length * (entry.cutoff || 0) * paperType.gsm) / 20000;
             const theoreticalSheets = reamWeight > 0 ? (selectedReel.weight * 500) / reamWeight : 0;
@@ -378,26 +378,21 @@ export default function RulingPage() {
             createdBy: user.uid,
         };
 
-        // --- Create Firestore Batch ---
         const batch = writeBatch(firestore);
         
-        // 1. Create Ruling Document
         const rulingDocRef = doc(collection(firestore, 'rulings'));
         batch.set(rulingDocRef, rulingData);
 
-        // 2. Update or Delete Reel Document
         const reelDocRef = doc(firestore, 'reels', selectedReel.id);
         if (isFinished) {
             batch.delete(reelDocRef);
         } else {
-            const reelUpdateData: Partial<Reel> = { 
+            batch.update(reelDocRef, { 
                 status: newStatus,
                 weight: newWeight < 0 ? 0 : newWeight,
-            };
-            batch.update(reelDocRef, reelUpdateData as any);
+            });
         }
         
-        // This function will handle the stock update transactionally
         await updateStockOnRuling(selectedReel, weightUsed, isFinished);
         
         await batch.commit();
@@ -525,3 +520,5 @@ export default function RulingPage() {
     </>
   );
 }
+
+    
