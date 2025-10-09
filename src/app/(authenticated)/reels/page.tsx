@@ -79,6 +79,7 @@ const ReelForm = ({
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   useEffect(() => {
@@ -145,10 +146,49 @@ const ReelForm = ({
         if (videoRef.current) {
             videoRef.current.srcObject = null;
         }
+        setHasCameraPermission(true); // Allow capture from gallery
       };
       reader.readAsDataURL(file);
     }
   };
+
+  const handleCapture = () => {
+    if (imagePreview) {
+        // We already have an image from the gallery
+        console.log("Analyze from gallery:", imagePreview.substring(0, 50) + "...");
+        // TODO: Call AI flow with imagePreview
+        toast({ title: "Image Ready", description: "Ready to be analyzed."});
+        setReelData(prev => ({...prev, imageUrl: imagePreview}));
+        setIsCameraOpen(false);
+        return;
+    }
+    
+    if (videoRef.current && canvasRef.current && hasCameraPermission) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext('2d');
+      if (context) {
+        context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+        const dataUri = canvas.toDataURL('image/jpeg');
+        setImagePreview(dataUri);
+        // Stop camera tracks after capture
+        if (video.srcObject) {
+          (video.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+        }
+        video.srcObject = null;
+        
+        console.log("Analyze from camera:", dataUri.substring(0, 50) + "...");
+        // TODO: Call AI flow
+        toast({ title: "Image Captured", description: "Ready to be analyzed."});
+        setReelData(prev => ({...prev, imageUrl: dataUri}));
+        setIsCameraOpen(false);
+      }
+    } else {
+        toast({ variant: 'destructive', title: 'Capture Failed', description: 'No video feed available or permissions denied.'});
+    }
+  }
 
 
   const handleSave = () => {
@@ -167,7 +207,16 @@ const ReelForm = ({
   
   return (
     <>
+      <canvas ref={canvasRef} className="hidden"></canvas>
       <div className="p-4 space-y-4 overflow-y-auto">
+        {reelData.imageUrl && (
+            <div className="relative w-full aspect-video rounded-lg overflow-hidden">
+                <Image src={reelData.imageUrl} alt="Reel image" layout="fill" className="object-contain"/>
+                <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 z-10" onClick={() => setReelData(prev => ({...prev, imageUrl: undefined}))}>
+                    <X className="h-4 w-4"/>
+                </Button>
+            </div>
+        )}
         <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
             <DialogTrigger asChild>
                 <Button variant="outline" className="w-full h-11">
@@ -182,7 +231,7 @@ const ReelForm = ({
                 <div className="flex flex-col items-center justify-center p-4">
                    <div className="w-full aspect-video rounded-md bg-muted relative">
                         <video ref={videoRef} className={`w-full h-full object-cover rounded-md ${imagePreview ? 'hidden' : ''}`} autoPlay muted playsInline />
-                        {imagePreview && <Image src={imagePreview} alt="Reel preview" layout="fill" className="object-contain rounded-md" />}
+                        {imagePreview && !videoRef.current?.srcObject && <Image src={imagePreview} alt="Reel preview" layout="fill" className="object-contain rounded-md" />}
                    </div>
                    {hasCameraPermission === false && !imagePreview && (
                         <Alert variant="destructive" className="mt-4">
@@ -198,7 +247,7 @@ const ReelForm = ({
                     <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full">
                        <Upload className="mr-2 h-4 w-4" /> Gallery
                     </Button>
-                    <Button className="w-full">Capture & Analyze</Button>
+                    <Button className="w-full" onClick={handleCapture} disabled={hasCameraPermission === false && !imagePreview}>Capture & Analyze</Button>
                  </DialogFooter>
             </DialogContent>
         </Dialog>
