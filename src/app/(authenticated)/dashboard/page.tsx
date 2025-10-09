@@ -83,10 +83,10 @@ export default function DashboardPage() {
       return rulingDate.toDateString() === today;
     });
 
-    const sheetsRuledToday = todayRulings.reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    const sheetsRuledToday = todayRulings.reduce((acc, entry) => acc + entry.totalSheetsRuled, 0);
     
-    const totalSheetsRuled = rulings.reduce((acc, entry) => acc + entry.sheetsRuled, 0);
-    const totalTheoreticalSheets = rulings.reduce((acc, entry) => acc + (entry.theoreticalSheets || 0), 0);
+    const totalSheetsRuled = rulings.reduce((acc, entry) => acc + entry.totalSheetsRuled, 0);
+    const totalTheoreticalSheets = rulings.reduce((acc, ruling) => acc + (ruling.rulingEntries.reduce((sum, entry) => sum + (entry.theoreticalSheets || 0), 0) || 0), 0);
     const efficiency = totalTheoreticalSheets > 0 ? (totalSheetsRuled / totalTheoreticalSheets) * 100 : 0;
 
     return { sheetsRuledToday, rulingsToday: todayRulings.length, efficiency: efficiency.toFixed(1) };
@@ -284,15 +284,15 @@ export default function DashboardPage() {
                 <TableBody>
                   {loadingRulings || loadingItemTypes ? (
                     <TableRow><TableCell colSpan={3} className="text-center h-24">Loading...</TableCell></TableRow>
-                  ) : recentRulings.length > 0 ? recentRulings.map((ruling, index) => (
-                    <TableRow key={index}>
+                  ) : recentRulings.length > 0 ? recentRulings.map((ruling) => (
+                    <TableRow key={ruling.id}>
                       <TableCell>
                         <div className="font-medium">{ruling.reelNo}</div>
                       </TableCell>
-                      <TableCell>{getItemTypeName(ruling.itemTypeId)}</TableCell>
+                      <TableCell>{getItemTypeName(ruling.rulingEntries[0]?.itemTypeId)}</TableCell>
                       <TableCell className="text-right">
-                        <Badge variant={ruling.difference >= 0 ? "default" : "destructive"} className={ruling.difference >= 0 ? "bg-green-600 dark:bg-green-800" : ""}>
-                          {Math.round(ruling.difference || 0).toLocaleString()}
+                        <Badge variant={ruling.rulingEntries[0].difference >= 0 ? "default" : "destructive"} className={ruling.rulingEntries[0].difference >= 0 ? "bg-green-600 dark:bg-green-800" : ""}>
+                          {Math.round(ruling.rulingEntries[0].difference || 0).toLocaleString()}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -308,3 +308,4 @@ export default function DashboardPage() {
     </>
   );
 }
+    

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -113,7 +112,6 @@ export default function ReportsPage() {
             
             const reelUpdate: Partial<Reel> = {
                 availableSheets: newAvailableSheets,
-                // If the reel was finished as a result of this ruling, make it 'In Use' again
                 // If it now has sheets again, it should not be finished.
                 status: reelData.status === 'Finished' && newAvailableSheets > 100 ? 'In Use' : reelData.status,
             };
@@ -149,12 +147,13 @@ export default function ReportsPage() {
       });
     });
 
+    const totalReelWeight = filteredData.reduce((sum, ruling) => sum + ruling.startWeight, 0);
     const totalSheetsRuled = tableBody.reduce((sum, row) => sum + parseFloat(row[4].replace(/,/g, '')), 0);
     const totalTheoreticalSheets = tableBody.reduce((sum, row) => sum + parseFloat(row[5].replace(/,/g, '')), 0);
     const totalDifference = totalSheetsRuled - totalTheoreticalSheets;
     
     const totalsBody = [
-        ['', '', '', 'TOTALS', totalSheetsRuled.toLocaleString(), Math.round(totalTheoreticalSheets).toLocaleString(), Math.round(totalDifference).toLocaleString()]
+        ['TOTALS', '', '', '', totalSheetsRuled.toLocaleString(), Math.round(totalTheoreticalSheets).toLocaleString(), Math.round(totalDifference).toLocaleString()]
     ];
 
 
@@ -333,3 +332,4 @@ export default function ReportsPage() {
     </>
   );
 }
+    

@@ -317,6 +317,7 @@ export default function ProgramPage() {
     
     programs.forEach(p => {
         const sheetsCompleted = rulings
+            .flatMap(r => r.rulingEntries)
             .filter(r => r.programId === p.id)
             .reduce((sum, r) => sum + r.sheetsRuled, 0);
 
@@ -583,3 +584,4 @@ export default function ProgramPage() {
     </>
   );
 }
+    

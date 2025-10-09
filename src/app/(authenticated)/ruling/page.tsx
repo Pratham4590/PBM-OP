@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -119,14 +118,11 @@ const RulingForm = ({
   }, [rulingEntries]);
 
   const calculateRulingValues = (entry: Partial<RulingEntry>) => {
-    if (!selectedReel || !entry.cutoff || !entry.sheetsRuled || !entry.itemTypeId) {
+    if (!selectedReel || !entry.cutoff || !entry.sheetsRuled || !entry.itemTypeId || !selectedReel.initialSheets) {
       return { theoreticalSheets: 0, difference: 0 };
     }
-    // This calculation is now based on sheet count not weight difference
-    const { initialSheets, weight } = selectedReel;
-    if (initialSheets <= 0) return { theoreticalSheets: 0, difference: 0 };
     
-    const weightPerSheet = weight / initialSheets;
+    const weightPerSheet = selectedReel.weight / selectedReel.initialSheets;
     const rulingWeight = (entry.sheetsRuled || 0) * weightPerSheet;
 
     const { length, gsm } = selectedReel;
@@ -317,8 +313,9 @@ export default function RulingPage() {
 
   const calculateInitialSheets = (reel: Reel): number => {
     if (reel.initialSheets > 0) return reel.initialSheets;
-    const standardCutoff = 80; // Default cutoff if none specified
-    const reamWeight = (reel.length * standardCutoff * reel.gsm) / 20000;
+    // Assuming a standard breadth of 80cm if not specified in paper master
+    const breadth = 80; 
+    const reamWeight = (reel.length * breadth * reel.gsm) / 20000;
     if (reamWeight <= 0) return 0;
     return Math.floor((reel.weight * 500) / reamWeight);
   };
@@ -381,7 +378,7 @@ export default function RulingPage() {
         status: newStatus,
       };
       
-      if (!selectedReel.initialSheets) {
+      if (!selectedReel.initialSheets || selectedReel.initialSheets === 0) {
           reelUpdate.initialSheets = initialSheets;
       }
 
@@ -408,7 +405,7 @@ export default function RulingPage() {
         oldStatus: selectedReel.status,
         newStatus: newStatus,
         changedBy: user.uid,
-        timestamp: serverTimestamp(),
+        timestamp: serverTimestamp() as any,
     };
 
     try {
@@ -508,5 +505,4 @@ export default function RulingPage() {
     </>
   );
 }
-
     

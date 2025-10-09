@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -293,18 +292,19 @@ export default function ReelsPage() {
         return paperNameMatch || reelNoMatch || sizeMatch;
     }).sort((a,b) => {
         if (!b.createdAt || !a.createdAt) return 0;
-        if (!b.createdAt.toMillis || !a.createdAt.toMillis) return 0;
+        if (typeof b.createdAt.toMillis !== 'function' || typeof a.createdAt.toMillis !== 'function') return 0;
         return b.createdAt.toMillis() - a.createdAt.toMillis();
     });
   }, [reels, searchFilter, paperTypes]);
 
   const getPaperTypeName = (paperTypeId: string) => paperTypes?.find(p => p.id === paperTypeId)?.paperName || 'N/A';
   
-  const statusVariant = (status: Reel['status']): "default" | "secondary" | "outline" => {
+  const statusVariant = (status: Reel['status']): "default" | "secondary" | "outline" | "destructive" => {
     switch (status) {
         case 'Available': return 'default';
         case 'In Use': return 'secondary';
         case 'Finished': return 'outline';
+        case 'Hold': return 'destructive';
     }
   };
    const statusColor = (status: Reel['status']): string => {
@@ -312,6 +312,7 @@ export default function ReelsPage() {
         case 'Available': return 'bg-green-600 dark:bg-green-800';
         case 'In Use': return 'bg-amber-500 dark:bg-amber-700';
         case 'Finished': return 'border-dashed';
+        case 'Hold': return 'bg-orange-500 dark:bg-orange-700';
     }
   };
 
@@ -432,9 +433,4 @@ export default function ReelsPage() {
     </div>
   );
 }
-
-
-
-    
-
     

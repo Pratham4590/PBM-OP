@@ -78,12 +78,14 @@ export default function ProductionOverviewPage() {
     
     const summary: { [key: string]: { ruled: number, theoretical: number } } = {};
     rulings.forEach(ruling => {
-        const itemTypeName = itemTypes.find(it => it.id === ruling.itemTypeId)?.itemName || 'Unknown';
+      ruling.rulingEntries.forEach(entry => {
+        const itemTypeName = itemTypes.find(it => it.id === entry.itemTypeId)?.itemName || 'Unknown';
         if (!summary[itemTypeName]) {
           summary[itemTypeName] = { ruled: 0, theoretical: 0 };
         }
-        summary[itemTypeName].ruled += ruling.sheetsRuled;
-        summary[itemTypeName].theoretical += ruling.theoreticalSheets;
+        summary[itemTypeName].ruled += entry.sheetsRuled;
+        summary[itemTypeName].theoretical += entry.theoreticalSheets;
+      });
     });
 
     return Object.entries(summary).map(([name, data]) => ({
@@ -108,10 +110,10 @@ export default function ProductionOverviewPage() {
       return rulingDate.toDateString() === today;
     });
     
-    const sheetsRuledToday = todayRulings.reduce((acc, entry) => acc + entry.sheetsRuled, 0);
+    const sheetsRuledToday = todayRulings.reduce((acc, entry) => acc + entry.totalSheetsRuled, 0);
 
-    const totalSheetsRuled = rulings.reduce((acc, entry) => acc + entry.sheetsRuled, 0);
-    const totalTheoreticalSheets = rulings.reduce((acc, entry) => acc + entry.theoreticalSheets, 0);
+    const totalSheetsRuled = rulings.reduce((acc, entry) => acc + entry.totalSheetsRuled, 0);
+    const totalTheoreticalSheets = rulings.reduce((acc, ruling) => acc + (ruling.rulingEntries.reduce((sum, entry) => sum + (entry.theoreticalSheets || 0), 0) || 0), 0);
     const efficiency = totalTheoreticalSheets > 0 ? (totalSheetsRuled / totalTheoreticalSheets) * 100 : 0;
     
     return { sheetsRuledToday, rulingsToday: todayRulings.length, efficiency: efficiency.toFixed(1) };
@@ -122,6 +124,7 @@ export default function ProductionOverviewPage() {
     const progress: { [key: string]: number } = {};
     programs.forEach(p => {
         const sheetsCompleted = rulings
+            .flatMap(r => r.rulingEntries)
             .filter(e => e.programId === p.id)
             .reduce((sum, e) => sum + e.sheetsRuled, 0);
         progress[p.id] = sheetsCompleted;
@@ -295,3 +298,4 @@ export default function ProductionOverviewPage() {
     </>
   );
 }
+    

@@ -1,4 +1,3 @@
-
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = "Admin" | "Member" | "Operator";
@@ -109,3 +108,4 @@ export type StatusLog = {
   changedBy: string; // UID of the admin
   timestamp: Timestamp;
 };
+    
