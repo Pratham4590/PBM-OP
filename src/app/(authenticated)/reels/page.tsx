@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Plus, Edit, Trash2, Camera, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Camera, X, Upload } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +57,8 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import Image from 'next/image';
+
 
 const ReelForm = ({
   paperTypes,
@@ -75,7 +77,9 @@ const ReelForm = ({
   const { toast } = useToast();
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   useEffect(() => {
     if (editingReel) {
@@ -97,6 +101,7 @@ const ReelForm = ({
   useEffect(() => {
     let stream: MediaStream | null = null;
     if (isCameraOpen) {
+        setImagePreview(null);
         const getCameraPermission = async () => {
           try {
             stream = await navigator.mediaDevices.getUserMedia({video: true});
@@ -127,6 +132,23 @@ const ReelForm = ({
       }
     }
   }, [isCameraOpen, toast]);
+  
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+        if (videoRef.current?.srcObject) {
+            (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+        }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
 
   const handleSave = () => {
@@ -155,11 +177,14 @@ const ReelForm = ({
             <DialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>Scan Reel</DialogTitle>
-                    <DialogDescription>Point the camera at the reel's label.</DialogDescription>
+                    <DialogDescription>Point the camera at the reel's label or upload an image.</DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col items-center justify-center p-4">
-                   <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay muted playsInline />
-                   {hasCameraPermission === false && (
+                   <div className="w-full aspect-video rounded-md bg-muted relative">
+                        <video ref={videoRef} className={`w-full h-full object-cover rounded-md ${imagePreview ? 'hidden' : ''}`} autoPlay muted playsInline />
+                        {imagePreview && <Image src={imagePreview} alt="Reel preview" layout="fill" className="object-contain rounded-md" />}
+                   </div>
+                   {hasCameraPermission === false && !imagePreview && (
                         <Alert variant="destructive" className="mt-4">
                             <AlertTitle>Camera Access Denied</AlertTitle>
                             <AlertDescription>
@@ -168,9 +193,12 @@ const ReelForm = ({
                         </Alert>
                    )}
                 </div>
-                 <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCameraOpen(false)}>Cancel</Button>
-                    <Button>Capture & Analyze</Button>
+                 <DialogFooter className="grid grid-cols-2 gap-2 sm:flex">
+                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*" className="hidden"/>
+                    <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full">
+                       <Upload className="mr-2 h-4 w-4" /> Gallery
+                    </Button>
+                    <Button className="w-full">Capture & Analyze</Button>
                  </DialogFooter>
             </DialogContent>
         </Dialog>
