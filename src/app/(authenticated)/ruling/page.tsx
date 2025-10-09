@@ -119,18 +119,18 @@ const RulingForm = ({
   }, [rulingEntries]);
 
   const calculateRulingValues = (entry: Partial<RulingEntry>) => {
-    if (!selectedReel || !paperType || !entry.cutoff) {
+    if (!selectedReel || !paperType || !entry.cutoff || !selectedReel.initialSheets) {
       return { theoreticalSheets: 0, difference: 0 };
     }
-  
-    // Ream weight for the specific cutoff of this ruling entry
+
+    // This is the ream weight for this specific ruling entry's cutoff
     const reamWeight = (paperType.length * entry.cutoff * paperType.gsm) / 20000;
     if (reamWeight <= 0) return { theoreticalSheets: 0, difference: 0 };
-  
+
     // Theoretical sheets for the entire reel based on its total weight and this specific cutoff
     const theoreticalSheetsForReel = (selectedReel.weight * 500) / reamWeight;
     
-    // Difference is calculated against the sheets ruled in this specific entry
+    // Difference is calculated against the sheets ruled in this specific entry vs the reel's potential
     const difference = (entry.sheetsRuled || 0) - theoreticalSheetsForReel;
   
     return { theoreticalSheets: theoreticalSheetsForReel, difference };
@@ -331,7 +331,10 @@ export default function RulingPage() {
   const calculateInitialSheets = (reel: Reel, paper: PaperType): number => {
     if (reel.initialSheets && reel.initialSheets > 0) return reel.initialSheets;
     
-    const { length, breadth, gsm } = paper;
+    // Fallback if breadth is not available, use length. This prevents calculation failure for old data.
+    const breadth = paper.breadth || paper.length;
+    const { length, gsm } = paper;
+
     if (!length || !breadth || !gsm) return 0;
     
     const areaPerSheetM2 = (length * breadth) / 10000;
@@ -368,7 +371,7 @@ export default function RulingPage() {
     }
     const totalSheetsRuled = rulingEntries.reduce((sum, entry) => sum + (entry.sheetsRuled || 0), 0);
     const initialSheets = selectedReel.initialSheets;
-    const availableSheets = selectedReel.availableSheets;
+    const availableSheets = selectedReel.availableSheets ?? initialSheets;
     
     if (totalSheetsRuled > availableSheets) {
         toast({ variant: 'destructive', title: 'Insufficient Stock', description: `Cannot rule ${totalSheetsRuled.toLocaleString()} sheets. Only ${availableSheets.toLocaleString()} are available.`});
@@ -493,7 +496,7 @@ export default function RulingPage() {
                 <SelectTrigger className="h-11"><SelectValue placeholder="Select a paper type..." /></SelectTrigger>
                 <SelectContent>
                 {paperTypes?.map(pt => (
-                    <SelectItem key={pt.id} value={pt.id}>{pt.paperName} - {pt.gsm}gsm - {pt.length}cm x {pt.breadth}cm</SelectItem>
+                    <SelectItem key={pt.id} value={pt.id}>{pt.paperName} - {pt.gsm}gsm - {pt.length}cm x {pt.breadth || pt.length}cm</SelectItem>
                 ))}
                 </SelectContent>
             </Select>
