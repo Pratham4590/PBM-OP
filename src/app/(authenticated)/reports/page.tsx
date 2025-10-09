@@ -132,7 +132,7 @@ export default function ReportsPage() {
       ruling.rulingEntries.forEach(entry => {
         if(itemFilter !== 'all' && entry.itemTypeId !== itemFilter) return;
 
-        const difference = Math.abs(Math.round(entry.difference));
+        const difference = Math.round(entry.difference);
         tableBody.push([
           ruling.reelNo,
           getPaperTypeName(ruling.paperTypeId),
@@ -169,19 +169,18 @@ export default function ReportsPage() {
                 data.cell.styles.halign = 'right';
             }
         },
-        didDrawCell: (data) => {
+        willDrawCell: (data) => {
             if (data.column.index === 6 && data.cell.section === 'body') {
-                const ruled = parseFloat(String(tableBody[data.row.index][4]).replace(/,/g, ''));
-                const theoretical = parseFloat(String(tableBody[data.row.index][5]).replace(/,/g, ''));
-                if (ruled > theoretical) {
-                    doc.setTextColor(234, 88, 12); // Orange for over-ruled
+                const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
+                if (value > 0) {
+                    doc.setTextColor(234, 88, 12); // Orange for positive (over-ruled)
+                } else if (value < 0) {
+                    doc.setTextColor(34, 139, 34); // Green for negative (under-ruled)
                 }
             }
         },
-        willDrawCell: () => {
-            doc.setTextColor(0, 0, 0);
-        },
         didDrawPage: (data) => {
+            doc.setTextColor(0, 0, 0); // Reset text color
             doc.setFontSize(20);
             doc.text("Production Report", data.settings.margin.left, 15);
             doc.setFontSize(12);
@@ -274,7 +273,7 @@ export default function ReportsPage() {
                 ) : filteredData.length > 0 ? (
                   filteredData.map((ruling) => (
                      ruling.rulingEntries.filter(entry => itemFilter === 'all' || entry.itemTypeId === itemFilter).map((entry, index) => {
-                      const isOverRuled = entry.sheetsRuled > entry.theoreticalSheets;
+                      const difference = Math.round(entry.difference);
                       return (
                         <TableRow key={`${ruling.id}-${index}`}>
                           <TableCell className="font-medium whitespace-nowrap">{ruling.reelNo}</TableCell>                      
@@ -284,8 +283,8 @@ export default function ReportsPage() {
                           <TableCell className="text-right">{entry.sheetsRuled.toLocaleString()}</TableCell>
                           <TableCell className="text-right">{Math.round(entry.theoreticalSheets).toLocaleString()}</TableCell>
                           <TableCell className="text-right">
-                            <Badge variant={isOverRuled ? 'destructive' : 'default'} className={isOverRuled ? 'bg-orange-500' : 'bg-green-600 dark:bg-green-800'}>
-                              {Math.abs(Math.round(entry.difference)).toLocaleString()}
+                            <Badge variant={difference >= 0 ? 'destructive' : 'default'} className={difference >= 0 ? 'bg-orange-500' : 'bg-green-600 dark:bg-green-800'}>
+                              {difference.toLocaleString()}
                             </Badge>
                           </TableCell>
                            {canEdit && index === 0 && (
