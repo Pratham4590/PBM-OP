@@ -2,7 +2,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Camera, X, Upload, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Camera, X, Upload, ArrowRight, ArrowLeft, Edit } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,7 +41,7 @@ import {
   CardTitle,
   CardFooter,
 } from '@/components/ui/card';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, doc, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -209,7 +209,7 @@ const BulkAddReelsContent = ({
             {selectedPaper && (
                 <div className="p-3 bg-muted/50 rounded-md text-sm grid grid-cols-2 gap-x-4 gap-y-1">
                     <span>GSM:</span> <span className="text-right font-medium">{selectedPaper.gsm}</span>
-                    <span>Size:</span> <span className="text-right font-medium">{selectedPaper.length}cm x {selectedPaper.breadth}cm</span>
+                    <span>Size:</span> <span className="text-right font-medium">{selectedPaper.length}cm x {paperTypes?.find(p => p.id === selectedPaperTypeId)?.breadth}cm</span>
                 </div>
             )}
         </div>
@@ -272,7 +272,7 @@ const BulkAddReelsContent = ({
         </DialogHeader>
         <div className="py-4 space-y-4">
             <div className="p-3 bg-muted/50 rounded-md text-sm">
-                <strong>Paper:</strong> {selectedPaper?.paperName} ({selectedPaper?.gsm}gsm, {selectedPaper?.length}cm x {selectedPaper?.breadth}cm)
+                <strong>Paper:</strong> {selectedPaper?.paperName} ({selectedPaper?.gsm}gsm, {selectedPaper?.length}cm x {paperTypes?.find(p => p.id === selectedPaperTypeId)?.breadth}cm)
             </div>
             <div className="overflow-auto max-h-60">
                 <Table>
@@ -322,12 +322,75 @@ const BulkAddReelsContent = ({
   )
 }
 
+const ReelEditForm = ({
+  reel,
+  onSave,
+  onClose,
+  isSaving,
+}: {
+  reel: Reel,
+  onSave: (reelData: Partial<Reel>) => void,
+  onClose: () => void,
+  isSaving: boolean,
+}) => {
+  const [reelData, setReelData] = useState<Partial<Reel>>(reel);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    setReelData(reel);
+  }, [reel]);
+
+  const handleSave = () => {
+    if (!reelData.reelNo || !reelData.weight || reelData.weight <= 0) {
+      toast({ variant: "destructive", title: "Error", description: "Reel Number and a valid Weight are required." });
+      return;
+    }
+    onSave(reelData);
+  };
+
+  return (
+    <>
+      <div className="space-y-4 py-4">
+        <div className="space-y-2">
+          <Label htmlFor="reel-no-edit">Reel Number</Label>
+          <Input
+            id="reel-no-edit"
+            value={reelData.reelNo || ''}
+            onChange={(e) => setReelData(prev => ({ ...prev, reelNo: e.target.value }))}
+            className="h-11"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="weight-edit">Weight (kg)</Label>
+          <Input
+            id="weight-edit"
+            type="number"
+            inputMode="decimal"
+            value={reelData.weight || ''}
+            onChange={(e) => setReelData(prev => ({ ...prev, weight: parseFloat(e.target.value) || 0 }))}
+            className="h-11"
+          />
+        </div>
+      </div>
+      <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+        <Button variant="outline" className="w-full h-11" onClick={onClose} disabled={isSaving}>Cancel</Button>
+        <Button onClick={handleSave} disabled={isSaving} className="w-full h-11">
+          {isSaving ? "Saving..." : "Save Changes"}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+};
+
+
 export default function ReelsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
   
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingReel, setEditingReel] = useState<Reel | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   
   const [searchFilter, setSearchFilter] = useState('');
@@ -342,6 +405,26 @@ export default function ReelsPage() {
   const { data: paperTypes, isLoading: loadingPaperTypes } = useCollection<PaperType>(paperTypesQuery);
   
   const canEdit = useMemo(() => currentUser?.role === 'Admin' || currentUser?.role === 'Member', [currentUser]);
+  
+  const openEditModal = (reel: Reel) => {
+    setEditingReel(reel);
+    setIsEditModalOpen(true);
+  };
+  
+  const closeEditModal = useCallback(() => {
+    setEditingReel(null);
+    setIsEditModalOpen(false);
+  }, []);
+
+  const handleEditSave = (reelData: Partial<Reel>) => {
+    if (!firestore || !editingReel) return;
+    setIsSaving(true);
+    const docRef = doc(firestore, 'reels', editingReel.id);
+    updateDocumentNonBlocking(docRef, reelData);
+    toast({ title: '✅ Reel Updated Successfully' });
+    setIsSaving(false);
+    closeEditModal();
+  };
 
   const handleBulkSaveReels = async (reelsToSave: Partial<Reel>[]) => {
     if (!firestore || !user || !canEdit) return;
@@ -387,9 +470,9 @@ export default function ReelsPage() {
         const sizeMatch = reel.length.toString().includes(lowercasedFilter);
         return paperNameMatch || reelNoMatch || sizeMatch;
     }).sort((a,b) => {
-        if (!b.createdAt || !a.createdAt) return 0;
-        if (typeof b.createdAt.toMillis !== 'function' || typeof a.createdAt.toMillis !== 'function') return 0;
-        return b.createdAt.toMillis() - a.createdAt.toMillis();
+        const aDate = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const bDate = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return bDate - aDate;
     });
   }, [reels, searchFilter, paperTypes]);
 
@@ -437,6 +520,22 @@ export default function ReelsPage() {
                 </DialogTrigger>
                 <DialogContent className="max-w-md w-[95vw] rounded-2xl p-4" onPointerDownOutside={(e) => e.preventDefault()}>
                     <BulkAddReelsContent {...bulkAddProps} />
+                </DialogContent>
+            </Dialog>
+        )}
+
+        {canEdit && editingReel && (
+            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+                <DialogContent className="max-w-sm w-[95vw] rounded-2xl p-4">
+                    <DialogHeader>
+                        <DialogTitle>Edit Reel</DialogTitle>
+                    </DialogHeader>
+                    <ReelEditForm
+                        reel={editingReel}
+                        onSave={handleEditSave}
+                        onClose={closeEditModal}
+                        isSaving={isSaving}
+                    />
                 </DialogContent>
             </Dialog>
         )}
@@ -491,23 +590,28 @@ export default function ReelsPage() {
                         <CardFooter className="flex justify-between items-center">
                             <Badge variant={statusVariant(reel.status)} className={statusColor(reel.status)}>{reel.status}</Badge>
                             {canEdit && (
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive h-8 w-8">
-                                            <Trash2 className="h-4 w-4"/>
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>This will permanently delete reel <strong>{reel.reelNo}</strong>.</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDeleteReel(reel.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
+                                <div className="flex items-center gap-1">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditModal(reel)}>
+                                        <Edit className="h-4 w-4"/>
+                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive h-8 w-8">
+                                                <Trash2 className="h-4 w-4"/>
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>This will permanently delete reel <strong>{reel.reelNo}</strong>.</AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteReel(reel.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
                             )}
                         </CardFooter>
                     </Card>
@@ -521,5 +625,3 @@ export default function ReelsPage() {
     </div>
   );
 }
-
-    
