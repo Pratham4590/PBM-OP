@@ -121,7 +121,7 @@ const RulingForm = ({
 
     const reamWeight = (paperType.length * entry.cutoff * paperType.gsm) / 20000;
     if (reamWeight <= 0) return { theoreticalSheets: 0, difference: 0 };
-
+    
     const theoreticalSheets = (selectedReel.weight * 500) / reamWeight;
     const difference = (entry.sheetsRuled || 0) - theoreticalSheets;
   
@@ -341,12 +341,19 @@ export default function RulingPage() {
         const theoreticalSheets = reamWeight > 0 ? (selectedReel.weight * 500) / reamWeight : 0;
         const difference = (entry.sheetsRuled || 0) - theoreticalSheets;
 
-        return {
+        const rulingEntryData: RulingEntry = {
           ...initialRulingEntry,
           ...entry,
           theoreticalSheets: isNaN(theoreticalSheets) ? 0 : theoreticalSheets,
           difference: isNaN(difference) ? 0 : difference,
-        } as RulingEntry;
+        };
+
+        // Ensure optional fields are not undefined
+        if (!rulingEntryData.programId) {
+          delete (rulingEntryData as Partial<RulingEntry>).programId;
+        }
+
+        return rulingEntryData;
       });
 
       const rulingData = {
@@ -354,7 +361,7 @@ export default function RulingPage() {
         reelId: selectedReel.id,
         reelNo: selectedReel.reelNo,
         paperTypeId: selectedReel.paperTypeId,
-        startWeight: selectedReel.weight, // original weight
+        startWeight: selectedReel.weight,
         rulingEntries: finalRulingEntries,
         totalSheetsRuled,
         createdBy: user.uid,
