@@ -16,6 +16,7 @@ export type PaperType = {
   paperName: string;
   gsm: number;
   length: number; // in cm
+  breadth: number; // in cm
 };
 
 export type ItemType = {

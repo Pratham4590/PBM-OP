@@ -132,7 +132,7 @@ export default function ReportsPage() {
       ruling.rulingEntries.forEach(entry => {
         if(itemFilter !== 'all' && entry.itemTypeId !== itemFilter) return;
 
-        const difference = Math.round(entry.difference);
+        const difference = Math.abs(Math.round(entry.difference));
         tableBody.push([
           ruling.reelNo,
           getPaperTypeName(ruling.paperTypeId),
@@ -145,12 +145,16 @@ export default function ReportsPage() {
       });
     });
 
+    const totalReelWeight = filteredData.reduce((sum, ruling) => sum + ruling.startWeight, 0);
     const totalSheetsRuled = tableBody.reduce((sum, row) => sum + parseFloat(row[4].replace(/,/g, '')), 0);
     const totalTheoreticalSheets = tableBody.reduce((sum, row) => sum + parseFloat(row[5].replace(/,/g, '')), 0);
-    const totalDifference = totalSheetsRuled - totalTheoreticalSheets;
+    const totalDifference = tableBody.reduce((sum, row) => sum + parseFloat(row[6].replace(/,/g, '')), 0);
     
     const totalsBody = [
-        ['TOTALS', '', '', '', totalSheetsRuled.toLocaleString(), Math.round(totalTheoreticalSheets).toLocaleString(), Math.round(totalDifference).toLocaleString()]
+        ['Total Reel Weight (kg)', totalReelWeight.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})],
+        ['Total Sheets Ruled', totalSheetsRuled.toLocaleString()],
+        ['Total Theoretical Sheets', Math.round(totalTheoreticalSheets).toLocaleString()],
+        ['Total Difference', Math.round(totalDifference).toLocaleString()],
     ];
 
 
@@ -167,9 +171,10 @@ export default function ReportsPage() {
         },
         didDrawCell: (data) => {
             if (data.column.index === 6 && data.cell.section === 'body') {
-                const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
-                if (value < 0) {
-                    doc.setTextColor(220, 38, 38); // Red for negative
+                const ruled = parseFloat(String(tableBody[data.row.index][4]).replace(/,/g, ''));
+                const theoretical = parseFloat(String(tableBody[data.row.index][5]).replace(/,/g, ''));
+                if (ruled > theoretical) {
+                    doc.setTextColor(234, 88, 12); // Orange for over-ruled
                 }
             }
         },
@@ -193,11 +198,10 @@ export default function ReportsPage() {
           startY: lastTable.finalY + 5,
           margin: { left: 10, right: 10 },
           theme: 'grid',
-          bodyStyles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] },
-          didParseCell: (data) => {
-              if (data.column.index <= 2) {
-                  data.cell.styles.halign = 'left';
-              }
+          bodyStyles: { fontStyle: 'bold' },
+          columnStyles: {
+            0: { halign: 'left' },
+            1: { halign: 'right' },
           }
       });
     }
@@ -269,47 +273,50 @@ export default function ReportsPage() {
                   </TableRow>
                 ) : filteredData.length > 0 ? (
                   filteredData.map((ruling) => (
-                     ruling.rulingEntries.filter(entry => itemFilter === 'all' || entry.itemTypeId === itemFilter).map((entry, index) => (
-                      <TableRow key={`${ruling.id}-${index}`}>
-                        <TableCell className="font-medium whitespace-nowrap">{ruling.reelNo}</TableCell>                      
-                        <TableCell className="whitespace-nowrap">{getPaperTypeName(ruling.paperTypeId)}</TableCell>
-                        <TableCell className="whitespace-nowrap">{getItemTypeName(entry.itemTypeId)}</TableCell>
-                        <TableCell>{entry.cutoff} cm</TableCell>
-                        <TableCell className="text-right">{entry.sheetsRuled.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{Math.round(entry.theoreticalSheets).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant={entry.difference >= 0 ? 'default' : 'destructive'} className={entry.difference >= 0 ? 'bg-green-600 dark:bg-green-800' : ''}>
-                            {Math.round(entry.difference).toLocaleString()}
-                          </Badge>
-                        </TableCell>
-                         {canEdit && (
+                     ruling.rulingEntries.filter(entry => itemFilter === 'all' || entry.itemTypeId === itemFilter).map((entry, index) => {
+                      const isOverRuled = entry.sheetsRuled > entry.theoreticalSheets;
+                      return (
+                        <TableRow key={`${ruling.id}-${index}`}>
+                          <TableCell className="font-medium whitespace-nowrap">{ruling.reelNo}</TableCell>                      
+                          <TableCell className="whitespace-nowrap">{getPaperTypeName(ruling.paperTypeId)}</TableCell>
+                          <TableCell className="whitespace-nowrap">{getItemTypeName(entry.itemTypeId)}</TableCell>
+                          <TableCell>{entry.cutoff} cm</TableCell>
+                          <TableCell className="text-right">{entry.sheetsRuled.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{Math.round(entry.theoreticalSheets).toLocaleString()}</TableCell>
                           <TableCell className="text-right">
-                             <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4"/>Delete Ruling</DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>This will permanently delete the ruling for reel <strong>{ruling.reelNo}</strong> and revert the stock changes.</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDeleteRuling(ruling)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <Badge variant={isOverRuled ? 'destructive' : 'default'} className={isOverRuled ? 'bg-orange-500' : 'bg-green-600 dark:bg-green-800'}>
+                              {Math.abs(Math.round(entry.difference)).toLocaleString()}
+                            </Badge>
                           </TableCell>
-                        )}
-                      </TableRow>
-                     ))
+                           {canEdit && index === 0 && (
+                            <TableCell className="text-right" rowSpan={ruling.rulingEntries.length}>
+                               <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                  <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4"/>Delete Ruling</DropdownMenuItem>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                              <AlertDialogDescription>This will permanently delete the ruling for reel <strong>{ruling.reelNo}</strong> and revert the stock changes.</AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                              <AlertDialogAction onClick={() => handleDeleteRuling(ruling)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                          </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                  </AlertDialog>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      )
+                     })
                   ))
                 ) : (
                   <TableRow>

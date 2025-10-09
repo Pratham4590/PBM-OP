@@ -125,8 +125,7 @@ const RulingForm = ({
     const weightPerSheet = selectedReel.weight / selectedReel.initialSheets;
     const rulingWeight = (entry.sheetsRuled || 0) * weightPerSheet;
 
-    const { length, gsm } = selectedReel;
-    const reamWeight = (length * entry.cutoff * gsm) / 20000;
+    const reamWeight = (selectedReel.length * entry.cutoff * selectedReel.gsm) / 20000;
     if (reamWeight <= 0) return { theoreticalSheets: 0, difference: 0 };
 
     const theoreticalSheets = (rulingWeight * 500) / reamWeight;
@@ -326,11 +325,16 @@ export default function RulingPage() {
   
   const calculateInitialSheets = (reel: Reel, paper: PaperType): number => {
     if (reel.initialSheets && reel.initialSheets > 0) return reel.initialSheets;
-    // The prompt does not specify a breadth, so we will use the paper's length as a stand-in
-    // for a square-like calculation until a breadth property is added to PaperType.
-    const reamWeight = (paper.length * paper.length * paper.gsm) / 20000;
-    if (reamWeight <= 0) return 0;
-    return Math.floor((reel.weight * 500) / reamWeight);
+    
+    const { length, breadth, gsm } = paper;
+    if (!length || !breadth || !gsm) return 0;
+    
+    const areaPerSheetM2 = (length * breadth) / 10000;
+    const weightPerSheetG = areaPerSheetM2 * gsm;
+    if (weightPerSheetG <= 0) return 0;
+
+    const sheetsPerKg = 1000 / weightPerSheetG;
+    return Math.floor(reel.weight * sheetsPerKg);
   };
   
   const handleReelSelect = (reel: Reel) => {
@@ -410,13 +414,17 @@ export default function RulingPage() {
       const newAvailableSheets = availableSheets - totalSheetsRuled;
       const newStatus: Reel['status'] = newAvailableSheets < 100 ? 'Finished' : 'In Use';
       
-      const reelUpdate: Partial<Reel> = { 
+      const reelUpdateData: Partial<Reel> = { 
         availableSheets: newAvailableSheets,
         status: newStatus,
-        initialSheets: selectedReel.initialSheets, // Ensure this is persisted
       };
+      
+      // Persist initialSheets if it was calculated for the first time
+      if (!selectedReel.initialSheets || selectedReel.initialSheets === 0) {
+          reelUpdateData.initialSheets = initialSheets;
+      }
 
-      batch.update(reelDocRef, reelUpdate as any);
+      batch.update(reelDocRef, reelUpdateData as any);
       
       await batch.commit();
       
@@ -476,7 +484,7 @@ export default function RulingPage() {
                 <SelectTrigger className="h-11"><SelectValue placeholder="Select a paper type..." /></SelectTrigger>
                 <SelectContent>
                 {paperTypes?.map(pt => (
-                    <SelectItem key={pt.id} value={pt.id}>{pt.paperName} - {pt.gsm}gsm - {pt.length}cm</SelectItem>
+                    <SelectItem key={pt.id} value={pt.id}>{pt.paperName} - {pt.gsm}gsm - {pt.length}cm x {pt.breadth}cm</SelectItem>
                 ))}
                 </SelectContent>
             </Select>

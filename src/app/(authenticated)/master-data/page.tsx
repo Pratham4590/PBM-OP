@@ -75,9 +75,15 @@ const PaperModalContent = ({
           <Label htmlFor="paper-gsm">GSM (Grams per Square Meter)</Label>
           <Input id="paper-gsm" type="number" value={newPaperType.gsm || ''} onChange={(e) => setNewPaperType({ ...newPaperType, gsm: parseFloat(e.target.value) || 0 })} placeholder="e.g., 58" className="h-11" />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="paper-length">Length (cm)</Label>
-          <Input id="paper-length" type="number" value={newPaperType.length || ''} onChange={(e) => setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })} placeholder="e.g., 60" className="h-11" />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="paper-length">Length (cm)</Label>
+            <Input id="paper-length" type="number" value={newPaperType.length || ''} onChange={(e) => setNewPaperType({ ...newPaperType, length: parseFloat(e.target.value) || 0 })} placeholder="e.g., 60" className="h-11" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="paper-breadth">Breadth (cm)</Label>
+            <Input id="paper-breadth" type="number" value={newPaperType.breadth || ''} onChange={(e) => setNewPaperType({ ...newPaperType, breadth: parseFloat(e.target.value) || 0 })} placeholder="e.g., 90" className="h-11" />
+          </div>
         </div>
       </div>
       <DialogFooter className="p-4 border-t sticky bottom-0 bg-background z-10 w-full">
@@ -138,7 +144,7 @@ export default function MasterDataPage() {
   const [editingPaperType, setEditingPaperType] = useState<PaperType | null>(null);
   const [editingItemType, setEditingItemType] = useState<ItemType | null>(null);
 
-  const [newPaperType, setNewPaperType] = useState<Partial<PaperType>>({ paperName: '', gsm: undefined, length: undefined });
+  const [newPaperType, setNewPaperType] = useState<Partial<PaperType>>({ paperName: '', gsm: undefined, length: undefined, breadth: undefined });
   const [newItemType, setNewItemType] = useState<Partial<ItemType>>({ itemName: '', shortCode: '' });
 
   const canEdit = useMemo(() => {
@@ -153,7 +159,7 @@ export default function MasterDataPage() {
       setNewPaperType(paper);
     } else {
       setEditingPaperType(null);
-      setNewPaperType({ paperName: '', gsm: undefined, length: undefined });
+      setNewPaperType({ paperName: '', gsm: undefined, length: undefined, breadth: undefined });
     }
     setIsPaperModalOpen(true);
   }
@@ -164,7 +170,7 @@ export default function MasterDataPage() {
   }, []);
 
   const handleSavePaperType = () => {
-    if (!firestore || !newPaperType.paperName || !newPaperType.gsm || !newPaperType.length) {
+    if (!firestore || !newPaperType.paperName || !newPaperType.gsm || !newPaperType.length || !newPaperType.breadth) {
       toast({ variant: 'destructive', title: 'Error', description: 'Please fill out all fields.' });
       return;
     }
@@ -172,6 +178,7 @@ export default function MasterDataPage() {
         paperName: newPaperType.paperName,
         gsm: newPaperType.gsm,
         length: newPaperType.length,
+        breadth: newPaperType.breadth,
     }
 
     if (editingPaperType) {
@@ -344,19 +351,21 @@ export default function MasterDataPage() {
                   <TableRow>
                     <TableHead>Paper Name</TableHead>
                     <TableHead>GSM</TableHead>
-                    <TableHead>Length (cm)</TableHead>
+                    <TableHead>L (cm)</TableHead>
+                    <TableHead>B (cm)</TableHead>
                     {canEdit && <TableHead className="w-[50px] text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loadingPaper ? (
-                    <TableRow><TableCell colSpan={canEdit ? 4 : 3} className="text-center h-24">Loading...</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={canEdit ? 5 : 4} className="text-center h-24">Loading...</TableCell></TableRow>
                   ) : paperTypes && paperTypes.length > 0 ? (
                     paperTypes.map((paper) => (
                       <TableRow key={paper.id}>
                         <TableCell className="font-medium whitespace-nowrap">{paper.paperName}</TableCell>
                         <TableCell><Badge variant="outline">{paper.gsm}</Badge></TableCell>
                         <TableCell>{paper.length}</TableCell>
+                        <TableCell>{paper.breadth}</TableCell>
                         {canEdit && (
                           <TableCell className="text-right">
                              <DropdownMenu>
@@ -387,7 +396,7 @@ export default function MasterDataPage() {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={canEdit ? 4 : 3} className="text-center h-24">No paper types found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={canEdit ? 5 : 4} className="text-center h-24">No paper types found.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

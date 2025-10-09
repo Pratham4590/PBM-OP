@@ -23,9 +23,10 @@
         "id": { "type": "string", "description": "Unique identifier for the paper type." },
         "paperName": { "type": "string", "description": "The name of the paper type (e.g., A4, Letter)." },
         "gsm": { "type": "number", "description": "The grammage of the paper (grams per square meter)." },
-        "length": { "type": "number", "description": "The length of the paper in centimeters." }
+        "length": { "type": "number", "description": "The length of the paper in centimeters." },
+        "breadth": { "type": "number", "description": "The breadth of the paper in centimeters." }
       },
-      "required": ["paperName", "gsm", "length"]
+      "required": ["paperName", "gsm", "length", "breadth"]
     },
     "ItemType": {
       "title": "ItemType",
