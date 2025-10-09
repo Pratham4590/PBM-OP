@@ -118,7 +118,7 @@ const RulingForm = ({
   }, [rulingEntries]);
 
   const calculateRulingValues = (entry: Partial<RulingEntry>) => {
-    if (!selectedReel || !entry.cutoff || !entry.sheetsRuled || !entry.itemTypeId || !selectedReel.initialSheets) {
+    if (!selectedReel || !entry.cutoff || !entry.sheetsRuled || !entry.itemTypeId || !selectedReel.initialSheets || selectedReel.initialSheets === 0) {
       return { theoreticalSheets: 0, difference: 0 };
     }
     
@@ -141,6 +141,24 @@ const RulingForm = ({
   const handleStatusSave = () => {
     onStatusChange(newStatus);
     setIsStatusModalOpen(false);
+  }
+
+  const statusVariant = (status: Reel['status']): "default" | "secondary" | "destructive" | "outline" => {
+    switch(status) {
+        case 'Available': return 'default';
+        case 'In Use': return 'secondary';
+        case 'Finished': return 'destructive';
+        case 'Hold': return 'outline';
+    }
+  }
+
+  const statusColor = (status: Reel['status']): string => {
+    switch(status) {
+        case 'Available': return 'bg-green-600 dark:bg-green-700';
+        case 'In Use': return 'bg-blue-500 dark:bg-blue-600';
+        case 'Finished': return ''; // uses destructive variant
+        case 'Hold': return 'bg-orange-500 dark:bg-orange-600';
+    }
   }
 
   return (
@@ -180,7 +198,7 @@ const RulingForm = ({
             )}
         </div>
          <div className="p-4 bg-muted/50 rounded-lg mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <div className="flex justify-between"><span>Status:</span> <Badge variant={selectedReel.status === 'Available' ? 'default' : 'secondary'} className={`${selectedReel.status === 'Available' ? 'bg-green-600' : selectedReel.status === 'In Use' ? 'bg-blue-500' : selectedReel.status === 'Finished' ? 'bg-red-600' : 'bg-orange-500'}`}>{selectedReel.status}</Badge></div>
+            <div className="flex justify-between"><span>Status:</span> <Badge variant={statusVariant(selectedReel.status)} className={statusColor(selectedReel.status)}>{selectedReel.status}</Badge></div>
             <div className="flex justify-between"><span>Start Sheets:</span> <span className="font-bold">{selectedReel.initialSheets?.toLocaleString() || 'N/A'}</span></div>
             <div className="flex justify-between col-span-2 sm:col-span-1"><span>Available Sheets:</span> <span className="font-bold">{remainingSheets.toLocaleString()}</span></div>
         </div>
@@ -222,13 +240,13 @@ const RulingForm = ({
                         </div>
                         <div className="space-y-2">
                             <Label>Cutoff (cm)</Label>
-                            <Input type="number" value={entry.cutoff || ''} onChange={e => handleRulingEntryChange(index, 'cutoff', parseFloat(e.target.value))} disabled={!!entry.programId || isRulingDisabled} className="h-11" />
+                            <Input type="number" value={entry.cutoff || ''} onChange={e => handleRulingEntryChange(index, 'cutoff', parseFloat(e.target.value) || 0)} disabled={!!entry.programId || isRulingDisabled} className="h-11" />
                         </div>
                     </div>
                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Sheets Ruled</Label>
-                            <Input type="number" value={entry.sheetsRuled || ''} onChange={e => handleRulingEntryChange(index, 'sheetsRuled', parseInt(e.target.value))} disabled={isRulingDisabled} className="h-11" />
+                            <Input type="number" value={entry.sheetsRuled || ''} onChange={e => handleRulingEntryChange(index, 'sheetsRuled', parseInt(e.target.value) || 0)} disabled={isRulingDisabled} className="h-11" />
                         </div>
                          <div className="space-y-2">
                             <Label>Status</Label>
@@ -306,30 +324,40 @@ export default function RulingPage() {
     setStep(2);
   };
   
-  const handleReelSelect = (reel: Reel) => {
-    setSelectedReel(reel);
-    setStep(3);
-  };
-
-  const calculateInitialSheets = (reel: Reel): number => {
-    if (reel.initialSheets > 0) return reel.initialSheets;
-    // Assuming a standard breadth of 80cm if not specified in paper master
-    const breadth = 80; 
-    const reamWeight = (reel.length * breadth * reel.gsm) / 20000;
+  const calculateInitialSheets = (reel: Reel, paper: PaperType): number => {
+    if (reel.initialSheets && reel.initialSheets > 0) return reel.initialSheets;
+    // The prompt does not specify a breadth, so we will use the paper's length as a stand-in
+    // for a square-like calculation until a breadth property is added to PaperType.
+    const reamWeight = (paper.length * paper.length * paper.gsm) / 20000;
     if (reamWeight <= 0) return 0;
     return Math.floor((reel.weight * 500) / reamWeight);
+  };
+  
+  const handleReelSelect = (reel: Reel) => {
+    const paper = paperTypes?.find(p => p.id === reel.paperTypeId);
+    if (!paper) {
+        toast({variant: 'destructive', title: 'Error', description: 'Could not find paper type for the selected reel.'});
+        return;
+    }
+    const initialSheets = calculateInitialSheets(reel, paper);
+    setSelectedReel({
+        ...reel,
+        initialSheets,
+        availableSheets: reel.availableSheets ?? initialSheets,
+    });
+    setStep(3);
   };
   
   const handleSave = async (rulingEntries: Partial<RulingEntry>[]) => {
     if (!firestore || !user || !selectedReel) return;
     
-    if (rulingEntries.some(e => !e.itemTypeId || !e.cutoff || !e.sheetsRuled)) {
+    if (rulingEntries.some(e => !e.itemTypeId || !e.cutoff || e.sheetsRuled == null)) {
       toast({ variant: 'destructive', title: 'Missing Fields', description: 'Please fill out all required fields for each ruling entry.' });
       return;
     }
     const totalSheetsRuled = rulingEntries.reduce((sum, entry) => sum + (entry.sheetsRuled || 0), 0);
-    const initialSheets = calculateInitialSheets(selectedReel);
-    const availableSheets = selectedReel.availableSheets ?? initialSheets;
+    const initialSheets = selectedReel.initialSheets;
+    const availableSheets = selectedReel.availableSheets;
     
     if (totalSheetsRuled > availableSheets) {
         toast({ variant: 'destructive', title: 'Insufficient Stock', description: `Cannot rule ${totalSheetsRuled.toLocaleString()} sheets. Only ${availableSheets.toLocaleString()} are available.`});
@@ -339,9 +367,18 @@ export default function RulingPage() {
     setIsSaving(true);
     try {
       const batch = writeBatch(firestore);
-      const weightPerSheet = selectedReel.weight / initialSheets;
       
       const finalRulingEntries = rulingEntries.map(entry => {
+        if (!initialSheets || initialSheets === 0) {
+            return {
+              ...initialRulingEntry,
+              ...entry,
+              theoreticalSheets: 0,
+              difference: 0,
+            } as RulingEntry;
+        }
+
+        const weightPerSheet = selectedReel.weight / initialSheets;
         const rulingWeight = (entry.sheetsRuled || 0) * weightPerSheet;
         const reamWeight = (selectedReel.length * (entry.cutoff || 0) * selectedReel.gsm) / 20000;
         const theoreticalSheets = reamWeight > 0 ? (rulingWeight * 500) / reamWeight : 0;
@@ -376,13 +413,10 @@ export default function RulingPage() {
       const reelUpdate: Partial<Reel> = { 
         availableSheets: newAvailableSheets,
         status: newStatus,
+        initialSheets: selectedReel.initialSheets, // Ensure this is persisted
       };
-      
-      if (!selectedReel.initialSheets || selectedReel.initialSheets === 0) {
-          reelUpdate.initialSheets = initialSheets;
-      }
 
-      batch.update(reelDocRef, reelUpdate);
+      batch.update(reelDocRef, reelUpdate as any);
       
       await batch.commit();
       
@@ -478,7 +512,7 @@ export default function RulingPage() {
   return (
     <>
       <PageHeader
-        title="Reel Ruling"
+        title="📏 Reel Ruling"
         description="Log ruling entries for available reels."
       >
         <Button variant="ghost" size="icon" onClick={() => step > 1 ? setStep(step - 1) : router.back()}>
@@ -498,7 +532,7 @@ export default function RulingPage() {
             onCancel={resetAll}
             isSaving={isSaving}
             onStatusChange={handleManualStatusChange}
-            canChangeStatus={canChangeStatus}
+            canChangeStatus={canChangeStatus || false}
           />
         )}
       </div>
