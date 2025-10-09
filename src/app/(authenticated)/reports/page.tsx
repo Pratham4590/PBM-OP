@@ -44,7 +44,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { useState, useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, Timestamp, doc, writeBatch, getDoc } from 'firebase/firestore';
 import { Ruling as RulingType, PaperType, ItemType, Reel, User as AppUser } from '@/lib/types';
 import jsPDF from 'jspdf';
@@ -104,7 +104,6 @@ export default function ReportsPage() {
         // 2. Revert stock changes on the reel
         const reelDocRef = doc(firestore, 'reels', ruling.reelId);
         
-        // We need the current state of the reel to update it
         const reelDoc = await getDoc(reelDocRef);
         if (reelDoc.exists()) {
             const reelData = reelDoc.data() as Reel;
@@ -112,10 +111,9 @@ export default function ReportsPage() {
             
             const reelUpdate: Partial<Reel> = {
                 availableSheets: newAvailableSheets,
-                // If it now has sheets again, it should not be finished.
                 status: reelData.status === 'Finished' && newAvailableSheets > 100 ? 'In Use' : reelData.status,
             };
-            batch.update(reelDocRef, reelUpdate);
+            batch.update(reelDocRef, reelUpdate as any);
         }
 
         await batch.commit();
@@ -147,7 +145,6 @@ export default function ReportsPage() {
       });
     });
 
-    const totalReelWeight = filteredData.reduce((sum, ruling) => sum + ruling.startWeight, 0);
     const totalSheetsRuled = tableBody.reduce((sum, row) => sum + parseFloat(row[4].replace(/,/g, '')), 0);
     const totalTheoreticalSheets = tableBody.reduce((sum, row) => sum + parseFloat(row[5].replace(/,/g, '')), 0);
     const totalDifference = totalSheetsRuled - totalTheoreticalSheets;
@@ -332,4 +329,3 @@ export default function ReportsPage() {
     </>
   );
 }
-    
