@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -158,21 +159,36 @@ export default function ReportsPage() {
       });
     });
 
-    let finalY = (doc as any).lastAutoTable.finalY || 25;
+    const totalDifference = totalRuled - totalTheoretical;
+    const footer = [[
+        'Total', 
+        '', 
+        `${totalReelWeight.toFixed(2)} kg`, 
+        '', 
+        totalRuled.toLocaleString(), 
+        Math.round(totalTheoretical).toLocaleString(), 
+        totalDifference.toLocaleString()
+    ]];
 
     autoTable(doc, {
         head: tableHeader,
         body: allEntries,
-        startY: finalY,
+        foot: footer,
+        startY: 25,
         margin: { top: 25, right: 10, bottom: 15, left: 10 },
-        headStyles: { fillColor: [38, 86, 166] },
+        headStyles: { fillColor: [38, 86, 166], fontStyle: 'bold' },
+        footStyles: { fillColor: [230, 230, 230], textColor: 0, fontStyle: 'bold' },
         didParseCell: (data) => {
-            if (data.column.index >= 4 && data.cell.section === 'body') {
+            if (data.column.index >= 4 && (data.cell.section === 'body' || data.cell.section === 'foot')) {
+                data.cell.styles.halign = 'right';
+            }
+             if (data.column.index === 2 && (data.cell.section === 'body' || data.cell.section === 'foot')) {
                 data.cell.styles.halign = 'right';
             }
         },
         willDrawCell: (data) => {
-            if (data.column.index === 6 && data.cell.section === 'body') {
+            const isDiffColumn = data.column.index === 6;
+            if (isDiffColumn && (data.cell.section === 'body' || data.cell.section === 'foot')) {
                 const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
                 if (value < 0) {
                     doc.setTextColor(220, 38, 38); // Red
@@ -191,42 +207,6 @@ export default function ReportsPage() {
             doc.text(`Page ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
         },
     });
-
-    finalY = (doc as any).lastAutoTable.finalY;
-    const totalDifference = totalRuled - totalTheoretical;
-
-    const summaryBody = [
-        ['Total Reel Weight', `${totalReelWeight.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`],
-        ['Total Ruled Sheets', totalRuled.toLocaleString()],
-        ['Total Theoretical Sheets', Math.round(totalTheoretical).toLocaleString()],
-        ['Total Difference', totalDifference.toLocaleString()],
-    ];
-
-    autoTable(doc, {
-        body: summaryBody,
-        startY: finalY + 10,
-        margin: { left: doc.internal.pageSize.width - 80, right: 10 },
-        theme: 'plain',
-        tableWidth: 'wrap',
-        styles: {
-            fontStyle: 'bold',
-            halign: 'right'
-        },
-        columnStyles: {
-            0: { halign: 'left' }
-        },
-        willDrawCell: (data) => {
-             if (data.row.index === 3 && data.column.index === 1) {
-                const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
-                if (value < 0) {
-                    doc.setTextColor(220, 38, 38); // Red
-                } else {
-                    doc.setTextColor(22, 163, 74); // Green
-                }
-            }
-        },
-    });
-
 
     doc.save("production_report.pdf");
   };
@@ -301,7 +281,7 @@ export default function ReportsPage() {
                         <TableRow key={`${ruling.id}-${index}`}>
                           <TableCell className="font-medium whitespace-nowrap">{ruling.reelNo}</TableCell>                      
                           <TableCell className="whitespace-nowrap">{getPaperTypeName(ruling.paperTypeId)}</TableCell>
-                          <TableCell className="whitespace-nowrap">{ruling.startWeight.toFixed(2)} kg</TableCell>
+                          <TableCell className="whitespace-nowrap text-right">{ruling.startWeight.toFixed(2)} kg</TableCell>
                           <TableCell>{entry.cutoff} cm</TableCell>
                           <TableCell className="text-right">{entry.sheetsRuled.toLocaleString()}</TableCell>
                           <TableCell className="text-right">{Math.round(entry.theoreticalSheets).toLocaleString()}</TableCell>
@@ -357,4 +337,5 @@ export default function ReportsPage() {
       </Card>
     </>
   );
-}
+
+    
