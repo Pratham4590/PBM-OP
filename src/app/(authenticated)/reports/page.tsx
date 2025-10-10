@@ -126,14 +126,15 @@ export default function ReportsPage() {
 
   const handleExport = () => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    
-    let tableBody: any[] = [];
+    const tableHeader = [["Reel No.", "Paper", "Reel Weight", "Cutoff", "Ruled", "Theory", "Diff"]];
+
+    let allEntries: any[] = [];
     filteredData.forEach(ruling => {
       ruling.rulingEntries.forEach(entry => {
-        if(itemFilter !== 'all' && entry.itemTypeId !== itemFilter) return;
+        if (itemFilter !== 'all' && entry.itemTypeId !== itemFilter) return;
 
         const difference = entry.sheetsRuled - entry.theoreticalSheets;
-        tableBody.push([
+        allEntries.push([
           ruling.reelNo,
           getPaperTypeName(ruling.paperTypeId),
           `${ruling.startWeight.toFixed(2)} kg`,
@@ -146,9 +147,9 @@ export default function ReportsPage() {
     });
 
     const totalReelWeight = filteredData.reduce((sum, ruling) => sum + ruling.startWeight, 0);
-    const totalSheetsRuled = tableBody.reduce((sum, row) => sum + parseFloat(row[4].replace(/,/g, '')), 0);
-    const totalTheoreticalSheets = tableBody.reduce((sum, row) => sum + parseFloat(row[5].replace(/,/g, '')), 0);
-    const totalDifference = tableBody.reduce((sum, row) => sum + parseFloat(row[6].replace(/,/g, '')), 0);
+    const totalSheetsRuled = allEntries.reduce((sum, row) => sum + parseFloat(row[4].replace(/,/g, '')), 0);
+    const totalTheoreticalSheets = allEntries.reduce((sum, row) => sum + parseFloat(row[5].replace(/,/g, '')), 0);
+    const totalDifference = allEntries.reduce((sum, row) => sum + parseFloat(row[6].replace(/,/g, '')), 0);
     
     const totalsBody = [
         ['Total Reel Weight (kg)', totalReelWeight.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})],
@@ -156,42 +157,52 @@ export default function ReportsPage() {
         ['Total Theoretical Sheets', Math.round(totalTheoreticalSheets).toLocaleString()],
         ['Total Difference', Math.round(totalDifference).toLocaleString()],
     ];
+    
+    const pageChunks = [];
+    for (let i = 0; i < allEntries.length; i += 10) {
+        pageChunks.push(allEntries.slice(i, i + 10));
+    }
+    
+    pageChunks.forEach((chunk, index) => {
+        if (index > 0) {
+            doc.addPage();
+        }
 
-
-    autoTable(doc, {
-        head: [["Reel No.", "Paper", "Reel Weight", "Cutoff", "Ruled", "Theory", "Diff"]],
-        body: tableBody,
-        startY: 25,
-        margin: { top: 25, right: 10, bottom: 15, left: 10 },
-        headStyles: { fillColor: [38, 86, 166] },
-        didParseCell: (data) => {
-            if (data.column.index >= 4 && data.cell.section === 'body') {
-                data.cell.styles.halign = 'right';
-            }
-        },
-        willDrawCell: (data) => {
-            if (data.column.index === 6 && data.cell.section === 'body') {
-                const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
-                if (value < 0) {
-                    doc.setTextColor(220, 38, 38); // Red for negative (under-ruled)
-                } else {
-                    doc.setTextColor(22, 163, 74); // Green for positive (over-ruled)
+        autoTable(doc, {
+            head: tableHeader,
+            body: chunk,
+            startY: 25,
+            margin: { top: 25, right: 10, bottom: 15, left: 10 },
+            headStyles: { fillColor: [38, 86, 166] },
+            didParseCell: (data) => {
+                if (data.column.index >= 4 && data.cell.section === 'body') {
+                    data.cell.styles.halign = 'right';
                 }
-            }
-        },
-        didDrawPage: (data) => {
-            doc.setTextColor(0, 0, 0); // Reset text color
-            doc.setFontSize(20);
-            doc.text("Production Report", data.settings.margin.left, 15);
-            doc.setFontSize(12);
-            doc.text(`Date: ${new Date().toLocaleDateString()}`, data.settings.margin.left, 20);
-            const pageCount = doc.internal.getNumberOfPages();
-            doc.text(`Page ${doc.internal.pages.length - 1} of ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
-        },
+            },
+            willDrawCell: (data) => {
+                if (data.column.index === 6 && data.cell.section === 'body') {
+                    const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
+                    if (value < 0) {
+                        doc.setTextColor(220, 38, 38); // Red
+                    } else {
+                        doc.setTextColor(22, 163, 74); // Green
+                    }
+                }
+            },
+            didDrawPage: (data) => {
+                doc.setTextColor(0, 0, 0);
+                doc.setFontSize(20);
+                doc.text("Production Report", data.settings.margin.left, 15);
+                doc.setFontSize(12);
+                doc.text(`Date: ${new Date().toLocaleDateString()}`, data.settings.margin.left, 20);
+                const pageCount = doc.internal.getNumberOfPages();
+                doc.text(`Page ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
+            },
+        });
     });
 
     const lastTable = (doc as any).lastAutoTable;
-    if (tableBody.length > 0) {
+    if (allEntries.length > 0) {
       autoTable(doc, {
           body: totalsBody,
           startY: lastTable.finalY + 5,
