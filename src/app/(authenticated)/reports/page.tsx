@@ -136,6 +136,7 @@ export default function ReportsPage() {
         tableBody.push([
           ruling.reelNo,
           getPaperTypeName(ruling.paperTypeId),
+          `${ruling.startWeight.toFixed(2)} kg`,
           entry.cutoff.toString(),
           entry.sheetsRuled.toLocaleString(),
           Math.round(entry.theoreticalSheets).toLocaleString(),
@@ -145,9 +146,9 @@ export default function ReportsPage() {
     });
 
     const totalReelWeight = filteredData.reduce((sum, ruling) => sum + ruling.startWeight, 0);
-    const totalSheetsRuled = tableBody.reduce((sum, row) => sum + parseFloat(row[3].replace(/,/g, '')), 0);
-    const totalTheoreticalSheets = tableBody.reduce((sum, row) => sum + parseFloat(row[4].replace(/,/g, '')), 0);
-    const totalDifference = tableBody.reduce((sum, row) => sum + parseFloat(row[5].replace(/,/g, '')), 0);
+    const totalSheetsRuled = tableBody.reduce((sum, row) => sum + parseFloat(row[4].replace(/,/g, '')), 0);
+    const totalTheoreticalSheets = tableBody.reduce((sum, row) => sum + parseFloat(row[5].replace(/,/g, '')), 0);
+    const totalDifference = tableBody.reduce((sum, row) => sum + parseFloat(row[6].replace(/,/g, '')), 0);
     
     const totalsBody = [
         ['Total Reel Weight (kg)', totalReelWeight.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})],
@@ -158,18 +159,18 @@ export default function ReportsPage() {
 
 
     autoTable(doc, {
-        head: [["Reel No.", "Paper", "Cutoff", "Ruled", "Theory", "Diff"]],
+        head: [["Reel No.", "Paper", "Start Wt", "Cutoff", "Ruled", "Theory", "Diff"]],
         body: tableBody,
         startY: 25,
         margin: { top: 25, right: 10, bottom: 15, left: 10 },
         headStyles: { fillColor: [38, 86, 166] },
         didParseCell: (data) => {
-            if (data.column.index >= 3 && data.cell.section === 'body') {
+            if (data.column.index >= 4 && data.cell.section === 'body') {
                 data.cell.styles.halign = 'right';
             }
         },
         willDrawCell: (data) => {
-            if (data.column.index === 5 && data.cell.section === 'body') {
+            if (data.column.index === 6 && data.cell.section === 'body') {
                 const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
                 if (value < 0) {
                     doc.setTextColor(220, 38, 38); // Red for negative (under-ruled)
@@ -254,6 +255,7 @@ export default function ReportsPage() {
                 <TableRow>
                   <TableHead>Reel No.</TableHead>
                   <TableHead>Paper Type</TableHead>
+                  <TableHead>Start Wt.</TableHead>
                   <TableHead>Cutoff</TableHead>
                   <TableHead className="text-right">Sheets Ruled</TableHead>
                   <TableHead className="text-right">Theoretical</TableHead>
@@ -264,7 +266,7 @@ export default function ReportsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={canEdit ? 7 : 6} className="h-24 text-center">
+                    <TableCell colSpan={canEdit ? 8 : 7} className="h-24 text-center">
                       Loading reports...
                     </TableCell>
                   </TableRow>
@@ -276,6 +278,7 @@ export default function ReportsPage() {
                         <TableRow key={`${ruling.id}-${index}`}>
                           <TableCell className="font-medium whitespace-nowrap">{ruling.reelNo}</TableCell>                      
                           <TableCell className="whitespace-nowrap">{getPaperTypeName(ruling.paperTypeId)}</TableCell>
+                          <TableCell className="whitespace-nowrap">{ruling.startWeight.toFixed(2)} kg</TableCell>
                           <TableCell>{entry.cutoff} cm</TableCell>
                           <TableCell className="text-right">{entry.sheetsRuled.toLocaleString()}</TableCell>
                           <TableCell className="text-right">{Math.round(entry.theoreticalSheets).toLocaleString()}</TableCell>
@@ -317,7 +320,7 @@ export default function ReportsPage() {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={canEdit ? 7 : 6}
+                      colSpan={canEdit ? 8 : 7}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No results found for the selected filters.
