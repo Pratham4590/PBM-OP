@@ -82,7 +82,7 @@ export default function ReportsPage() {
     }).sort((a, b) => {
         const dateA = a.date instanceof Timestamp ? a.date.toMillis() : new Date(a.date as string).getTime();
         const dateB = b.date instanceof Timestamp ? b.date.toMillis() : new Date(b.date as string).getTime();
-        return dateB - aDate;
+        return dateB - dateA;
     });
   }, [rulings, paperFilter, itemFilter]);
 
