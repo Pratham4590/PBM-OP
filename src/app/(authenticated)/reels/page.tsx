@@ -48,7 +48,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Image from 'next/image';
-import { extractReelsFromImage } from '@/ai/flows/extract-reels-flow';
+import { createWorker } from 'tesseract.js';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const BulkAddReelsContent = ({
@@ -66,6 +66,7 @@ const BulkAddReelsContent = ({
   const [selectedPaperTypeId, setSelectedPaperTypeId] = useState<string>('');
   const [image, setImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState('');
   const [extractedReels, setExtractedReels] = useState<ExtractedReel[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -92,43 +93,39 @@ const BulkAddReelsContent = ({
   }, [selectedDeviceId]);
   
   const startStream = useCallback(async () => {
-    let stream: MediaStream | null = null;
-    try {
-      await getCameras();
-      const constraints: MediaStreamConstraints = {
-        video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true
-      };
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
-      setHasCameraPermission(true);
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+    if (isCameraView) {
+      try {
+        await getCameras();
+        const constraints: MediaStreamConstraints = {
+          video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        setHasCameraPermission(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings.',
+        });
       }
-    } catch (error) {
-      console.error('Error accessing camera:', error);
-      setHasCameraPermission(false);
-      toast({
-        variant: 'destructive',
-        title: 'Camera Access Denied',
-        description: 'Please enable camera permissions in your browser settings.',
-      });
     }
-  }, [selectedDeviceId, getCameras, toast]);
+  }, [isCameraView, selectedDeviceId, getCameras, toast]);
 
   useEffect(() => {
-    let stream: MediaStream | null = null;
-    if (isCameraView) {
-      startStream();
-    }
+    startStream();
     
     return () => {
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
-        videoRef.current.srcObject = null;
       }
     }
-  }, [isCameraView, startStream]);
+  }, [startStream]);
 
 
   const handleSwitchCamera = () => {
@@ -173,15 +170,52 @@ const BulkAddReelsContent = ({
           return;
       }
       setIsProcessing(true);
+      setProcessingStatus('Initializing OCR engine...');
+      
+      const worker = await createWorker('eng', 1, {
+          logger: m => setProcessingStatus(m.status === 'recognizing text' ? `Recognizing... ${Math.round(m.progress * 100)}%` : m.status)
+      });
+      
       try {
-          const result = await extractReelsFromImage({ photoDataUri: image });
-          setExtractedReels(result.reels);
-          setStep(3);
+          const { data: { text } } = await worker.recognize(image);
+          
+          const reelRegex = /(\d{9,12})/g;
+          const weightRegex = /(?:wt|weight|kg)\s*:?\s*(\d+(?:\.\d+)?)/ig;
+          
+          let reelMatches = [...text.matchAll(reelRegex)];
+          let weightMatches = [...text.matchAll(weightRegex)];
+          
+          const foundReels: ExtractedReel[] = [];
+          
+          // Simple line-by-line association
+          const lines = text.split('\n');
+          lines.forEach(line => {
+              const reelMatch = line.match(/\d{9,12}/);
+              const weightMatch = line.match(/(?:\b\d{3}\.\d{1,2}\b|\b\d{3,4}\b)/); // Common weight patterns
+              
+              if (reelMatch && weightMatch) {
+                   foundReels.push({
+                      reelNumber: reelMatch[0],
+                      reelWeight: parseFloat(weightMatch[0]),
+                  });
+              }
+          });
+
+
+          if (foundReels.length > 0) {
+            setExtractedReels(foundReels);
+            setStep(3);
+          } else {
+             toast({ variant: 'destructive', title: 'Extraction Failed', description: 'Could not find matching reel and weight pairs. Please try a clearer image.'});
+          }
+
       } catch (error) {
           console.error(error);
-          toast({ variant: 'destructive', title: 'Extraction Failed', description: 'Could not extract reel data from the image.'});
+          toast({ variant: 'destructive', title: 'Extraction Failed', description: 'Could not extract text from the image.'});
       } finally {
+          await worker.terminate();
           setIsProcessing(false);
+          setProcessingStatus('');
       }
   }
   
@@ -256,7 +290,12 @@ const BulkAddReelsContent = ({
         </DialogHeader>
         <div className="py-4 flex flex-col items-center justify-center gap-4">
              <div className="w-full aspect-video rounded-md bg-muted relative overflow-hidden">
-                {isCameraView ? (
+                {isProcessing ? (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <p className="font-medium">Processing Image...</p>
+                    <p className="text-sm">{processingStatus}</p>
+                  </div>
+                ) : isCameraView ? (
                      <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
                 ) : image ? (
                     <Image src={image} alt="Reel list preview" layout="fill" className="object-contain" />
@@ -757,3 +796,4 @@ export default function ReelsPage() {
     </div>
   );
 }
+
