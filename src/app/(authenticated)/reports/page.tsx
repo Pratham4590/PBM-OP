@@ -159,7 +159,7 @@ export default function ReportsPage() {
 
 
     autoTable(doc, {
-        head: [["Reel No.", "Paper", "Start Wt", "Cutoff", "Ruled", "Theory", "Diff"]],
+        head: [["Reel No.", "Paper", "Reel Weight", "Cutoff", "Ruled", "Theory", "Diff"]],
         body: tableBody,
         startY: 25,
         margin: { top: 25, right: 10, bottom: 15, left: 10 },
@@ -255,7 +255,7 @@ export default function ReportsPage() {
                 <TableRow>
                   <TableHead>Reel No.</TableHead>
                   <TableHead>Paper Type</TableHead>
-                  <TableHead>Start Wt.</TableHead>
+                  <TableHead>Reel Weight</TableHead>
                   <TableHead>Cutoff</TableHead>
                   <TableHead className="text-right">Sheets Ruled</TableHead>
                   <TableHead className="text-right">Theoretical</TableHead>
