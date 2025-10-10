@@ -129,11 +129,17 @@ export default function ReportsPage() {
     const tableHeader = [["Reel No.", "Paper", "Reel Weight", "Cutoff", "Ruled", "Theory", "Diff"]];
 
     let allEntries: any[] = [];
+    let totalRuled = 0;
+    let totalTheoretical = 0;
+
     filteredData.forEach(ruling => {
       ruling.rulingEntries.forEach(entry => {
         if (itemFilter !== 'all' && entry.itemTypeId !== itemFilter) return;
-
+        
         const difference = entry.sheetsRuled - entry.theoreticalSheets;
+        totalRuled += entry.sheetsRuled;
+        totalTheoretical += entry.theoreticalSheets;
+
         allEntries.push([
           ruling.reelNo,
           getPaperTypeName(ruling.paperTypeId),
@@ -145,11 +151,13 @@ export default function ReportsPage() {
         ]);
       });
     });
-    
+
+    let finalY = (doc as any).lastAutoTable.finalY || 25;
+
     autoTable(doc, {
         head: tableHeader,
         body: allEntries,
-        startY: 25,
+        startY: finalY,
         margin: { top: 25, right: 10, bottom: 15, left: 10 },
         headStyles: { fillColor: [38, 86, 166] },
         didParseCell: (data) => {
@@ -177,6 +185,41 @@ export default function ReportsPage() {
             doc.text(`Page ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
         },
     });
+
+    finalY = (doc as any).lastAutoTable.finalY;
+    const totalDifference = totalRuled - totalTheoretical;
+
+    const summaryBody = [
+        ['Total Ruled Sheets', totalRuled.toLocaleString()],
+        ['Total Theoretical Sheets', Math.round(totalTheoretical).toLocaleString()],
+        ['Total Difference', totalDifference.toLocaleString()],
+    ];
+
+    autoTable(doc, {
+        body: summaryBody,
+        startY: finalY + 10,
+        margin: { left: doc.internal.pageSize.width - 70, right: 10 },
+        theme: 'plain',
+        tableWidth: 'wrap',
+        styles: {
+            fontStyle: 'bold',
+            halign: 'right'
+        },
+        columnStyles: {
+            0: { halign: 'left' }
+        },
+        willDrawCell: (data) => {
+             if (data.row.index === 2 && data.column.index === 1) {
+                const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
+                if (value < 0) {
+                    doc.setTextColor(220, 38, 38); // Red
+                } else {
+                    doc.setTextColor(22, 163, 74); // Green
+                }
+            }
+        },
+    });
+
 
     doc.save("production_report.pdf");
   };
