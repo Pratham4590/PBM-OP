@@ -128,11 +128,17 @@ export default function ReportsPage() {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const tableHeader = [["Reel No.", "Paper", "Reel Weight", "Cutoff", "Ruled", "Theory", "Diff"]];
 
+    const processedReels = new Set<string>();
     let allEntries: any[] = [];
+    let totalReelWeight = 0;
     let totalRuled = 0;
     let totalTheoretical = 0;
 
     filteredData.forEach(ruling => {
+       if (!processedReels.has(ruling.reelId)) {
+        totalReelWeight += ruling.startWeight;
+        processedReels.add(ruling.reelId);
+      }
       ruling.rulingEntries.forEach(entry => {
         if (itemFilter !== 'all' && entry.itemTypeId !== itemFilter) return;
         
@@ -190,6 +196,7 @@ export default function ReportsPage() {
     const totalDifference = totalRuled - totalTheoretical;
 
     const summaryBody = [
+        ['Total Reel Weight', `${totalReelWeight.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`],
         ['Total Ruled Sheets', totalRuled.toLocaleString()],
         ['Total Theoretical Sheets', Math.round(totalTheoretical).toLocaleString()],
         ['Total Difference', totalDifference.toLocaleString()],
@@ -198,7 +205,7 @@ export default function ReportsPage() {
     autoTable(doc, {
         body: summaryBody,
         startY: finalY + 10,
-        margin: { left: doc.internal.pageSize.width - 70, right: 10 },
+        margin: { left: doc.internal.pageSize.width - 80, right: 10 },
         theme: 'plain',
         tableWidth: 'wrap',
         styles: {
@@ -209,7 +216,7 @@ export default function ReportsPage() {
             0: { halign: 'left' }
         },
         willDrawCell: (data) => {
-             if (data.row.index === 2 && data.column.index === 1) {
+             if (data.row.index === 3 && data.column.index === 1) {
                 const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
                 if (value < 0) {
                     doc.setTextColor(220, 38, 38); // Red
