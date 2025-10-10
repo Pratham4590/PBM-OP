@@ -337,5 +337,7 @@ export default function ReportsPage() {
       </Card>
     </>
   );
+}
+    
 
     
