@@ -82,7 +82,7 @@ export default function ReportsPage() {
     }).sort((a, b) => {
         const dateA = a.date instanceof Timestamp ? a.date.toMillis() : new Date(a.date as string).getTime();
         const dateB = b.date instanceof Timestamp ? b.date.toMillis() : new Date(b.date as string).getTime();
-        return dateB - dateA;
+        return dateB - aDate;
     });
   }, [rulings, paperFilter, itemFilter]);
 
@@ -199,8 +199,8 @@ export default function ReportsPage() {
         },
         didDrawPage: (data) => {
             doc.setTextColor(0, 0, 0);
-            doc.setFontSize(20);
-            doc.text("Production Report", data.settings.margin.left, 15);
+            doc.setFontSize(16);
+            doc.text("Pratham Book Manufacturers production report", data.settings.margin.left, 15);
             doc.setFontSize(12);
             doc.text(`Date: ${new Date().toLocaleDateString()}`, data.settings.margin.left, 20);
             const pageCount = doc.internal.getNumberOfPages();
