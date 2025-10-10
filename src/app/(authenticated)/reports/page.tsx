@@ -145,76 +145,38 @@ export default function ReportsPage() {
         ]);
       });
     });
-
-    const totalReelWeight = filteredData.reduce((sum, ruling) => sum + ruling.startWeight, 0);
-    const totalSheetsRuled = allEntries.reduce((sum, row) => sum + parseFloat(row[4].replace(/,/g, '')), 0);
-    const totalTheoreticalSheets = allEntries.reduce((sum, row) => sum + parseFloat(row[5].replace(/,/g, '')), 0);
-    const totalDifference = allEntries.reduce((sum, row) => sum + parseFloat(row[6].replace(/,/g, '')), 0);
     
-    const totalsBody = [
-        ['Total Reel Weight (kg)', totalReelWeight.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})],
-        ['Total Sheets Ruled', totalSheetsRuled.toLocaleString()],
-        ['Total Theoretical Sheets', Math.round(totalTheoreticalSheets).toLocaleString()],
-        ['Total Difference', Math.round(totalDifference).toLocaleString()],
-    ];
-    
-    const pageChunks = [];
-    for (let i = 0; i < allEntries.length; i += 10) {
-        pageChunks.push(allEntries.slice(i, i + 10));
-    }
-    
-    pageChunks.forEach((chunk, index) => {
-        if (index > 0) {
-            doc.addPage();
-        }
-
-        autoTable(doc, {
-            head: tableHeader,
-            body: chunk,
-            startY: 25,
-            margin: { top: 25, right: 10, bottom: 15, left: 10 },
-            headStyles: { fillColor: [38, 86, 166] },
-            didParseCell: (data) => {
-                if (data.column.index >= 4 && data.cell.section === 'body') {
-                    data.cell.styles.halign = 'right';
+    autoTable(doc, {
+        head: tableHeader,
+        body: allEntries,
+        startY: 25,
+        margin: { top: 25, right: 10, bottom: 15, left: 10 },
+        headStyles: { fillColor: [38, 86, 166] },
+        didParseCell: (data) => {
+            if (data.column.index >= 4 && data.cell.section === 'body') {
+                data.cell.styles.halign = 'right';
+            }
+        },
+        willDrawCell: (data) => {
+            if (data.column.index === 6 && data.cell.section === 'body') {
+                const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
+                if (value < 0) {
+                    doc.setTextColor(220, 38, 38); // Red
+                } else {
+                    doc.setTextColor(22, 163, 74); // Green
                 }
-            },
-            willDrawCell: (data) => {
-                if (data.column.index === 6 && data.cell.section === 'body') {
-                    const value = parseFloat(String(data.cell.text).replace(/,/g, ''));
-                    if (value < 0) {
-                        doc.setTextColor(220, 38, 38); // Red
-                    } else {
-                        doc.setTextColor(22, 163, 74); // Green
-                    }
-                }
-            },
-            didDrawPage: (data) => {
-                doc.setTextColor(0, 0, 0);
-                doc.setFontSize(20);
-                doc.text("Production Report", data.settings.margin.left, 15);
-                doc.setFontSize(12);
-                doc.text(`Date: ${new Date().toLocaleDateString()}`, data.settings.margin.left, 20);
-                const pageCount = doc.internal.getNumberOfPages();
-                doc.text(`Page ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
-            },
-        });
+            }
+        },
+        didDrawPage: (data) => {
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(20);
+            doc.text("Production Report", data.settings.margin.left, 15);
+            doc.setFontSize(12);
+            doc.text(`Date: ${new Date().toLocaleDateString()}`, data.settings.margin.left, 20);
+            const pageCount = doc.internal.getNumberOfPages();
+            doc.text(`Page ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
+        },
     });
-
-    const lastTable = (doc as any).lastAutoTable;
-    if (allEntries.length > 0) {
-      autoTable(doc, {
-          body: totalsBody,
-          startY: lastTable.finalY + 5,
-          margin: { left: 10, right: 10 },
-          theme: 'grid',
-          bodyStyles: { fontStyle: 'bold' },
-          columnStyles: {
-            0: { halign: 'left' },
-            1: { halign: 'right' },
-          }
-      });
-    }
 
     doc.save("production_report.pdf");
   };
