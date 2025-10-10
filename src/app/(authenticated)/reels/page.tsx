@@ -2,7 +2,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Camera, X, Upload, ArrowRight, ArrowLeft, Edit } from 'lucide-react';
+import { Plus, Trash2, Camera, X, Upload, ArrowRight, ArrowLeft, Edit, SwitchCamera } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,16 +72,35 @@ const BulkAddReelsContent = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isCameraView, setIsCameraView] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean|null>(null);
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
   const { toast } = useToast();
 
   const selectedPaper = useMemo(() => paperTypes?.find(p => p.id === selectedPaperTypeId), [selectedPaperTypeId, paperTypes]);
+  
+  const getCameras = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter(device => device.kind === 'videoinput');
+      setVideoDevices(videoInputs);
+      if (videoInputs.length > 0 && !selectedDeviceId) {
+        setSelectedDeviceId(videoInputs[0].deviceId);
+      }
+    } catch (error) {
+      console.error('Error enumerating devices:', error);
+    }
+  }, [selectedDeviceId]);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
     if (isCameraView) {
-        const getCameraPermission = async () => {
+        const startStream = async () => {
           try {
-            stream = await navigator.mediaDevices.getUserMedia({video: true});
+            await getCameras();
+            const constraints: MediaStreamConstraints = {
+              video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true
+            };
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
             setHasCameraPermission(true);
 
             if (videoRef.current) {
@@ -97,7 +116,7 @@ const BulkAddReelsContent = ({
             });
           }
         };
-        getCameraPermission();
+        startStream();
     }
     
     return () => {
@@ -108,7 +127,15 @@ const BulkAddReelsContent = ({
         videoRef.current.srcObject = null;
       }
     }
-  }, [isCameraView, toast]);
+  }, [isCameraView, toast, selectedDeviceId, getCameras]);
+
+  const handleSwitchCamera = () => {
+    if (videoDevices.length > 1) {
+      const currentIndex = videoDevices.findIndex(device => device.deviceId === selectedDeviceId);
+      const nextIndex = (currentIndex + 1) % videoDevices.length;
+      setSelectedDeviceId(videoDevices[nextIndex].deviceId);
+    }
+  };
   
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -237,7 +264,12 @@ const BulkAddReelsContent = ({
                         <p>Image preview will appear here</p>
                     </div>
                 )}
-                {image && <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 z-10" onClick={() => setImage(null)}><X className="h-4 w-4"/></Button>}
+                {image && !isCameraView && <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 z-10" onClick={() => setImage(null)}><X className="h-4 w-4"/></Button>}
+                {isCameraView && videoDevices.length > 1 && (
+                    <Button variant="outline" size="icon" className="absolute top-2 right-2 h-9 w-9 z-10" onClick={handleSwitchCamera}>
+                        <SwitchCamera className="h-5 w-5"/>
+                    </Button>
+                )}
              </div>
              {hasCameraPermission === false && isCameraView && (
                 <Alert variant="destructive">
