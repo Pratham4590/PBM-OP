@@ -90,44 +90,46 @@ const BulkAddReelsContent = ({
       console.error('Error enumerating devices:', error);
     }
   }, [selectedDeviceId]);
+  
+  const startStream = useCallback(async () => {
+    let stream: MediaStream | null = null;
+    try {
+      await getCameras();
+      const constraints: MediaStreamConstraints = {
+        video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true
+      };
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setHasCameraPermission(true);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      setHasCameraPermission(false);
+      toast({
+        variant: 'destructive',
+        title: 'Camera Access Denied',
+        description: 'Please enable camera permissions in your browser settings.',
+      });
+    }
+  }, [selectedDeviceId, getCameras, toast]);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
     if (isCameraView) {
-        const startStream = async () => {
-          try {
-            await getCameras();
-            const constraints: MediaStreamConstraints = {
-              video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true
-            };
-            stream = await navigator.mediaDevices.getUserMedia(constraints);
-            setHasCameraPermission(true);
-
-            if (videoRef.current) {
-              videoRef.current.srcObject = stream;
-            }
-          } catch (error) {
-            console.error('Error accessing camera:', error);
-            setHasCameraPermission(false);
-            toast({
-              variant: 'destructive',
-              title: 'Camera Access Denied',
-              description: 'Please enable camera permissions in your browser settings.',
-            });
-          }
-        };
-        startStream();
+      startStream();
     }
     
     return () => {
-      if (stream) {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
-      }
-      if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
     }
-  }, [isCameraView, toast, selectedDeviceId, getCameras]);
+  }, [isCameraView, startStream]);
+
 
   const handleSwitchCamera = () => {
     if (videoDevices.length > 1) {
