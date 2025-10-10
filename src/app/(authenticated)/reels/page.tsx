@@ -415,12 +415,75 @@ const ReelEditForm = ({
 };
 
 
+const ManualAddReelForm = ({
+  paperTypes,
+  onSave,
+  onClose,
+  isSaving,
+}: {
+  paperTypes: PaperType[] | null,
+  onSave: (reel: Partial<Reel>) => void,
+  onClose: () => void,
+  isSaving: boolean,
+}) => {
+  const [reelData, setReelData] = useState<Partial<Reel>>({ weight: undefined, reelNo: '', paperTypeId: ''});
+  const { toast } = useToast();
+
+  const selectedPaper = useMemo(() => paperTypes?.find(p => p.id === reelData.paperTypeId), [reelData.paperTypeId, paperTypes]);
+
+  const handleSave = () => {
+    if (!reelData.paperTypeId || !reelData.reelNo || !reelData.weight || reelData.weight <= 0) {
+      toast({ variant: "destructive", title: "Error", description: "All fields are required."});
+      return;
+    }
+    const dataToSave: Partial<Reel> = {
+      ...reelData,
+      gsm: selectedPaper!.gsm,
+      length: selectedPaper!.length,
+      status: 'Available',
+    };
+    onSave(dataToSave);
+  };
+  
+  return (
+    <>
+      <div className="space-y-4 py-4">
+        <div className="space-y-2">
+          <Label htmlFor="paper-type-manual">Paper Type</Label>
+          <Select
+            value={reelData.paperTypeId}
+            onValueChange={(value) => setReelData(prev => ({...prev, paperTypeId: value}))}
+          >
+            <SelectTrigger id="paper-type-manual" className="h-11"><SelectValue placeholder="Select paper" /></SelectTrigger>
+            <SelectContent>
+              {paperTypes?.map(p => <SelectItem key={p.id} value={p.id}>{p.paperName} ({p.gsm}gsm, {p.length}cm)</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="reel-no-manual">Reel Number</Label>
+          <Input id="reel-no-manual" value={reelData.reelNo || ''} onChange={(e) => setReelData(prev => ({...prev, reelNo: e.target.value}))} placeholder="e.g., R-101" className="h-11" />
+        </div>
+        <div className="space-y-2">
+            <Label htmlFor="weight-manual">Weight (kg)</Label>
+            <Input id="weight-manual" type="number" inputMode="decimal" value={reelData.weight || ''} onChange={(e) => setReelData(prev => ({...prev, weight: parseFloat(e.target.value) || 0}))} className="h-11"/>
+        </div>
+      </div>
+       <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <Button variant="outline" className="w-full h-11" onClick={onClose}>Cancel</Button>
+            <Button onClick={handleSave} disabled={isSaving} className="w-full h-11">{isSaving ? "Saving..." : "Add Reel"}</Button>
+      </DialogFooter>
+    </>
+  )
+}
+
 export default function ReelsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
   
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingReel, setEditingReel] = useState<Reel | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -484,6 +547,21 @@ export default function ReelsPage() {
     }
   };
 
+  const handleManualSaveReel = (reelData: Partial<Reel>) => {
+    if (!firestore || !user || !canEdit) return;
+    setIsSaving(true);
+    const dataWithMeta = {
+      ...reelData,
+      createdBy: user.uid,
+      createdAt: serverTimestamp()
+    }
+    const collectionRef = collection(firestore, 'reels');
+    addDocumentNonBlocking(collectionRef, dataWithMeta);
+    toast({ title: '✅ Reel Added Successfully' });
+    setIsSaving(false);
+    setIsManualModalOpen(false);
+  }
+
   const handleDeleteReel = (id: string) => {
     if (!firestore || !canEdit) return;
     const docRef = doc(firestore, 'reels', id);
@@ -544,16 +622,36 @@ export default function ReelsPage() {
         </div>
         
         {canEdit && (
+          <div className="grid grid-cols-2 gap-2">
             <Dialog open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
                 <DialogTrigger asChild>
                     <Button className="w-full h-12 text-base font-medium">
-                        <Camera className="mr-2 h-5 w-5" /> Add Reels via Camera
+                        <Camera className="mr-2 h-5 w-5" /> AI Entry
                     </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-md w-[95vw] rounded-2xl p-4" onPointerDownOutside={(e) => e.preventDefault()}>
                     <BulkAddReelsContent {...bulkAddProps} />
                 </DialogContent>
             </Dialog>
+             <Dialog open={isManualModalOpen} onOpenChange={setIsManualModalOpen}>
+                <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full h-12 text-base font-medium">
+                        <Plus className="mr-2 h-5 w-5" /> Manual Entry
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm w-[95vw] rounded-2xl p-4">
+                    <DialogHeader>
+                        <DialogTitle>Add Reel Manually</DialogTitle>
+                    </DialogHeader>
+                    <ManualAddReelForm
+                        paperTypes={paperTypes}
+                        onSave={handleManualSaveReel}
+                        onClose={() => setIsManualModalOpen(false)}
+                        isSaving={isSaving}
+                    />
+                </DialogContent>
+            </Dialog>
+          </div>
         )}
 
         {canEdit && editingReel && (
