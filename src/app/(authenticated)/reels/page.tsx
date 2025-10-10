@@ -48,8 +48,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Image from 'next/image';
-import { createWorker } from 'tesseract.js';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { extractReelsFromImage } from '@/ai/flows/extract-reels-flow';
 
 const BulkAddReelsContent = ({
   paperTypes,
@@ -117,7 +117,9 @@ const BulkAddReelsContent = ({
   }, [isCameraView, selectedDeviceId, getCameras, toast]);
 
   useEffect(() => {
-    startStream();
+    if (isCameraView) {
+      startStream();
+    }
     
     return () => {
       if (videoRef.current && videoRef.current.srcObject) {
@@ -125,7 +127,7 @@ const BulkAddReelsContent = ({
         stream.getTracks().forEach(track => track.stop());
       }
     }
-  }, [startStream]);
+  }, [isCameraView, startStream]);
 
 
   const handleSwitchCamera = () => {
@@ -170,50 +172,21 @@ const BulkAddReelsContent = ({
           return;
       }
       setIsProcessing(true);
-      setProcessingStatus('Initializing OCR engine...');
-      
-      const worker = await createWorker('eng', 1, {
-          logger: m => setProcessingStatus(m.status === 'recognizing text' ? `Recognizing... ${Math.round(m.progress * 100)}%` : m.status)
-      });
+      setProcessingStatus('Analyzing image with AI...');
       
       try {
-          const { data: { text } } = await worker.recognize(image);
-          
-          const reelRegex = /(\d{9,12})/g;
-          const weightRegex = /(?:wt|weight|kg)\s*:?\s*(\d+(?:\.\d+)?)/ig;
-          
-          let reelMatches = [...text.matchAll(reelRegex)];
-          let weightMatches = [...text.matchAll(weightRegex)];
-          
-          const foundReels: ExtractedReel[] = [];
-          
-          // Simple line-by-line association
-          const lines = text.split('\n');
-          lines.forEach(line => {
-              const reelMatch = line.match(/\d{9,12}/);
-              const weightMatch = line.match(/(?:\b\d{3}\.\d{1,2}\b|\b\d{3,4}\b)/); // Common weight patterns
-              
-              if (reelMatch && weightMatch) {
-                   foundReels.push({
-                      reelNumber: reelMatch[0],
-                      reelWeight: parseFloat(weightMatch[0]),
-                  });
-              }
-          });
-
-
-          if (foundReels.length > 0) {
-            setExtractedReels(foundReels);
-            setStep(3);
+          const result = await extractReelsFromImage({ photoDataUri: image });
+          if (result && result.reels.length > 0) {
+              setExtractedReels(result.reels.map(r => ({ reelNumber: r.reelNumber, reelWeight: r.reelWeight })));
+              setStep(3);
           } else {
-             toast({ variant: 'destructive', title: 'Extraction Failed', description: 'Could not find matching reel and weight pairs. Please try a clearer image.'});
+             toast({ variant: 'destructive', title: 'Extraction Failed', description: 'Could not find any reel data. Please try a clearer image.'});
           }
 
       } catch (error) {
           console.error(error);
-          toast({ variant: 'destructive', title: 'Extraction Failed', description: 'Could not extract text from the image.'});
+          toast({ variant: 'destructive', title: 'Extraction Failed', description: 'AI agent failed to process the image.'});
       } finally {
-          await worker.terminate();
           setIsProcessing(false);
           setProcessingStatus('');
       }
@@ -797,3 +770,6 @@ export default function ReelsPage() {
   );
 }
 
+
+
+    
